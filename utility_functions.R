@@ -162,6 +162,7 @@ get_locs_of_descendent_tips <- function(node, tree_data) {
 }
 
 # Mapping from unambiguous canton codes to Nextstrain division names
+# Compare https://github.com/nextstrain/ncov-ingest/blob/master/source-data/location_hierarchy.tsv
 kanton_code_dict <- list(
   "AG" = "Aargau",
   "BE" = "Bern",
@@ -169,11 +170,12 @@ kanton_code_dict <- list(
   "BS" = "Basel-Stadt",
   "FR" = "Fribourg",
   "GE" = "Geneva",
-  "VD" = "Vaud",
   "GL" = "Glarus",
   "GR" = "Graubünden",
   "JU" = "Jura",
   "LU" = "Lucerne",
+  "NW" = "Nidwalden",
+  "OB" = "Obwalden",
   "SG" = "Sankt Gallen",
   "SH" = "Schaffhausen",
   "SO" = "Solothurn",
@@ -181,10 +183,15 @@ kanton_code_dict <- list(
   "TG" = "Thurgau",
   "TI" = "Ticino",
   "UR" = "Uri",
+  "VD" = "Vaud",
   "VS" = "Valais",
   "ZG" = "Zug",
   "ZH" = "Zürich",
-  "AR" = "Appenzell")
+  # The following cantons are not in the Nextstrain dataset yet.
+  # The mapping should be adapted once Nextstrain adds them.
+  "AI" = "Appenzell Innerrhoden",
+  "AR" = "Appenzell Ausserrhoden",
+  "NE" = "Neuchâtel")
 
 get_ns_division_from_canton_code <- function(canton_code) {
   if (!(canton_code %in% names(kanton_code_dict))) {
