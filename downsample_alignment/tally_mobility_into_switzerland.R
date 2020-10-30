@@ -5,7 +5,7 @@
 # surrounding Switzerland. I tally arrivals per country per month and add 1 for every existing
 # work permit for Switzerland for that country (i.e. each work permit counts the 
 # same as 1 tourist arrival). Since the data only goes until July, I assume constant mobility 
-# from July through September.
+# from July through present.
 
 require(tidyr)
 require(ggplot2)
@@ -43,14 +43,15 @@ timeframe_row_filter <- !(tourists$year == 2019 & tourists$month < 12) &
   !(tourists$year == 2020 & tourists$month > 7)
 tourists_2 <- tourists[timeframe_row_filter, ]
 
-# Copy-paste July to August and September
+# Copy-paste July to all months until the present
 july_data <- tourists_2[tourists_2$year == 2020 & tourists_2$month == 7, ]
-sept_data <- august_data <- july_data 
-august_data$month <- 8
-sept_data$month <- 9
-august_data$month_name <- "August"
-sept_data$month_name <- "September"
-tourists_3 <- rbind(tourists_2, august_data, sept_data)
+todays_month <- strsplit(x = as.character(Sys.Date()), split = "-")[[1]][2]
+july_data_index <- which(tourists_2$year == 2020 & tourists_2$month == 7)
+fill_data <- tourists_2[rep(july_data_index, each = as.numeric(todays_month) - 7), ]
+fill_data$month <- (7 + 1):todays_month
+month_names <- c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+fill_data$month_name <- month_names[fill_data$month]
+tourists_3 <- rbind(tourists_2, fill_data)
 
 tourists_final <- tourists_3 %>%
   pivot_longer(
@@ -69,14 +70,15 @@ tourists_final <- tourists_3 %>%
 tourists_final$source_country <- gsub(
   tourists_final$source_loc, pattern = "\\.", replacement = " ")
 
-# Copy-paste 2020 Q2 to 2020 Q3
+# Copy-paste 2020 Q2 to 2020 Q3 and Q4
 commuters_q3 <- commuters[, 4]
-commuters_2 <- cbind(commuters, commuters_q3)
-colnames(commuters_2) <- c(colnames(commuters), "X2020Q3")
+commuters_q4 <- commuters[, 4]
+commuters_2 <- cbind(commuters, commuters_q3, commuters_q4)
+colnames(commuters_2) <- c(colnames(commuters), "X2020Q3", "X2020Q4")
 
 commuters_3 <- commuters_2 %>%
   pivot_longer(
-    cols = 2:5,
+    cols = 2:6,
     names_to = "quarter",
     values_to = "n_commuter_permits") %>%
   filter(X != "Andere") %>%
@@ -131,7 +133,7 @@ arrivals_2$source_location <- factor(
 arrivals_2 <- arrivals_2 %>% 
   mutate(
     caveat = ifelse(
-      test = (year = 2020 & month %in% c(8, 9)),
+      test = (year = 2020 & month %in% (7 + 1):todays_month),
       yes = "data copied from last recorded month",
       no = "data from FSO"))
 
