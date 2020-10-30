@@ -183,7 +183,8 @@ kanton_code_dict <- list(
   "UR" = "Uri",
   "VS" = "Valais",
   "ZG" = "Zug",
-  "ZH" = "Zürich")
+  "ZH" = "Zürich",
+  "AR" = "Appenzell")
 
 get_ns_division_from_canton_code <- function(canton_code) {
   if (!(canton_code %in% names(kanton_code_dict))) {
