@@ -3,15 +3,15 @@ set -euo pipefail
 
 while getopts i:t:f:m:r:x:n: flag
 do
-	case "${flag}" in
-		i) INPUT_DIR=${OPTARG};;
-		t) TMP_DIR=${OPTARG};;
-		f) FASTA_FN=${OPTARG};;
-		m) METADATA_FN=${OPTARG};;
-		r) REFERENCE_FN=${OPTARG};;
-		x) MAFFT=${OPTARG};;
-		n) NUMBER_WORKERS=${OPTARG};;
-	esac
+    case "${flag}" in
+        i) INPUT_DIR=${OPTARG};;
+        t) TMP_DIR=${OPTARG};;
+        f) FASTA_FN=${OPTARG};;
+        m) METADATA_FN=${OPTARG};;
+        r) REFERENCE_FN=${OPTARG};;
+        x) MAFFT=${OPTARG};;
+        n) NUMBER_WORKERS=${OPTARG};;
+    esac
 done
 
 echo "Unzipping data"
@@ -33,29 +33,29 @@ echo "Aligning each split file"
 
 i=1
 for FILE in ${TMP_DIR}/nextdata_splits/*.fasta; do
-	# This line ensures that at most NUMBER_WORKERS processes are run in parallel. The jobs are run in
-	# NUMBER_WORKERS-sized batches, this means that not always NUMBER_WORKERS processes will be running.
-	if ((i==0)) ; then
-		wait
-	fi
-	i=$(((i+1)%NUMBER_WORKERS))
+    # This line ensures that at most NUMBER_WORKERS processes are run in parallel. The jobs are run in
+    # NUMBER_WORKERS-sized batches, this means that not always NUMBER_WORKERS processes will be running.
+    if ((i==0)) ; then
+        wait
+    fi
+    i=$(((i+1)%NUMBER_WORKERS))
 
-	FN=$(basename -- "$FILE")
-	FN="${FN%.fasta}"
-	$MAFFT \
-		--addfragments $FILE \
-		--keeplength \
-		--auto \
-		${INPUT_DIR}/${REFERENCE_FN} > ${TMP_DIR}/nextdata_alignments/${FN}.fasta &
+    FN=$(basename -- "$FILE")
+    FN="${FN%.fasta}"
+    $MAFFT \
+        --addfragments $FILE \
+        --keeplength \
+        --auto \
+        ${INPUT_DIR}/${REFERENCE_FN} > ${TMP_DIR}/nextdata_alignments/${FN}.fasta &
 done
 wait
 
 echo "Removing reference from each split alignment"
 for FILE in ${TMP_DIR}/nextdata_alignments/*; do
-	FN=$(basename -- "$FILE")
-	FN="${FN%.fasta}"
-	awk 'BEGIN { RS = ">";FS = "\n" } {if (NR>2) {print ">"$0}}' $FILE > ${TMP_DIR}/nextdata_alignments_noref/${FN}.fasta
-	# There is a blank first record, second record is the reference, all records thereafter are sequences we want to keep
+    FN=$(basename -- "$FILE")
+    FN="${FN%.fasta}"
+    awk 'BEGIN { RS = ">";FS = "\n" } {if (NR>2) {print ">"$0}}' $FILE > ${TMP_DIR}/nextdata_alignments_noref/${FN}.fasta
+    # There is a blank first record, second record is the reference, all records thereafter are sequences we want to keep
 done
 
 echo "Making master monster alignment"
