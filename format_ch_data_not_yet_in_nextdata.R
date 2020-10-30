@@ -34,7 +34,7 @@ system(command = paste("mkdir -p", OUTDIR))
 
 # Load data
 nextmeta <- read.delim(file = NEXTMETA, sep = "\t", stringsAsFactors = F)
-our_metadata <- read.delim(file = OUR_SEQ_METADATA, sep = "\t", stringsAsFactors = F)
+our_metadata <- read.delim(file = OUR_SEQ_METADATA, sep = ";", stringsAsFactors = F)
 our_seqs <- ape::read.FASTA(file = OUR_SEQS)
 
 # Find samples that haven't been released yet but pass QC ----------------------
@@ -102,7 +102,7 @@ our_seqs_to_add_metadata_ns_format <- data.frame(
   virus = "ncov",
   gisaid_epi_isl = "TBD",
   genbank_accession = "?",
-  date = as.Date(our_seqs_to_add_metadata$Order.date, format = "%d.%m.%Y"),
+  date = as.Date(our_seqs_to_add_metadata$Order.date, format = "%Y-%m-%d"),
   region = "Europe",
   country = "Switzerland",
   division = our_seqs_to_add_metadata$division,
