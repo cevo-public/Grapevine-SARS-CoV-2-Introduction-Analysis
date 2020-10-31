@@ -32,6 +32,10 @@ input
 
 The script downsample_alignment/tally_mobility_into_switzerland.R should be updated as soon as new quarterly statistics for (01) and (02) are available. The current script extrapolates data from July 2020 to the current month and will break after Dec. 2020 as currently coded.
 
+Figure_2.R also relies on integer weeks being weeks since 1. Jan 2020 and will break when the year changes.
+
+infectious_pop_by_country_month.txt only has information through October.
+
 ### Required Programs
 
 Nextstrain's [ncov repository](https://github.com/nextstrain/ncov) is needed. It should be cloned into this directory.
@@ -45,6 +49,10 @@ The following programs and commands have to be installed:
 - mafft
 
 The paths to iqtree and mafft can be changed in `main.sh`.
+R and python are already installed on Euler and can be loaded with the commands:
+env2lmod
+module load r/4.0.2
+module load python/3.7.4
 
 A list of required R packages are listed in `check-packages.R`.
 
