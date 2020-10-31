@@ -68,7 +68,7 @@ foldersThatShouldBeEmpty=(
 for p in ${foldersThatShouldBeEmpty[@]} ; do
     if [ -d $p ] && [ "$(ls -A ${p})" ] ; then
         echo "Directory already contains files: ${p}"
-        # exit 1
+        exit 1
     fi
 done
 
@@ -217,7 +217,7 @@ echo "--- Downsample master alignment for priority, context, Swiss seqs ---"
 TMP_ALIGNMENTS=$TMP_DIR/alignments
 N_CONTEXT_SEQS=1500  # actually results in ~1000 context seqs
 N_MOST_SIMILAR_SEQS=1000
-MAX_YEAR_MONTH_DEC=2020.8
+MAX_YEAR_MONTH_DEC=2020.11
 
 mkdir -p $TMP_EST_IMPORTS
 
