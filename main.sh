@@ -217,7 +217,6 @@ echo "--- Downsample master alignment for priority, context, Swiss seqs ---"
 TMP_ALIGNMENTS=$TMP_DIR/alignments
 N_CONTEXT_SEQS=1500  # actually results in ~1000 context seqs
 N_MOST_SIMILAR_SEQS=1000
-MAX_YEAR_MONTH_DEC=2020.11
 
 mkdir -p $TMP_EST_IMPORTS
 
@@ -230,7 +229,7 @@ for PADDING in 0 1; do
         --approxncontextseqs $N_CONTEXT_SEQS \
         --outdirdata $TMP_EST_IMPORTS \
         --outdirfigs $TMP_EST_IMPORTS/figures \
-        --maxyearmonthdec $MAX_YEAR_MONTH_DEC
+        --maxdate $MAX_DATE
     " &
 done
 wait
@@ -246,7 +245,7 @@ for REP in 1 2 3; do
         --prefix $ALN_PREFIX \
         --ncontextsamples $TMP_EST_IMPORTS/samples_per_country_w_import_padding_${PADDING}.txt \
         --outdir $TMP_ALIGNMENTS/${ALN_PREFIX} \
-        --maxyearmonthdec $MAX_YEAR_MONTH_DEC
+        --maxdate $MAX_DATE
     " &
 done
 wait
@@ -262,7 +261,7 @@ for REP in 1; do
         --prefix $ALN_PREFIX \
         --ncontextsamples $TMP_EST_IMPORTS/samples_per_country_w_import_padding_${PADDING}.txt \
         --outdir $TMP_ALIGNMENTS/${ALN_PREFIX} \
-        --maxyearmonthdec $MAX_YEAR_MONTH_DEC
+        --maxdate $MAX_DATE
     " &
 done
 wait

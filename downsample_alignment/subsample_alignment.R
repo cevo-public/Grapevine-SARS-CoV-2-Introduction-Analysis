@@ -10,6 +10,7 @@ require(dplyr)
 require(ape)
 require(ggplot2)
 require(argparse)
+require(lubridate)
 
 # WORKDIR <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/analyses/2020-09-15_ch_cluster_analysis"
 # METADATA <- paste(WORKDIR, "data/metadata_all.txt", sep = "/")
@@ -26,7 +27,7 @@ parser$add_argument("--nsimseqs", type="integer")
 parser$add_argument("--ncontextsamples", type="character")
 parser$add_argument("--prefix", type="character")
 parser$add_argument("--outdir", type = "character")
-parser$add_argument("--maxyearmonthdec", type="double")
+parser$add_argument("--maxdate", type="character")
 
 args <- parser$parse_args()
 
@@ -36,7 +37,7 @@ N_MOST_SIMILAR_SEQS <- args$nsimseqs
 N_CONTEXT_SEQ_DATA <- args$ncontextsamples
 PREFIX <- args$prefix
 OUTDIR <- args$outdir
-MAX_YEAR_MONTH_DEC <- args$maxyearmonthdec
+MAX_DATE <- parse_date_time(args$maxdate, "%y-%m-%d")
 
 # Hardcoded things
 OUTGROUP_IDS <- c("Wuhan/Hu-1/2019",  "Wuhan/WH01/2019")
@@ -85,9 +86,9 @@ if (dir.exists(OUTDIR)) {
   # Load data
   metadata <- read.delim(file = METADATA, stringsAsFactors = F, sep = "\t", quote = "")
   samples_per_country_month <- read.delim(file = N_CONTEXT_SEQ_DATA, stringsAsFactors = F, sep = "\t")
-  
-  metadata$year_month_dec <- as.numeric(gsub(x = metadata$year_month, pattern = "-", replacement = "."))
-  metadata <- metadata %>% filter(year_month_dec <= MAX_YEAR_MONTH_DEC)
+
+  metadata$year_month_date <- parse_date_time(metadata$year_month, "%y-%m")
+  metadata <- metadata %>% filter(year_month_date <= MAX_DATE)
   
   # Select top priority sequences
   priority_seq_data <- metadata %>%

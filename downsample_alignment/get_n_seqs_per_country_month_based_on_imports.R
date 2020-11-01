@@ -4,6 +4,7 @@ require(ggplot2)
 require(ggrepel)
 require(argparse)
 require(dplyr)
+require(lubridate)
 
 # WORKDIR <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/analyses/2020-09-29_ch_cluster_analysis_better_downsampling"
 # IMPORTS_PER_COUNTRY_MONTH <- paste(WORKDIR, "data/est_imports/estimated_imports_per_country_month.txt", sep = "/")
@@ -12,7 +13,7 @@ require(dplyr)
 # OUTDIR <- paste(WORKDIR, "figures/n_samples", sep = "/")
 # PADDING <- 1
 # N_CONTEXT_SEQS <- 1000 # try out different values until approx. correct # seqs sampled (not exact b/c of rounding # imports)
-# MAX_YEAR_MONTH_DEC <- 2020.8
+# MAX_DATE <- 2020-08
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--importsdata", type="character")
@@ -21,7 +22,7 @@ parser$add_argument("--padding", type="integer")
 parser$add_argument("--approxncontextseqs", type="integer")
 parser$add_argument("--outdirdata", type="character")
 parser$add_argument("--outdirfigs", type="character")
-parser$add_argument("--maxyearmonthdec", type="double")
+parser$add_argument("--maxdate", type="character")
 
 args <- parser$parse_args()
 
@@ -31,17 +32,17 @@ PADDING <- args$padding
 N_CONTEXT_SEQS <- args$approxncontextseqs
 OUTDIR_DATA <- args$outdirdata
 OUTDIR <- args$outdirfigs
-MAX_YEAR_MONTH_DEC <- args$maxyearmonthdec
+MAX_DATE <- parse_date_time(args$maxdate, "%y-%m-%d")
 
 system(command = paste("mkdir -p", OUTDIR))
 
 # Load data
 metadata <- read.table(file = METADATA, sep = "\t", quote = "", fill = T, header = T, stringsAsFactors = F)
 imports <- read.delim(file = IMPORTS_PER_COUNTRY_MONTH, stringsAsFactors = F, sep = "\t")
-imports$year_month_dec <- as.numeric(gsub(x = imports$year_month, pattern = "-", replacement = "."))
+imports$year_month_date <- parse_date_time(imports$year_month, "%y-%m")
 
 # Divide total # context sequences between countries according to # cases per country month
-imports <- imports %>% filter(year_month_dec <= MAX_YEAR_MONTH_DEC)
+imports <- imports %>% filter(year_month_date <= MAX_DATE)
 
 imports$est_n_imports_padded <- imports$est_n_imports + PADDING
 imports$n_seqs_ideal <- round(
@@ -69,7 +70,7 @@ is_first <- T
 for (country_c in unique(sampling_info$country_recoded)) {
   sampling_info_i <- sampling_info %>% 
     filter(country_recoded == country_c) %>%
-    arrange(year_month_dec)
+    arrange(year_month_date)
   for (j in 1:(nrow(sampling_info_i) - 1)) {
     n_missing <- sampling_info_i[j, "n_seqs_ideal"] - sampling_info_i[j, "n_seqs_accounted_for"]
     k <- j + 1
@@ -92,7 +93,7 @@ is_first <- T
 for (country_c in unique(sampling_info_fill_forward$country_recoded)) {
   sampling_info_i <- sampling_info_fill_forward %>% 
     filter(country_recoded == country_c) %>%
-    arrange(year_month_dec)
+    arrange(year_month_date)
   for (j in nrow(sampling_info_i):2) {
     n_missing <- sampling_info_i[j, "n_seqs_ideal"] - sampling_info_i[j, "n_seqs_accounted_for"]
     k <- j - 1
