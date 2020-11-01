@@ -130,7 +130,7 @@ cat ${INPUT_DIR}/pangolin/consensus_data_for_release/*/ch_filtered.fasta >> $TMP
 bsub -K -R "rusage[mem=16384]" -o $LOG_DIR/lsf-job.%J.format_ch_data_not_yet_in_nextdata.log "\
 Rscript $SCRIPT_DIR/format_ch_data_not_yet_in_nextdata.R \
     --ourseqsreleased $TMP_DIR/our_qcd_seqs.fasta \
-    --ourseqsmetadata $INPUT_DIR/viollier_merged_metadata.txt \
+    --ourseqsmetadata $INPUT_DIR/pangolin/viollier_merged_metadata.txt \
     --nextmeta $TMP_DIR/$NEXTMETA_FN \
     --outdir $TMP_DIR \
     --utilityfunctions $SCRIPT_DIR/utility_functions.R
