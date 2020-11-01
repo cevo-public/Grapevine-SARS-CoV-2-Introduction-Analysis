@@ -15,8 +15,7 @@ MAX_DATE=2020-10-29
 IQTREE=~/lib/iqtree-2.1.2-Linux/bin/iqtree2
 MAFFT=~/lib/mafft-linux64/mafft.bat
 
-# If an email address is provided, a notification mail will be sent once the script has finished successfully.
-# Attention: Currently, it might not send an email if an error occurs!
+# If an email address is provided, a notification mail will be sent once the script has finished.
 NOTIFICATION_EMAIL=
 
 
@@ -96,6 +95,21 @@ fi
 
 # ------------------------------------------------------
 # Basic preparations
+
+# Send notification email
+function onexit()
+{
+    code=$?
+    if [ $code -eq 0 ] ; then
+        cat ${SCRIPT_DIR}/notification_email_success.txt | sendmail $NOTIFICATION_EMAIL
+    else
+        cat ${SCRIPT_DIR}/notification_email_failure.txt | sed "s/_CODE_/${code}/" | sendmail $NOTIFICATION_EMAIL
+    fi
+    echo "Notification email sent to ${NOTIFICATION_EMAIL}"
+}
+if [ ! -z $NOTIFICATION_EMAIL ] ; then
+    trap onexit EXIT
+fi
 
 # Useful variables
 LOG_DIR=$OUTPUT_DIR/logs
@@ -496,8 +510,3 @@ Rscript $SCRIPT_DIR/analyze_tree/table_cluster_stats.R \
 echo "--- Finished successfully ---"
 
 # TODO: Copy intersting files to the output folder
-
-if [ ! -z $NOTIFICATION_EMAIL ] ; then
-    sendmail $NOTIFICATION_EMAIL < $SCRIPT_DIR/notification_email.txt
-    echo "Notification email sent to ${NOTIFICATION_EMAIL}"
-fi

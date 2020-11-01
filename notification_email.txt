@@ -1,6 +1,0 @@
-Subject: CH sequence analysis pipeline has finished!
-
-CH sequence analysis pipeline has finished!
-
-Best wishes,
-Your bash script via Euler

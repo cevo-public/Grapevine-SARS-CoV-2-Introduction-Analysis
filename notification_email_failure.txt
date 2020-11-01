@@ -1,0 +1,6 @@
+Subject: CH sequence analysis pipeline exited with errors
+
+Exit code: _CODE_
+
+Best wishes,
+Your bash script via Euler
