@@ -103,6 +103,8 @@ main.sh
 │   ├─16- tmp/qc_master_alignment/alignment_filtered_masked.fasta
 │   ├─17- tmp/qc_master_alignment/diagnostic/
 │   ├─18- tmp/qc_master_alignment/alignment_filtered2_masked.fasta
+│   ├─18.1- swiss_alignment_filtered2_masked_oneline.fasta
+│   ├─18.2- context_alignment_filtered2_masked_oneline.fasta
 │   ├─19- tmp/qc_master_alignment/priorities.txt
 ├── downsample_alignment/tally_mobility_into_switzerland.R 
 │   ├─20- est_imports/travel_per_country_month.txt
@@ -154,7 +156,7 @@ main.sh
 - (15) is downloaded from the problematic sites repo provided by De Maio et al.
 - (16) is (14) with problematic sites masked out.
 - (17) are the results of running the Nexstrain diagnostic script.
-- (18) is (16) with problematic sequenced identified by the Nextstrain diagnostic script filtered out.
+- (18) is (16) with problematic sequenced identified by the Nextstrain diagnostic script filtered out. (18.1) and (18.2) are (18) divided into only Swiss and only non-Swiss sequences.
 - (19) is a list of foreign sequences genetically similar to Swiss sequences.
 - (20) are estiamates of the number of travel arrivals into Switzerland by month.
 - (22) is downloaded from the ECDC.
