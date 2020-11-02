@@ -10,31 +10,29 @@ The script expects an input folder with the following files:
 input
 ├── est_imports
 │   ├─01─ FSO_grenzgaenger_statistics_clean.csv
-│   ├─02─ FSO_tourist_arrival_statistics_clean.csv
-│   ├─03─ infectious_pop_by_country_month.txt
-│   └─04─ travel_per_country_month.txt
+│   └─02─ FSO_tourist_arrival_statistics_clean.csv
 ├── pangolin
-│   ├─05─ consensus_data_for_release
+│   ├─03─ consensus_data_for_release
 │   │  └── ...
-│   └─06─ viollier_merged_metadata.txt
-├─07─ metadata_2020-XX-XX_XX-XX.tsv.gz
-├─08─ reference.fasta
-├─09─ reference.gb
-└─10─ sequences_2020-XX-XX_XX-XX.fasta.gz
+│   └─04─ viollier_merged_metadata.txt
+├─05─ metadata_2020-XX-XX_XX-XX.tsv.gz
+├─06─ reference.fasta
+├─07─ reference.gb
+└─08─ sequences_2020-XX-XX_XX-XX.fasta.gz
 ```
 
-- The files (01) to (04) are (somehow) generated from the data from https://www.bfs.admin.ch/bfs/en/home/statistics/tourism.assetdetail.14167010.html and https://www.bfs.admin.ch/bfs/en/home/statistics/work-income.assetdetail.13647546.html.
-- (05) and (06) contains the Swiss sequences that have not been released yet.
-- (07) and (10) can be downloaded from GISAID.
-- (08) and (09) are differently-formatted copies of the reference genome which can be downloaded from https://www.ncbi.nlm.nih.gov/nuccore/MN908947
+- The files (01) and (02) are (somehow) generated from the data from https://www.bfs.admin.ch/bfs/en/home/statistics/tourism.assetdetail.14167010.html and https://www.bfs.admin.ch/bfs/en/home/statistics/work-income.assetdetail.13647546.html.
+- (03) and (04) contains the Swiss sequences that have not been released yet.
+- (05) and (08) can be downloaded from GISAID.
+- (06) and (07) are differently-formatted copies of the reference genome which can be downloaded from https://www.ncbi.nlm.nih.gov/nuccore/MN908947
 
 ### Fragile components
 
-The script downsample_alignment/tally_mobility_into_switzerland.R should be updated as soon as new quarterly statistics for (01) and (02) are available. The current script extrapolates data from July 2020 to the current month and will break after Dec. 2020 as currently coded.
+The script `downsample_alignment/tally_mobility_into_switzerland.R` should be updated as soon as new quarterly statistics for (01) and (02) are available. The current script extrapolates data from July 2020 to the current month and will break after Dec. 2020 as currently coded.
 
 Figure_2.R also relies on integer weeks being weeks since 1. Jan 2020 and will break when the year changes.
 
-infectious_pop_by_country_month.txt only has information through October.
+`infectious_pop_by_country_month.txt` only has information through October.
 
 ### Required Programs
 
