@@ -48,8 +48,6 @@ requiredFiles=(
     "${INPUT_DIR}/${REFERENCE_NCOV_FN}"
     "$INPUT_DIR/est_imports/FSO_tourist_arrival_statistics_clean.csv"
     "$INPUT_DIR/est_imports/FSO_grenzgaenger_statistics_clean.csv"
-    "$INPUT_DIR/est_imports/infectious_pop_by_country_month.txt"
-    "$INPUT_DIR/est_imports/travel_per_country_month.txt"
     "$INPUT_DIR/pangolin/viollier_merged_metadata.txt"
 )
 for p in ${requiredFiles[@]} ; do
@@ -215,8 +213,8 @@ Rscript $SCRIPT_DIR/downsample_alignment/est_avg_infectious_cases_per_country_mo
 
 bsub -K -R "rusage[mem=2048]" -o $LOG_DIR/lsf-job.%J.estimate_n_imports_per_country_month.log "\
 Rscript $SCRIPT_DIR/downsample_alignment/estimate_n_imports_per_country_month.R \
-    --infectiouspopdata $INPUT_DIR/est_imports/infectious_pop_by_country_month.txt \
-    --arrivaldata $INPUT_DIR/est_imports/travel_per_country_month.txt \
+    --infectiouspopdata $TMP_EST_IMPORTS/infectious_pop_by_country_month.txt \
+    --arrivaldata $TMP_EST_IMPORTS/travel_per_country_month.txt \
     --prioritydata $TMP_QC/priorities.txt \
     --metadata $TMP_DIR/nextmeta_with_unreleased.tsv \
     --swissseqs $TMP_QC/swiss_alignment_filtered2_masked_oneline.fasta \

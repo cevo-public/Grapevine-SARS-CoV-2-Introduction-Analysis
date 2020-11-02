@@ -10,7 +10,7 @@ The script expects an input folder with the following files:
 input
 ├── est_imports
 │   ├─01─ FSO_grenzgaenger_statistics_clean.csv
-│   ├─02─ FSO_tourist_arrival_statistics_clean.csv
+│   └─02─ FSO_tourist_arrival_statistics_clean.csv
 ├── pangolin
 │   ├─03─ consensus_data_for_release
 │   │  └── ...
@@ -28,11 +28,11 @@ input
 
 ### Fragile components
 
-The script downsample_alignment/tally_mobility_into_switzerland.R should be updated as soon as new quarterly statistics for (01) and (02) are available. The current script extrapolates data from July 2020 to the current month and will break after Dec. 2020 as currently coded.
+The script `downsample_alignment/tally_mobility_into_switzerland.R` should be updated as soon as new quarterly statistics for (01) and (02) are available. The current script extrapolates data from July 2020 to the current month and will break after Dec. 2020 as currently coded.
 
 Figure_2.R also relies on integer weeks being weeks since 1. Jan 2020 and will break when the year changes.
 
-infectious_pop_by_country_month.txt only has information through October.
+`infectious_pop_by_country_month.txt` only has information through October.
 
 ### Required Programs
 
