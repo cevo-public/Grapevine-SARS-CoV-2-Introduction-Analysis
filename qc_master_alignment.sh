@@ -77,6 +77,10 @@ python3 $MASK_SITES_SCRIPT \
 
 echo "Running nextstrain diagnostic tool"
 mkdir -p $TMP_DIR/diagnostic
+
+# Since I've already length-filtered and want to be more lenient with Swiss seqs, reset length criteria
+sed -i 's/no_data_cutoff = 3000/no_data_cutoff = 10000/' $NCOVDIR/scripts/diagnostic.py
+
 python3 $NCOVDIR/scripts/diagnostic.py \
     --alignment $TMP_DIR/alignment_filtered_masked.fasta \
     --metadata $METADATA \
