@@ -138,34 +138,34 @@ main.sh
 |   ├─42-  tmp/cluster_stats/$PREFIX_cluster_stats.txt
 ```
 
-(01) is a directory containing input file (08 - sequences_2020-XX-XX_XX-XX.fasta) split into 150-sequence chunks for quicker alignment. 
-(02) are the sequences in (01) aligned.
-(03) are the alignments from (02) with the reference sequence removed.
-(04) is the final, aligned version of input file (08 - sequences_2020-XX-XX_XX-XX.fasta).
-(05) are all the quality-controlled sequences we have released to GISAID concatenated into a single file.
-(06) are the quality-controlled sequences we have released to GISAID but which aren't included in input file (08 - sequences_2020-XX-XX_XX-XX.fasta) yet.
-(07) is the metadata for sequences in (06).
-(08) is (06) aligned.
-(09) is (08) with the reference sequence removed.
-(10) is input file (05─ metadata_2020-XX-XX_XX-XX.tsv) and (07) concatenated.
-(11) is (04) and (09) concatenated.
-(12) and (13) are downloaded from the Nextstrain ncov repository.
-(14) is (10) with short sequences and bad sequences filtered out.
-(15) is downloaded from the problematic sites repo provided by De Maio et al.
-(16) is (14) with problematic sites masked out.
-(17) are the results of running the Nexstrain diagnostic script.
-(18) is (16) with problematic sequenced identified by the Nextstrain diagnostic script filtered out.
-(19) is a list of foreign sequences genetically similar to Swiss sequences.
-(20) are estiamates of the number of travel arrivals into Switzerland by month.
-(22) is downloaded from the ECDC.
-(23) are estimates of the average percentage of source populations infectious for each month.
-(26) are estimates of the number of imports in Switzerland per month based on (20) and (23).
-(28) are files containing the number of sequences to select per country and month based on (26) and a specified padding for estimated imports per month.
-(31 - 34) are the alignment and metadata files for tree-building, including foreign priority & context sequence sets as well as Swiss sequences. $PREFIX=rep_X_n_sim_800_n_imports_padded_X.
-(35) are the result of tree-building based on (31).
-(37) a list of outgroup sequences to root the tree with $PREFIX by. (36) is a visualization of the clades included in (37).
-(38) are the results of rooting and least-squares dating based on (35) and (37).
-(39) are clusters defined to be Swiss transmission chains from the tree and under the assumptions specified in $PREFIX.
-(40) is the tree data specified by $PREFIX with cluster defined as specified in PREFIX with ancestral states reconstructed at internal nodes.
-(41) are versions of (39) with different variations on the cluster definition.
-(42) are cluster summary statistics calculated from (41).
+- (01) is a directory containing input file (08 - sequences_2020-XX-XX_XX-XX.fasta) split into 150-sequence chunks for quicker alignment. 
+- (02) are the sequences in (01) aligned.
+- (03) are the alignments from (02) with the reference sequence removed.
+- (04) is the final, aligned version of input file (08 - sequences_2020-XX-XX_XX-XX.fasta).
+- (05) are all the quality-controlled sequences we have released to GISAID concatenated into a single file.
+- (06) are the quality-controlled sequences we have released to GISAID but which aren't included in input file (08 - sequences_2020-XX-XX_XX-XX.fasta) yet.
+- (07) is the metadata for sequences in (06).
+- (08) is (06) aligned.
+- (09) is (08) with the reference sequence removed.
+- (10) is input file (05─ metadata_2020-XX-XX_XX-XX.tsv) and (07) concatenated.
+- (11) is (04) and (09) concatenated.
+- (12) and (13) are downloaded from the Nextstrain ncov repository.
+- (14) is (10) with short sequences and bad sequences filtered out.
+- (15) is downloaded from the problematic sites repo provided by De Maio et al.
+- (16) is (14) with problematic sites masked out.
+- (17) are the results of running the Nexstrain diagnostic script.
+- (18) is (16) with problematic sequenced identified by the Nextstrain diagnostic script filtered out.
+- (19) is a list of foreign sequences genetically similar to Swiss sequences.
+- (20) are estiamates of the number of travel arrivals into Switzerland by month.
+- (22) is downloaded from the ECDC.
+- (23) are estimates of the average percentage of source populations infectious for each month.
+- (26) are estimates of the number of imports in Switzerland per month based on (20) and (23).
+- (28) are files containing the number of sequences to select per country and month based on (26) and a specified padding for estimated imports per month.
+- (31 - 34) are the alignment and metadata files for tree-building, including foreign priority & context sequence sets as well as Swiss sequences. $PREFIX=rep_X_n_sim_800_n_imports_padded_X.
+- (35) are the result of tree-building based on (31).
+- (37) a list of outgroup sequences to root the tree with $PREFIX by. (36) is a visualization of the clades included in (37).
+- (38) are the results of rooting and least-squares dating based on (35) and (37).
+- (39) are clusters defined to be Swiss transmission chains from the tree and under the assumptions specified in $PREFIX.
+- (40) is the tree data specified by $PREFIX with cluster defined as specified in PREFIX with ancestral states reconstructed at internal nodes.
+- (41) are versions of (39) with different variations on the cluster definition.
+- (42) are cluster summary statistics calculated from (41).
