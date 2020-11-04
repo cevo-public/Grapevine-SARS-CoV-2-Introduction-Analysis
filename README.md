@@ -11,20 +11,15 @@ input
 ├── est_imports
 │   ├─01─ FSO_grenzgaenger_statistics_clean.csv
 │   └─02─ FSO_tourist_arrival_statistics_clean.csv
-├── pangolin
-│   ├─03─ consensus_data_for_release
-│   │  └── ...
-│   └─04─ viollier_merged_metadata.txt
-├─05─ metadata_2020-XX-XX_XX-XX.tsv.gz
-├─06─ reference.fasta
-├─07─ reference.gb
-└─08─ sequences_2020-XX-XX_XX-XX.fasta.gz
+├─03─ metadata_2020-XX-XX_XX-XX.tsv.gz
+├─04─ reference.fasta
+├─05─ reference.gb
+└─06─ sequences_2020-XX-XX_XX-XX.fasta.gz
 ```
 
 - The files (01) and (02) are (somehow) generated from the data from https://www.bfs.admin.ch/bfs/en/home/statistics/tourism.assetdetail.14167010.html and https://www.bfs.admin.ch/bfs/en/home/statistics/work-income.assetdetail.13647546.html.
-- (03) and (04) contains the Swiss sequences that have not been released yet.
-- (05) and (08) can be downloaded from GISAID.
-- (06) and (07) are differently-formatted copies of the reference genome which can be downloaded from https://www.ncbi.nlm.nih.gov/nuccore/MN908947
+- (03) and (06) can be downloaded from GISAID.
+- (04) and (05) are differently-formatted copies of the reference genome which can be downloaded from https://www.ncbi.nlm.nih.gov/nuccore/MN908947
 
 ### Fragile components
 
@@ -87,14 +82,6 @@ main.sh
 |   ├─02- tmp/nextdata_alignments.tar.gz
 |   ├─03- tmp/nextdata_alignments_noref.tar.gz
 |   ├─04- tmp/nextdata_alignment.fasta
-├──05- tmp/our_qcd_seqs.fasta
-├── format_ch_data_not_yet_in_nextdata.R
-│   ├─06- our_seqs_to_add_to_nextdata.fasta
-│   ├─07- our_seqs_to_add_to_nextdata.tsv
-├──08- tmp/our_seqs_to_add_to_nextdata_aligned.fasta
-├──09- tmp/our_seqs_to_add_to_nextdata_aligned_noref.fasta
-├──10- nextmeta_with_unreleased.tsv
-├──11- nextdata_with_unreleased_aligned.fasta
 ├── qc_master_alignment.sh
 │   ├─12- tmp/qc_master_alignment/include.txt
 │   ├─13- tmp/qc_master_alignment/exclude.txt
@@ -140,19 +127,12 @@ main.sh
 |   ├─42-  tmp/cluster_stats/$PREFIX_cluster_stats.txt
 ```
 
-- (01) is a directory containing input file (08 - sequences_2020-XX-XX_XX-XX.fasta) split into 150-sequence chunks for quicker alignment. 
+- (01) is a directory containing input file (06 - sequences_2020-XX-XX_XX-XX.fasta) split into 150-sequence chunks for quicker alignment. 
 - (02) are the sequences in (01) aligned.
 - (03) are the alignments from (02) with the reference sequence removed.
-- (04) is the final, aligned version of input file (08 - sequences_2020-XX-XX_XX-XX.fasta).
-- (05) are all the quality-controlled sequences we have released to GISAID concatenated into a single file.
-- (06) are the quality-controlled sequences we have released to GISAID but which aren't included in input file (08 - sequences_2020-XX-XX_XX-XX.fasta) yet.
-- (07) is the metadata for sequences in (06).
-- (08) is (06) aligned.
-- (09) is (08) with the reference sequence removed.
-- (10) is input file (05─ metadata_2020-XX-XX_XX-XX.tsv) and (07) concatenated.
-- (11) is (04) and (09) concatenated.
+- (04) is the final, aligned version of input file (06 - sequences_2020-XX-XX_XX-XX.fasta).
 - (12) and (13) are downloaded from the Nextstrain ncov repository.
-- (14) is (10) with short sequences and bad sequences filtered out.
+- (14) is input file (03─ metadata_2020-XX-XX_XX-XX.tsv) with short sequences and bad sequences filtered out.
 - (15) is downloaded from the problematic sites repo provided by De Maio et al.
 - (16) is (14) with problematic sites masked out.
 - (17) are the results of running the Nexstrain diagnostic script.
