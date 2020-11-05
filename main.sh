@@ -48,7 +48,6 @@ requiredFiles=(
     "${INPUT_DIR}/${REFERENCE_NCOV_FN}"
     "$INPUT_DIR/est_imports/FSO_tourist_arrival_statistics_clean.csv"
     "$INPUT_DIR/est_imports/FSO_grenzgaenger_statistics_clean.csv"
-    "$INPUT_DIR/pangolin/viollier_merged_metadata.txt"
 )
 for p in ${requiredFiles[@]} ; do
     if [ ! -f $p ] ; then
@@ -135,44 +134,6 @@ bash ${SCRIPT_DIR}/generate_master_alignment_from_nextfasta.sh \
 
 
 # ------------------------------------------------------
-echo "--- Get not-yet-released Swiss seqs to add to alignment ---"
-
-cat ${INPUT_DIR}/pangolin/consensus_data_for_release/*/ch_filtered.fasta >> $TMP_DIR/our_qcd_seqs.fasta
-
-bsub -K -R "rusage[mem=16384]" -o $LOG_DIR/lsf-job.%J.format_ch_data_not_yet_in_nextdata.log "\
-Rscript $SCRIPT_DIR/format_ch_data_not_yet_in_nextdata.R \
-    --ourseqsreleased $TMP_DIR/our_qcd_seqs.fasta \
-    --ourseqsmetadata $INPUT_DIR/pangolin/viollier_merged_metadata.txt \
-    --nextmeta $TMP_DIR/$NEXTMETA_FN \
-    --outdir $TMP_DIR \
-    --utilityfunctions $SCRIPT_DIR/utility_functions.R
-"
-
-
-# ------------------------------------------------------
-echo "--- Add not-yet-released Swiss seqs to alignment ---"
-
-# Align new sequences
-FILE=$TMP_DIR/our_seqs_to_add_to_nextdata.fasta
-FN=$(basename -- "$FILE")
-FN="${FN%.fasta}"
-bsub -K -R "rusage[mem=16384]" -o $LOG_DIR/lsf-job.%J.mafft.log "\
-mafft \
-    --addfragments $FILE \
-    --keeplength \
-    --auto \
-    $INPUT_DIR/$REFERENCE_FN > $TMP_DIR/our_seqs_to_add_to_nextdata_aligned.fasta
-"
-
-# Remove reference from alignment
-awk 'BEGIN { RS = ">";FS = "\n" } {if (NR>2) {print ">"$0}}' $TMP_DIR/our_seqs_to_add_to_nextdata_aligned.fasta > $TMP_DIR/our_seqs_to_add_to_nextdata_aligned_noref.fasta
-
-# Concatenate data
-cat $TMP_DIR/$NEXTMETA_FN $TMP_DIR/our_seqs_to_add_to_nextdata.tsv >> $TMP_DIR/nextmeta_with_unreleased.tsv
-cat $TMP_DIR/nextdata_alignment.fasta $TMP_DIR/our_seqs_to_add_to_nextdata_aligned_noref.fasta >> $TMP_DIR/nextdata_with_unreleased_aligned.fasta
-
-
-# ------------------------------------------------------
 echo "--- QC alignment ---"
 
 TMP_QC=$TMP_DIR/qc_master_alignment
@@ -180,8 +141,8 @@ mkdir -p $TMP_QC
 
 bsub -K -n 2 -R "rusage[mem=32768]" -o $LOG_DIR/lsf-job.%J.qc_master_alignment.log "\
 bash ${SCRIPT_DIR}/qc_master_alignment.sh \
-    -a $TMP_DIR/nextdata_with_unreleased_aligned.fasta \
-    -m $TMP_DIR/nextmeta_with_unreleased.tsv \
+    -a $TMP_DIR/nextdata_alignment.fasta \
+    -m $TMP_DIR/$NEXTMETA_FN \
     -t $TMP_QC \
     -d $MAX_DATE \
     -s $SCRIPT_DIR/mask_alignment_using_vcf.py \
@@ -216,7 +177,7 @@ Rscript $SCRIPT_DIR/downsample_alignment/estimate_n_imports_per_country_month.R 
     --infectiouspopdata $TMP_EST_IMPORTS/infectious_pop_by_country_month.txt \
     --arrivaldata $TMP_EST_IMPORTS/travel_per_country_month.txt \
     --prioritydata $TMP_QC/priorities.txt \
-    --metadata $TMP_DIR/nextmeta_with_unreleased.tsv \
+    --metadata $TMP_DIR/$NEXTMETA_FN \
     --swissseqs $TMP_QC/swiss_alignment_filtered2_masked_oneline.fasta \
     --outdirdata $TMP_EST_IMPORTS \
     --outdirfigs $TMP_EST_IMPORTS/figures
