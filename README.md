@@ -32,8 +32,6 @@ The script `downsample_alignment/tally_mobility_into_switzerland.R` should be up
 
 Figure_2.R also relies on integer weeks being weeks since 1. Jan 2020 and will break when the year changes.
 
-`infectious_pop_by_country_month.txt` only has information through October.
-
 ### Required Programs
 
 Nextstrain's [ncov repository](https://github.com/nextstrain/ncov) is needed. It should be cloned into this directory.
