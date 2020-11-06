@@ -133,7 +133,7 @@ get_tips_under_node <- function(node, tree_data, n_tips) {
   return(unlist(lapply(FUN = get_tips_under_node, X = child_node_data$node, tree_data = tree_data, n_tips = n_tips)))
 }
 
-delete_internal_zero_branches <- function(tree_data, root_node) {
+delete_internal_zero_branches <- function(tree_data, root_node, verbose = T) {
   # Delete zero-length internal branches 
   nodes_to_delete <- c()
   for (i in 1:nrow(tree_data)) {
@@ -145,8 +145,10 @@ delete_internal_zero_branches <- function(tree_data, root_node) {
       node_idx <- parent_idx
       node <- tree_data[i, "node"]
       parent_node <- tree_data[parent_idx, "node"]
-      print(paste("Internal node", node, "is a daughter of a zero length branch"))
-      print(paste("it will be deleted and its children will have parent node", parent_node))
+      if (verbose) {
+        print(paste("Internal node", node, "is a daughter of a zero length branch"))
+        print(paste("it will be deleted and its children will have parent node", parent_node))
+      }
       tree_data[tree_data$parent == node, "parent"] <- parent_node
       nodes_to_delete <- c(nodes_to_delete, node)
     }
@@ -213,9 +215,63 @@ get_CI_max <- function(CI) {
   return(strsplit(CI_str, split = ", ")[[1]][2])
 }
 
-get_days_from_190101 <- function(date) {
-  # A hack because scatterpie doesn't seem to play nicely with dates
-  # Translate dates into a numberic value (days since Jan. 1st 2019)
-  return(as.numeric(as.Date(date) - as.Date("2019-01-01")))
+get_week_since_epidemic_start <- function(date, first_seq_date = "2019-12-24") {
+  # Return integer week for number of weeks passed since first_seq_date.
+  first_seq_date <- as.Date(first_seq_date)
+  days_since <- as.numeric(as.Date(date) - first_seq_date)
+  weeks_since <- floor(days_since / 7)
+  return(weeks_since)
+}
+
+get_days_since_epidemic_start <- function(date, first_seq_date = "2019-12-24") {
+  # Return integer for number of days passed since first_seq_date.
+  first_seq_date <- as.Date(first_seq_date)
+  days_since <- as.numeric(as.Date(date) - first_seq_date)
+  return(days_since)
+}
+
+get_date_range_for_week_since <- function(weeks_since, first_seq_date = "2019-12-24", date_format = "%b. %d", start_only = T) {
+  # Return character string for start of week (or week date range) for integer weeks passed since first_seq_date.
+  first_seq_date <- as.Date(first_seq_date)
+  week_start <- first_seq_date + 7 * weeks_since 
+  week_end <- week_start + 6
+  if (start_only) {
+    return(format(week_start, format = date_format))
+  } else {
+    return(paste(format(week_start, format = date_format), format(week_end, format = date_format), sep = " - "))
+  }
+}
+
+get_weeks_since_to_date_range_mapping <- function(weeks_since, first_seq_date = "2019-12-24", date_format = "%b. %d", start_only = T) {
+  # Return ordered data frame with one row per unique week in vector weeks_since, column giving start of week (or week date range) for that integer weeks passed since first_seq_date.
+  first_seq_date <- as.Date(first_seq_date)
+  complete_weeks_since <- min(weeks_since):max(weeks_since)
+  complete_date_ranges <- get_date_range_for_week_since(
+    weeks_since = complete_weeks_since, first_seq_date = first_seq_date, 
+    date_format = date_format, start_only = start_only)
+  return(data.frame(weeks_since = complete_weeks_since, date_range = complete_date_ranges))
+}
+
+get_cluster_data_by_tip <- function(cluster_data, metadata) {
+  # Takes cluster data and spreads it into one row per tip with cluster idx variable
+  # Also merges in tip metadata
+  cluster_data_by_tip <- cluster_data %>%
+    mutate(cluster_idx = 1:n()) %>%
+    tidyr::separate(
+      col = tips,
+      sep = ", ",
+      into = paste("tip", 1:max(cluster_data$size), sep = "_"),
+      remove = F,
+      fill = "right") %>% 
+    tidyr::pivot_longer(
+      cols = paste("tip", 1:max(cluster_data$size), sep = "_"),
+      values_to = "tip",
+      names_to = "tip_idx",
+      names_prefix = "tip_") %>%
+    filter(!(is.na(tip)))
+  cluster_data_by_tip <- merge(
+    x = cluster_data_by_tip, y = metadata,
+    by.x = "tip", by.y = "strain", all.x = T)
+  return(cluster_data_by_tip)
 }
 

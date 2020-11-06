@@ -1,30 +1,43 @@
 require(ggplot2)
 require(dplyr)
 
-WORKDIR <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/analyses/2020-10-07_ch_cluster_analysis"
-DATE_THRESHOLD <- "2020-06-01"
-PREFIX_DATA <- "rep_1_n_sim_1000_n_imports_padded_0"
-OUTDIR <- paste(WORKDIR, "figures/figure_1", sep = "/")
+# DATE_THRESHOLD <- "2020-07-01"
+# FOUNDING_LINEAGE_DATA <- "/Users/nadeaus/Downloads/tmp/second_wave_lineages/rep_1_n_sim_1000_n_imports_padded_0_lineages_crossing_2020-07-01.txt"
+# CLADE_DATA <- "/Users/nadeaus/Downloads//clades/swiss_alignment_filtered2_masked_oneline_clades.tsv"
+# METADATA <- "/Users/nadeaus/Downloads//tmp/alignments/rep_1_n_sim_1000_n_imports_padded_0/rep_1_n_sim_1000_n_imports_padded_0_tree_metadata.txt"
+# UTILITY_FUNCTIONS <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/automated//utility_functions.R"
 
-FOUNDING_LINEAGE_DATA <- paste(WORKDIR, "/second_wave_lineages/", PREFIX_DATA, "_lineages_crossing_", DATE_THRESHOLD, ".txt", sep = "")
-METADATA <- paste(WORKDIR, "/data/alignments/", PREFIX_DATA, "/", PREFIX_DATA, "_tree_metadata.txt", sep = "")
-CLADE_DATA <- paste(WORKDIR, "/data/clades/swiss_alignment_filtered2_masked_oneline_clades.tsv", sep = "")
+parser <- argparse::ArgumentParser()
+parser$add_argument("--datethreshold", type="character")
+parser$add_argument("--foundinglineagedata", type="character")
+parser$add_argument("--clades", type="character")
+parser$add_argument("--metadata", type="character")
+parser$add_argument("--prefixdata", type="character")
+parser$add_argument("--outdir", type="character")
+parser$add_argument("--utilityfunctions", type="character")
 
-source(paste(WORKDIR, "figures/scripts/plotting_utility_functions.R", sep = "/"))  # has list of UZH_SAMPLES to exclude
+args <- parser$parse_args()
+
+DATE_THRESHOLD <- args$datethreshold
+FOUNDING_LINEAGE_DATA <- args$foundinglineagedata
+CLADE_DATA <- args$clades
+METADATA <- args$metadata
+OUTDIR <- args$outdir
+UTILITY_FUNCTIONS <- args$utilityfunctions
+PREFIX_DATA <- args$prefixdata
+
+source(UTILITY_FUNCTIONS)
 system(command = paste("mkdir -p", OUTDIR))
 
 # Load data --------------------------------------------------------------------
 founding_lineage_data <- read.delim(file = FOUNDING_LINEAGE_DATA, sep = "\t")
 metadata <- read.table(file = METADATA, sep = "\t", quote = "", fill = T, header = T, stringsAsFactors = F)
-clades <- read.delim(file = CLADE_DATA, sep = ";")
+clades <- read.delim(file = CLADE_DATA, sep = "\t")
 metadata <- merge(
   x = metadata, y = clades[c("seqName", "clade")],
   by.x = "old_strain", by.y = "seqName", all.x = T)
 viollier_only_metadata <- metadata %>% 
-  filter(
-    country_recoded == "Switzerland", 
-    authors == "Christian Beisel et al", 
-    !(gisaid_epi_isl %in% UHZ_SAMPLES)) # take only viollier samples
+  filter(originating_lab == "Viollier AG") # take only viollier samples
 
 # Hardcoded things -------------------------------------------------------------
 clade_color_scale <- RColorBrewer::brewer.pal(
@@ -33,15 +46,6 @@ clade_color_scale <- RColorBrewer::brewer.pal(
 names(clade_color_scale) <- c("20A", "20B", "20C", "19A", "19B")
 
 # Panel 1: clades over time ----------------------------------------------------
-week_to_date_ranges <- get_week_to_date_range_mapping(
-  min_date = "2020-01-01", max_date = "2020-08-31")
-get_week_start <- function(date_range) {
-  return(strsplit(x = date_range, split = " - ")[[1]][1])
-}
-week_to_date_ranges$week_start <- unlist(lapply(
-  X = week_to_date_ranges$date_range, 
-  FUN = get_week_start))
-
 clade_order <- viollier_only_metadata %>% 
   group_by(clade) %>% 
   summarise(n_samples = n()) %>%
@@ -50,19 +54,25 @@ clade_order <- viollier_only_metadata %>%
 viollier_only_metadata$clade <- factor(
   x = viollier_only_metadata$clade, levels = clade_order$clade)
 
+# Add column indicating the week since epi begin 
+viollier_only_metadata$weeks_since_first_seq <- get_week_since_epidemic_start(
+  date = viollier_only_metadata$date)
+
+weeks_to_date_range_mapping <- get_weeks_since_to_date_range_mapping(
+  weeks_since = viollier_only_metadata$weeks_since_first_seq)
+
 clades_over_time_plot <- ggplot(
   data = viollier_only_metadata,
-  aes(x = lubridate::week(date), fill = clade)) + 
+  aes(x = weeks_since_first_seq, fill = clade)) + 
   geom_bar(position = "fill", color='black') + 
   scale_fill_manual(values = clade_color_scale, name = "Clade") + 
   theme_classic() + 
   scale_x_continuous(
-    breaks = as.numeric(week_to_date_ranges$week),
-    labels = week_to_date_ranges$week_start) +
+    breaks = weeks_to_date_range_mapping$weeks_since,
+    labels = weeks_to_date_range_mapping$date_range) +
   scale_y_continuous(expand = c(0, 0)) + 
   labs(x = "Beginning of sampling week", y = "Frequency") +
   theme(axis.text.x = element_text(vjust = 0.5, angle = 90, hjust = 1))
-show(clades_over_time_plot)
 
 # Panel 2: 2nd wave founding lineages ------------------------------------------
 # Get pie chart of # samples caused by each founding lineage after July 1st
@@ -99,7 +109,6 @@ second_wave_founding_lineage_plot <- ggplot(
     aes(ymin = y_pos_min, ymax = y_pos_max, fill = clade),
     xmin = 1.53, xmax = 1.6, color = "black") + 
   scale_fill_manual(values = clade_color_scale)
-show(second_wave_founding_lineage_plot)
 
 # Arrange panels ---------------------------------------------------------------
 clades_over_time_plot_legend <- cowplot::get_legend(

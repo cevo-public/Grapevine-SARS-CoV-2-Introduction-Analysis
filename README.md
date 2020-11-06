@@ -25,8 +25,6 @@ input
 
 The script `downsample_alignment/tally_mobility_into_switzerland.R` should be updated as soon as new quarterly statistics for (01) and (02) are available. The current script extrapolates data from July 2020 to the current month and will break after Dec. 2020 as currently coded.
 
-Figure_2.R also relies on integer weeks being weeks since 1. Jan 2020 and will break when the year changes.
-
 ### Required Programs
 
 Nextstrain's [ncov repository](https://github.com/nextstrain/ncov) is needed. It should be cloned into this directory.
@@ -38,6 +36,7 @@ The following programs and commands have to be installed:
 - augur
 - iqtree
 - mafft
+- [nextclade](https://github.com/nextstrain/nextclade/tree/master/packages/cli)
 
 The paths to iqtree and mafft can be changed in `main.sh`.
 R and python are already installed on Euler and can be loaded with the commands:
@@ -123,6 +122,10 @@ main.sh
 ├──41- clusters_varying_m
 ├── analyze_tree/table_cluster_stats.R
 |   ├─42-  tmp/cluster_stats/$PREFIX_cluster_stats.txt
+generate_figures_1-3.sh
+|   ├─43-  tmp/clades
+|   ├─44-  tmp/second_wave_lineages
+|   ├─45-  tmp/figures
 ```
 
 - (01) is a directory containing input file (06 - sequences_2020-XX-XX_XX-XX.fasta) split into 150-sequence chunks for quicker alignment. 
@@ -149,3 +152,6 @@ main.sh
 - (40) is the tree data specified by $PREFIX with cluster defined as specified in PREFIX with ancestral states reconstructed at internal nodes.
 - (41) are versions of (39) with different variations on the cluster definition.
 - (42) are cluster summary statistics calculated from (41).
+- (43) is a document with QC stats and Nextstrain clade assigned to all Swiss sequences in the tree
+- (44) are lineages that cross a specified date threshold from 1st Swiss wave to second and subsequently give rise to swiss samples
+- (45) are figures 1-3 from our manuscript submission (diversity, imports & ancestral state reconstruction, imports vs. local transmission)

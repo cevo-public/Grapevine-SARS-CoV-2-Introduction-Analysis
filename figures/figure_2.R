@@ -1,23 +1,37 @@
+# TODO: plot most prevelent countries rather than hardcoding? Need to then standardize colors
+
 require(ggplot2)
 require(argparse)
 require(dplyr)
 require(tidyr)
 require(scatterpie)
-require(lubridate)
 
-WORKDIR <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/analyses/2020-10-07_ch_cluster_analysis"
-PREFIX_DATA <- "rep_1_n_sim_1000_n_imports_padded_0"
-PREFIX <- "rep_1_n_sim_1000_n_imports_padded_0_m_3_p_1_swiss_polytomies_F"
-MIN_CLUSTER_SIZE <- NULL  # NULL or integer (2 for transmission chains)
-PLOT_SINGLETONS <- T # NULL or T
+# MAX_CLUSTERS <- "/Users/nadeaus/Downloads//tmp/clusters/rep_1_n_sim_1000_n_imports_padded_0_m_3_p_1_swiss_polytomies_F_clusters.txt"
+# METADATA <- "/Users/nadeaus/Downloads//tmp/alignments/rep_1_n_sim_1000_n_imports_padded_0/rep_1_n_sim_1000_n_imports_padded_0_tree_metadata.txt"
+# UTILITY_FUNCTIONS <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/automated//utility_functions.R"
+# TREE_DATA_WITH_ASR <- "/Users/nadeaus/Downloads/tmp/asr/rep_1_n_sim_1000_n_imports_padded_0_m_3_p_1_swiss_polytomies_F_tree_data_with_asr.txt"
+# MIN_CLUSTER_SIZE <- 2
 
-TREE_DATA_WITH_ASR <- paste(WORKDIR, "/asr/", PREFIX, "_tree_data_with_asr.txt", sep = "")
-CLUSTERS <- paste(WORKDIR, "/clusters/", PREFIX, "_clusters.txt", sep = "")
-METADATA <- paste(WORKDIR, "/data/alignments/", PREFIX_DATA, "/", PREFIX_DATA, "_tree_metadata.txt", sep = "")
-OUTDIR <- paste(WORKDIR, "/figures/figure_2/", sep = "")
+parser <- argparse::ArgumentParser()
+parser$add_argument("--maxclusters", type="character")
+parser$add_argument("--metadata", type="character")
+parser$add_argument("--outdir", type="character")
+parser$add_argument("--utilityfunctions", type="character")
+parser$add_argument("--treedatawithasr", type="character")
+parser$add_argument("--prefix", type="character")
+parser$add_argument("--minclustersize", type="integer", help = "0 for singletons, 2 for transmission chains")
 
-source(paste(WORKDIR, "scripts/utility_functions.R", sep = "/"))
-source(paste(WORKDIR, "figures/scripts/plotting_utility_functions.R", sep = "/"))
+args <- parser$parse_args()
+
+MAX_CLUSTERS <- args$maxclusters
+METADATA <- args$metadata
+OUTDIR <- args$outdir
+TREE_DATA_WITH_ASR <- args$treedatawithasr
+UTILITY_FUNCTIONS <- args$utilityfunctions
+PREFIX <- args$prefix
+MIN_CLUSTER_SIZE <- args$minclustersize
+
+source(UTILITY_FUNCTIONS)
 system(command = paste("mkdir -p", OUTDIR))
 
 # Hardcoded things -------------------------------------------------------------
@@ -29,21 +43,20 @@ names(color_scale) <- c(countries_to_plot, "other", "Switzerland")
 ch_mrca_color <- "light grey"
 foreign_mrca_color <- "dark grey"
 
-# Preliminaries ----------------------------------------------------------------
-
-week_to_date_ranges <- get_week_to_date_range_mapping(
-  min_date = "2020-01-01", 
-  max_date = "2020-10-15")
-
 # Load data --------------------------------------------------------------------
 metadata <- read.table(
   file = METADATA, sep = "\t", quote = "", fill = T, header = T, stringsAsFactors = F)
-cluster_data <- read.delim(file = CLUSTERS)
+cluster_data <- read.delim(file = MAX_CLUSTERS)
 tree_data_with_asr <- read.delim(file = TREE_DATA_WITH_ASR, stringsAsFactors = F)
 
-# Get cluster information ------------------------------------------------------
 cluster_data_by_tip <- get_cluster_data_by_tip(
   cluster_data = cluster_data, metadata = metadata)
+
+# Preliminaries ----------------------------------------------------------------
+# days_to_date_range_mapping <- get_days_since_to_date_range_mapping(
+#   days_since = get_days_since_epidemic_start(cluster_data_by_tip$date))
+
+# Get cluster information ------------------------------------------------------
 
 cluster_summary <- cluster_data_by_tip %>%
   group_by(cluster_idx) %>%
@@ -56,7 +69,7 @@ cluster_summary <- merge(
   x = cluster_summary, y = cluster_data, 
   by = "cluster_idx", all = T) 
 
-if (!is.null(MIN_CLUSTER_SIZE)) {
+if (MIN_CLUSTER_SIZE > 0) {
   cluster_summary_for_plot <- cluster_summary %>%
     filter(size >= MIN_CLUSTER_SIZE) %>%
     group_by(foreign_mrca) %>%
@@ -66,7 +79,7 @@ if (!is.null(MIN_CLUSTER_SIZE)) {
     x = cluster_data_by_tip %>% filter(size >= MIN_CLUSTER_SIZE), 
     y = cluster_summary_for_plot[c("cluster_idx", "cluster_order")], 
     by = c("cluster_idx"), all.x = T) 
-} else if (!is.null(PLOT_SINGLETONS)) {
+} else if (MIN_CLUSTER_SIZE == 0) {
   cluster_summary_for_plot <- cluster_summary %>%
     filter(size == 1) %>%
     group_by(foreign_mrca) %>%
@@ -76,8 +89,6 @@ if (!is.null(MIN_CLUSTER_SIZE)) {
     x = cluster_data_by_tip %>% filter(size == 1), 
     y = cluster_summary_for_plot[c("cluster_idx", "cluster_order")], 
     by = c("cluster_idx"), all.x = T) 
-} else {
-  stop("Must specify either minclustersize or plotsingletons.")
 }
 
 cluster_summary_for_plot$foreign_tmrca_CI_min <- as.Date(unlist(lapply(FUN = get_CI_min, X = cluster_summary_for_plot$foreign_tmrca_CI)))
@@ -124,11 +135,11 @@ custom_theme_elements <- theme(
   panel.spacing = unit(0, "lines"))
 axis_labs <- labs(x = element_blank(), y = element_blank())
 
-dates_to_plot <- c("2019-12-01", "2020-01-01", "2020-02-01", "2020-03-01", "2020-04-01", "2020-05-01", "2020-06-01", "2020-07-01", "2020-08-01", "2020-09-01", "2020-10-01")
+dates_to_plot <-   seq.Date(from = as.Date("2019-12-01"), to = as.Date(max(cluster_data_by_tip$date)), by = "1 month")
 x_scale <- scale_x_continuous(
-  breaks = get_days_from_190101(as.Date(dates_to_plot)),
-  labels = format(as.Date(dates_to_plot), "%b."),
-  limits = c(get_days_from_190101("2019-11-01"), get_days_from_190101("2020-09-15")),
+  breaks = get_days_since_epidemic_start(dates_to_plot),
+  labels = format(as.Date(dates_to_plot), format = "%b."),
+  limits = c(get_days_since_epidemic_start("2019-11-01"), get_days_since_epidemic_start(max(cluster_data_by_tip$date))),
   expand = c(0, 14))
 
 cluster_data_by_tip_for_plot$foreign_mrca <- factor(
@@ -141,7 +152,7 @@ mrca_asr_data_2$foreign_mrca <- factor(
   x = mrca_asr_data_2$foreign_mrca,
   levels = unique(unlist(mrca_asr_data_2 %>% arrange(foreign_tmrca) %>% select(foreign_mrca))))
 
-mrca_asr_data_2$x_axis_days <- get_days_from_190101(mrca_asr_data_2$foreign_tmrca_CI_min) - 7
+mrca_asr_data_2$x_axis_days <- get_days_since_epidemic_start(mrca_asr_data_2$foreign_tmrca_CI_min) - 7  # to offset from actual MRCA date
 
 cluster_data_by_tip_for_plot <- cluster_data_by_tip_for_plot %>% mutate(
   exposure_country_recoded = case_when(
@@ -151,39 +162,47 @@ cluster_data_by_tip_for_plot <- cluster_data_by_tip_for_plot %>% mutate(
 CROSS_SIZE <- 0.75
 POINT_SIZE <- 0.25
 LINE_SIZE <- 0.25
-if (!is.null(MIN_CLUSTER_SIZE)) {
+if (MIN_CLUSTER_SIZE > 0) {
   transmission_chain_plot <- ggplot() + 
     geom_segment(
       data = cluster_summary_for_plot,
-      aes(x = get_days_from_190101(first_sample), xend = get_days_from_190101(last_sample),
-          y = cluster_order, yend = cluster_order),
+      aes(x = get_days_since_epidemic_start(first_sample), 
+          xend = get_days_since_epidemic_start(last_sample),
+          y = cluster_order, 
+          yend = cluster_order),
       linetype = "longdash", size = LINE_SIZE) +
     geom_point(
       data = cluster_summary_for_plot,
-      aes(x = get_days_from_190101(foreign_tmrca), y = cluster_order),
+      aes(x = get_days_since_epidemic_start(foreign_tmrca), 
+          y = cluster_order),
       shape = 4, color = foreign_mrca_color, size = CROSS_SIZE) +
     geom_point(
       data = cluster_summary_for_plot,
-      aes(x = get_days_from_190101(ch_tmrca), y = cluster_order), 
+      aes(x = get_days_since_epidemic_start(ch_tmrca), 
+          y = cluster_order), 
       shape = 4, color = ch_mrca_color, size = CROSS_SIZE) +
     geom_errorbarh(
       data = cluster_summary_for_plot,
-      aes(xmin = get_days_from_190101(ch_tmrca_CI_min), 
-          xmax = get_days_from_190101(ch_tmrca_CI_max), y = cluster_order),
+      aes(xmin = get_days_since_epidemic_start(ch_tmrca_CI_min), 
+          xmax = get_days_since_epidemic_start(ch_tmrca_CI_max), 
+          y = cluster_order),
       color = ch_mrca_color, size = LINE_SIZE) + 
     geom_errorbarh(
       data = cluster_summary_for_plot,
-      aes(xmin = get_days_from_190101(foreign_tmrca_CI_min), 
-          xmax = get_days_from_190101(foreign_tmrca_CI_max), y = cluster_order),
+      aes(xmin = get_days_since_epidemic_start(foreign_tmrca_CI_min), 
+          xmax = get_days_since_epidemic_start(foreign_tmrca_CI_max), 
+          y = cluster_order),
       color = foreign_mrca_color, size = LINE_SIZE) +
     geom_point(
       data = cluster_data_by_tip_for_plot,
-      aes(x = get_days_from_190101(date), y = cluster_order, 
+      aes(x = get_days_since_epidemic_start(date), 
+          y = cluster_order, 
           color = exposure_country_recoded), size = POINT_SIZE) +
     # Plot colored points over the top so they stand out more
     geom_point(
       data = cluster_data_by_tip_for_plot %>% filter(country_exposure != country_recoded),
-      aes(x = get_days_from_190101(date), y = cluster_order, 
+      aes(x = get_days_since_epidemic_start(date), 
+          y = cluster_order, 
           color = exposure_country_recoded), size = POINT_SIZE) +
     geom_scatterpie(
       data = mrca_asr_data_2,
@@ -204,16 +223,16 @@ if (!is.null(MIN_CLUSTER_SIZE)) {
   transmission_chain_plot <- ggplot() + 
     geom_point(
       data = cluster_data_by_tip_for_plot,
-      aes(x = get_days_from_190101(date), y = 1, 
+      aes(x = get_days_since_epidemic_start(date), y = 1, 
           color = exposure_country_recoded), size = POINT_SIZE) +
     geom_point(
       data = cluster_summary_for_plot,
-      aes(x = get_days_from_190101(foreign_tmrca), y = 1),
+      aes(x = get_days_since_epidemic_start(foreign_tmrca), y = 1),
       shape = 4, color = foreign_mrca_color, size = POINT_SIZE) +
     geom_errorbarh(
       data = cluster_summary_for_plot,
-      aes(xmin = get_days_from_190101(foreign_tmrca_CI_min), 
-          xmax = get_days_from_190101(foreign_tmrca_CI_max), y = 1),
+      aes(xmin = get_days_since_epidemic_start(foreign_tmrca_CI_min), 
+          xmax = get_days_since_epidemic_start(foreign_tmrca_CI_max), y = 1),
       color = foreign_mrca_color, size = LINE_SIZE) +
     geom_scatterpie(
       data = mrca_asr_data_2,
@@ -223,7 +242,7 @@ if (!is.null(MIN_CLUSTER_SIZE)) {
     # Show 1st detected sample
     # geom_point(
     #   data = cluster_data_by_tip_for_plot %>% filter(date == as.Date("2020-02-24")),
-    #   aes(x = get_days_from_190101(date), y = cluster_order), color = "red", size = 3) +
+    #   aes(x = get_days_since_epidemic_start(date), y = cluster_order), color = "red", size = 3) +
     theme_bw() + 
     custom_theme_elements +
     scale_fill_manual(
@@ -266,24 +285,9 @@ mrca_asr_data_all$other <- rowSums(mrca_asr_data_all[other_countries_2])
 mrca_asr_data_all_2 <- mrca_asr_data_all %>% 
   select(c(foreign_mrca, foreign_tmrca, foreign_tmrca_CI_min, foreign_tmrca_CI_min, 
            n_swiss_descendents, "other", all_of(countries_to_plot))) %>%
-  mutate(foreign_tmrca_week = lubridate::week(foreign_tmrca))
+  mutate(foreign_tmrca_week = get_week_since_epidemic_start(foreign_tmrca))
 
-week_to_days_since_190101_mapping <- data.frame(
-  week = c(50, 51, 52, 1:43),
-  days_since_190101 = seq(from = 346, to = 662, by = 7))  # This will break once the year wraps around!!
-
-get_days_since_190101_for_bin <- function(week) {
-  return(week_to_days_since_190101_mapping[
-    week_to_days_since_190101_mapping$week == week, "days_since_190101"])
-}
-
-mrca_asr_data_all_2$foreign_tmrca_days_since_190101 <- unlist(lapply(
-  X = mrca_asr_data_all_2$foreign_tmrca,
-  FUN = get_days_from_190101))
-
-mrca_asr_data_all_2$foreign_tmrca_days_since_190101_bin <- unlist(lapply(
-  X = mrca_asr_data_all_2$foreign_tmrca_week,
-  FUN = get_days_since_190101_for_bin))
+mrca_asr_data_all_2$foreign_tmrca_week_in_days_since_start_bin <- mrca_asr_data_all_2$foreign_tmrca_week * 7
 
 mrca_asr_data_all_2_long <- mrca_asr_data_all_2 %>% tidyr::pivot_longer(
   cols = c("other", all_of(countries_to_plot)),
@@ -301,18 +305,24 @@ mrca_asr_data_all_2_long$country <- factor(
 
 # Get number of nodes in time period and number of nodes with ASR information
 n_nodes_data <- mrca_asr_data_all_2 %>% 
-  group_by(foreign_tmrca_days_since_190101_bin) %>%
+  group_by(foreign_tmrca_week_in_days_since_start_bin) %>%
   summarize(n_nodes = n(), n_nodes_with_asr = sum(!is.na(other)))  # nodes without ASR have NA for all locations, including "other"
 n_nodes_data$n_nodes_label <- paste(
   n_nodes_data$n_nodes_with_asr, "(", n_nodes_data$n_nodes, ")", sep = "")
 
+# x_scale <- scale_x_continuous(
+#   breaks = get_days_since_epidemic_start(dates_to_plot),
+#   labels = format(as.Date(dates_to_plot), format = "%b. %d"),
+#   limits = c(get_days_since_epidemic_start("2019-11-01"), get_days_since_epidemic_start(max(cluster_data_by_tip$date))),
+#   expand = c(0, 14))
+
 asr_contributions_through_time_plot <- ggplot(
   data = mrca_asr_data_all_2_long,
-  aes(x = foreign_tmrca_days_since_190101_bin)) + 
+  aes(x = foreign_tmrca_week_in_days_since_start_bin)) + 
   geom_col(aes(y = asr_contribution, fill = country), position = "fill") +
   geom_text(
     data = n_nodes_data,
-    aes(x = foreign_tmrca_days_since_190101_bin, 
+    aes(x = foreign_tmrca_week_in_days_since_start_bin, 
         y = 1.07, 
         label = n_nodes_label),
     angle = 90, hjust = 0, size = 2) + 
@@ -329,7 +339,7 @@ asr_contributions_through_time_plot <- ggplot(
 
 # Assemble figure --------------------------------------------------------------
 
-if (!is.null(MIN_CLUSTER_SIZE)) {
+if (MIN_CLUSTER_SIZE > 0) {
   SUFFIX <- paste("_transmission_chains_minsize_", MIN_CLUSTER_SIZE, ".png", sep = "")
   png(
     file = paste(OUTDIR, paste(PREFIX, SUFFIX, sep = ""), sep = "/"),
@@ -341,8 +351,6 @@ if (!is.null(MIN_CLUSTER_SIZE)) {
     nrow = 2, ncol = 2,
     heights = c(6.75, 1),
     widths = c(0.03, 1))
-  # heights = c(9, 1),
-  # widths = c(0.015, 1))
   dev.off()
 } else {
   SUFFIX <- "_singletons.png"
@@ -352,7 +360,6 @@ if (!is.null(MIN_CLUSTER_SIZE)) {
   show(transmission_chain_plot)
   dev.off()
 }
-
 
 # Things to note for text ------------------------------------------------------
 

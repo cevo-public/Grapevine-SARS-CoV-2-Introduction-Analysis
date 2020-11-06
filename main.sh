@@ -12,6 +12,8 @@ NEXTMETA_GZ_FN=metadata_2020-10-28_07-21.tsv.gz
 REFERENCE_FN=reference.fasta
 REFERENCE_NCOV_FN=reference.gb
 MAX_DATE=2020-10-29
+SECOND_WAVE_DATE_THRESHOLD=2020-07-01
+TRANSMISSION_TO_TEST_DELAY=10
 IQTREE=~/lib/iqtree-2.1.2-Linux/bin/iqtree2
 MAFFT=~/lib/mafft-linux64/mafft.bat
 
@@ -464,6 +466,33 @@ Rscript $SCRIPT_DIR/analyze_tree/table_cluster_stats.R \
     --nswissseqs $N_SWISS_SEQS
 "
 
+# ------------------------------------------------------
+echo "--- Generating figures 1-3 ---"
+
+# Assign clades to Swiss sequences
+bsub -K -o $LOG_DIR/lsf-job.%J.assigning_clades.log "\
+nextclade \
+-i $TMP_QC/swiss_alignment_filtered2_masked_oneline.fasta
+-t $TMP_DIR/clades/swiss_alignment_filtered2_masked_oneline_clades.tsv"
+wait
+
+# Generating figures
+MAX_NONFOCAL_SUBCLADES=3
+MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=1
+PADDING=0
+for REP in 1 2 3; do
+    PREFIX_DATA=rep_${REP}_n_sim_${N_MOST_SIMILAR_SEQS}_n_imports_padded_${PADDING}
+    bsub -K -o $LOG_DIR/lsf-job.%J.generate_figures_1-3.log "\
+    bash ${SCRIPT_DIR}/generate_figures_1-3.sh \
+        -s $SCRIPT_DIR \
+        -w $WORKDIR \
+        -d $SECOND_WAVE_DATE_THRESHOLD \
+        -r $PREFIX_DATA \
+        -m $MAX_NONFOCAL_SUBCLADES \
+        -p $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
+        -l $TRANSMISSION_TO_TEST_DELAY
+    " &
+done
 
 # ------------------------------------------------------
 echo "--- Finished successfully ---"

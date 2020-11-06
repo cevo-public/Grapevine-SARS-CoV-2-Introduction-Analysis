@@ -1,26 +1,42 @@
-# Get at how many different 20A lineages seeded the second wave
-# Merge swiss seqs until July 1, then count how many different 20A clusters there are
+# Get at how many different lineages seeded the second wave
+# Merge swiss seqs until DATE_THRESHOLD, then count how many different lineages there 
+# still are and how many samples were produced by each one.
+
+# DATE_THRESHOLD <- "2020-07-01"
+# TREE <- "/Users/nadeaus/Downloads//tmp/lsd/rep_1_n_sim_1000_n_imports_padded_0.timetree.nex"
+# CLADE_DATA <- "/Users/nadeaus/Downloads//clades/swiss_alignment_filtered2_masked_oneline_clades.tsv"
+# METADATA <- "/Users/nadeaus/Downloads//tmp/alignments/rep_1_n_sim_1000_n_imports_padded_0/rep_1_n_sim_1000_n_imports_padded_0_tree_metadata.txt"
+# UTILITY_FUNCTIONS <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/automated//utility_functions.R"
 
 require(dplyr)
 require(ape)
 
-WORKDIR <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/analyses/2020-10-07_ch_cluster_analysis"
-DATE_THRESHOLD <- "2020-07-01"
-PREFIX_DATA <- "rep_1_n_sim_1000_n_imports_padded_0"
+parser <- argparse::ArgumentParser()
+parser$add_argument("--datethreshold", type="character")
+parser$add_argument("--tree", type="character")
+parser$add_argument("--clades", type="character")
+parser$add_argument("--metadata", type="character")
+parser$add_argument("--prefixdata", type="character")
+parser$add_argument("--outdir", type="character")
+parser$add_argument("--utilityfunctions", type="character")
 
-OUTDIR <- paste(WORKDIR, "second_wave_lineages", sep = "/")
-METADATA <- paste(WORKDIR, "/data/alignments/", PREFIX_DATA, "/", PREFIX_DATA, "_tree_metadata.txt", sep = "")
-CLADE_DATA <- paste(WORKDIR, "/data/clades/swiss_alignment_filtered2_masked_oneline_clades.tsv", sep = "")
-TREE <- paste(WORKDIR, "/dated_trees/", PREFIX_DATA, ".timetree.nex", sep = "")
+args <- parser$parse_args()
 
+DATE_THRESHOLD <- args$datethreshold
+TREE <- args$tree
+CLADE_DATA <- args$clades
+METADATA <- args$metadata
+OUTDIR <- args$outdir
+UTILITY_FUNCTIONS <- args$utilityfunctions
+PREFIX_DATA <- args$prefixdata
+
+source(UTILITY_FUNCTIONS)
 system(command = paste("mkdir -p", OUTDIR))
-source(paste(WORKDIR, "scripts/utility_functions.R", sep = "/"))
-source(paste(WORKDIR, "figures/scripts/plotting_utility_functions.R", sep = "/"))  # has list of UZH_SAMPLES to exclude
 
 tree <- treeio::read.beast(file = TREE)
 tree_data <- tidytree::as_tibble(tree)
-metadata <- read.table(file = METADATA, sep = "\t", quote = "", fill = T, header = T, stringsAsFactors = F) %>% unique.data.frame()  # remove duplicates (to account for a concatenate mistake in metadata)
-clades <- read.delim(file = CLADE_DATA, sep = ";")
+metadata <- read.table(file = METADATA, sep = "\t", quote = "", fill = T, header = T, stringsAsFactors = F)
+clades <- read.delim(file = CLADE_DATA, sep = "\t")
 
 metadata <- merge(
   x = metadata, y = clades[c("seqName", "clade")],
@@ -29,9 +45,7 @@ metadata <- merge(
 metadata <- metadata %>% 
   mutate(
     is_viollier = case_when(
-      country_recoded == "Switzerland" &  
-        authors == "Christian Beisel et al" &  
-        !(gisaid_epi_isl %in% UHZ_SAMPLES) ~ "viollier",
+      originating_lab == "Viollier AG" ~ "viollier",
       T ~ "other")) # count only viollier samples
     
 tree_data <- merge(
@@ -39,7 +53,7 @@ tree_data <- merge(
   by.x = "label", by.y = "strain", all.x = T)
 
 n_tips <- sum(!is.na(tree_data$label))
-tree_data <- delete_internal_zero_branches(tree_data = tree_data, root_node = n_tips + 1)
+tree_data <- delete_internal_zero_branches(tree_data = tree_data, root_node = n_tips + 1, verbose = F)
 
 # Get tips clustered into lineages present on July 1
 
@@ -117,7 +131,7 @@ assign_clade_to_lineage <- function(n_20A, n_20B, n_20C, n_19A) {
   } else {
     print(paste("n_20A:", n_20A, "n_20B:", n_20B, "n_20C:", n_20C, "n_19A:", n_19A))
     clade <- c("20A", "20B", "20C", "n_19A")[which(c(n_20A, n_20B, n_20C, n_19A) == max(c(n_20A, n_20B, n_20C, n_19A)))][1]
-    print(paste("assigning clade", clade))
+    print(paste("is assigned clade", clade))
     return(clade)
   }
 }
@@ -133,14 +147,3 @@ write.table(
   x = threshold_lineage_summary,
   file = paste(OUTDIR, "/", PREFIX_DATA, "_lineages_crossing_", DATE_THRESHOLD, ".txt", sep = ""),
   row.names = F, col.names = T, sep = "\t", quote = F)
-
-print(paste(
-  nrow(threshold_lineage_summary %>% filter(clade == "20A")), 
-  "20A lineages with Viollier descendents cross", 
-  DATE_THRESHOLD, 
-  "in the tree."))
-
-print(paste(
-  nrow(threshold_lineage_summary %>% filter(all_tips_below_threshold_node > 1, clade == "20A")),
-  "of them have a further branching point after",
-  DATE_THRESHOLD))
