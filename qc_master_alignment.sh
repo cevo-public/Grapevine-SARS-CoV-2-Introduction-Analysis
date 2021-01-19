@@ -1,13 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-while getopts a:m:t:a:d:s:r:n: flag
+while getopts a:m:t:b:d:s:r:n: flag
 do
     case "${flag}" in
         a) ALIGNMENT=${OPTARG};;
         m) METADATA=${OPTARG};;
         t) TMP_DIR=${OPTARG};;
-        a) MIN_DATE=${OPTARG};;
+        b) MIN_DATE=${OPTARG};;
         d) MAX_DATE=${OPTARG};;
         s) MASK_SITES_SCRIPT=${OPTARG};;
         r) REFERENCE=${OPTARG};;

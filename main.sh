@@ -147,7 +147,7 @@ bash ${SCRIPT_DIR}/qc_master_alignment.sh \
     -a $TMP_DIR/nextdata_alignment.fasta \
     -m $TMP_DIR/$NEXTMETA_FN \
     -t $TMP_QC \
-    -a $MIN_DATE \
+    -b $MIN_DATE \
     -d $MAX_DATE \
     -s $SCRIPT_DIR/mask_alignment_using_vcf.py \
     -r $INPUT_DIR/$REFERENCE_NCOV_FN \
