@@ -1,4 +1,4 @@
-# CH Sequence Analysis Pipeline
+# Grapevine: CH Sequence Analysis Pipeline
 
 ## Usage
 
