@@ -35,8 +35,10 @@ OUTDIR_DATA <- args$outdirdata
 OUTDIR <- args$outdirfigs
 N_CONTEXT_SEQS <- args$approxncontextseqs
 
-per_infectious_pop <- read.delim(file = PER_INFECTIOUS_POP_DATA, stringsAsFactors = F)
-travel <- read.delim(file = TRAVEL_DATA, stringsAsFactors = F)
+if (N_CONTEXT_SEQS > 0) {
+  per_infectious_pop <- read.delim(file = PER_INFECTIOUS_POP_DATA, stringsAsFactors = F)
+  travel <- read.delim(file = TRAVEL_DATA, stringsAsFactors = F)
+}
 priorities <- read.delim(file = PRIORITY_INFO, stringsAsFactors = F, header = F)
 metadata_raw <- read.delim(file = METADATA_RAW, stringsAsFactors = F) 
 swiss_seqs <- ape::read.FASTA(file = SWISS_SEQS)
