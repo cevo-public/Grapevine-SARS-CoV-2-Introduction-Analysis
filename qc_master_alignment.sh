@@ -4,14 +4,14 @@ set -euo pipefail
 while getopts a:m:t:b:d:s:r:n: flag
 do
     case "${flag}" in
-        a) ALIGNMENT=${OPTARG};;
-        m) METADATA=${OPTARG};;
-        t) TMP_DIR=${OPTARG};;
-        b) MIN_DATE=${OPTARG};;
-        d) MAX_DATE=${OPTARG};;
-        s) MASK_SITES_SCRIPT=${OPTARG};;
-        r) REFERENCE=${OPTARG};;
-        n) NCOVDIR=${OPTARG};;
+        a) echo ALIGNMENT:${OPTARG}; ALIGNMENT=${OPTARG};;
+        m) echo METADATA:${OPTARG}; METADATA=${OPTARG};;
+        t) echo TMP_DIR:${OPTARG}; TMP_DIR=${OPTARG};;
+        b) echo MIN_DATE:${OPTARG}; MIN_DATE=${OPTARG};;
+        d) echo MAX_DATE:${OPTARG}; MAX_DATE=${OPTARG};;
+        s) echo MASK_SITES_SCRIPT:${OPTARG}; MASK_SITES_SCRIPT=${OPTARG};;
+        r) echo REFERENCE:${OPTARG}; REFERENCE=${OPTARG};;
+        n) echo NCOVDIR:${OPTARG}; NCOVDIR=${OPTARG};;
     esac
 done
 
