@@ -11,6 +11,7 @@ NEXTDATA_GZ_FN=sequences_2020-10-28_07-22.fasta.gz
 NEXTMETA_GZ_FN=metadata_2020-10-28_07-21.tsv.gz
 REFERENCE_FN=reference.fasta
 REFERENCE_NCOV_FN=reference.gb
+MIN_DATE=2019-12-01
 MAX_DATE=2020-10-29
 SECOND_WAVE_DATE_THRESHOLD=2020-07-01
 TRANSMISSION_TO_TEST_DELAY=10
@@ -146,6 +147,7 @@ bash ${SCRIPT_DIR}/qc_master_alignment.sh \
     -a $TMP_DIR/nextdata_alignment.fasta \
     -m $TMP_DIR/$NEXTMETA_FN \
     -t $TMP_QC \
+    -a $MIN_DATE \
     -d $MAX_DATE \
     -s $SCRIPT_DIR/mask_alignment_using_vcf.py \
     -r $INPUT_DIR/$REFERENCE_NCOV_FN \

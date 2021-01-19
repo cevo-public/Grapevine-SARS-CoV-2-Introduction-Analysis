@@ -1,12 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-while getopts a:m:t:d:s:r:n: flag
+while getopts a:m:t:a:d:s:r:n: flag
 do
     case "${flag}" in
         a) ALIGNMENT=${OPTARG};;
         m) METADATA=${OPTARG};;
         t) TMP_DIR=${OPTARG};;
+        a) MIN_DATE=${OPTARG};;
         d) MAX_DATE=${OPTARG};;
         s) MASK_SITES_SCRIPT=${OPTARG};;
         r) REFERENCE=${OPTARG};;
@@ -27,6 +28,7 @@ echo "Appling date filter, host filter, stricter length filter for non-Swiss seq
 augur filter \
     --sequences $ALIGNMENT \
     --metadata $METADATA \
+    --min-date $MIN_DATE \
     --max-date $MAX_DATE \
     --min-length 27000 \
     --exclude $TMP_DIR/exclude.txt \
@@ -38,6 +40,7 @@ echo "Appling date filter, host filter, less strict length filter for Swiss seqs
 augur filter \
     --sequences $ALIGNMENT \
     --metadata $METADATA \
+    --min-date $MIN_DATE \
     --max-date $MAX_DATE \
     --min-length 20000 \
     --exclude $TMP_DIR/exclude.txt \
