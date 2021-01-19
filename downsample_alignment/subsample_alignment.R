@@ -124,19 +124,24 @@ if (dir.exists(OUTDIR)) {
       }
     }
   }
+  if (is_first) {
+    print("No context sequences specified. Subsampling only based on similarity.")
+    selected_seq_strains <- priority_seq_data$strain
+  } else {
+    context_seq_summary <- context_seq_data %>% 
+      group_by(country_recoded, year_month) %>% 
+      summarize(n_selected_samples = n())
+    context_seq_summary <- merge(x = context_seq_summary, y = samples_per_country_month)
+    
+    write.table(
+      x = context_seq_data,
+      file = paste(OUTDIR, paste(PREFIX, "context_metadata.txt", sep = "_"), sep = "/"),
+      row.names = F, col.names = T, quote = F, sep = "\t")
+    
+    selected_seq_strains <- unique(
+      c(priority_seq_data$strain, context_seq_data$strain))
+  }
   
-  context_seq_summary <- context_seq_data %>% 
-    group_by(country_recoded, year_month) %>% 
-    summarize(n_selected_samples = n())
-  context_seq_summary <- merge(x = context_seq_summary, y = samples_per_country_month)
-  
-  write.table(
-    x = context_seq_data,
-    file = paste(OUTDIR, paste(PREFIX, "context_metadata.txt", sep = "_"), sep = "/"),
-    row.names = F, col.names = T, quote = F, sep = "\t")
-  
-  selected_seq_strains <- unique(
-    c(priority_seq_data$strain, context_seq_data$strain))
   selected_seq_data <- metadata[metadata$strain %in% selected_seq_strains, ]
   
   # Add outgroup seqs
