@@ -23,7 +23,7 @@ done
 Rscript $SCRIPT_DIR/analyze_clusters/get_second_wave_lineages.R \
 --datethreshold $DATE_THRESHOLD \
 --tree $WORKDIR/tmp/lsd/${PREFIX_DATA}.timetree.nex \
---clades $WORKDIR/clades/swiss_alignment_filtered2_masked_oneline_clades.tsv \
+--clades $WORKDIR/tmp/clades/swiss_alignment_filtered2_masked_oneline_clades.tsv \
 --metadata $WORKDIR/tmp/alignments/${PREFIX_DATA}/${PREFIX_DATA}_tree_metadata.txt \
 --outdir $WORKDIR/tmp/second_wave_lineages \
 --utilityfunctions $SCRIPT_DIR/utility_functions.R \
@@ -33,7 +33,7 @@ Rscript $SCRIPT_DIR/analyze_clusters/get_second_wave_lineages.R \
 Rscript $SCRIPT_DIR/figures/figure_1.R \
 --datethreshold $DATE_THRESHOLD \
 --foundinglineagedata $WORKDIR/tmp/second_wave_lineages/${PREFIX_DATA}_lineages_crossing_${DATE_THRESHOLD}.txt \
---clades $WORKDIR/clades/swiss_alignment_filtered2_masked_oneline_clades.tsv \
+--clades $WORKDIR/tmp/clades/swiss_alignment_filtered2_masked_oneline_clades.tsv \
 --metadata $WORKDIR/tmp/alignments/${PREFIX_DATA}/${PREFIX_DATA}_tree_metadata.txt \
 --outdir $WORKDIR/tmp/figures \
 --utilityfunctions $SCRIPT_DIR/utility_functions.R \
