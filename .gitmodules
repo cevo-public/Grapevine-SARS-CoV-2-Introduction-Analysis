@@ -1,0 +1,3 @@
+[submodule "database"]
+	path = database
+	url = https://gitlab.ethz.ch/sars_cov_2/database.git
