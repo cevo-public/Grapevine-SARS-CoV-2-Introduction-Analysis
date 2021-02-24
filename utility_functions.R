@@ -1,6 +1,23 @@
 # Utility functions for project, mostly having to do with manipulating data and 
 # trees.
 
+#' Overwrites the open_database_connection function: Connection data (including the password) must be provided via
+#' config file.
+open_database_connection <- function (
+  db_instance = "server",
+  config_file = "database/config.yml"
+) {
+  connection_data <- config::get("database", file = config_file)[[db_instance]]
+  db_connection <- DBI::dbConnect(
+    RPostgres::Postgres(),
+    host = connection_data$host,
+    port = connection_data$port,
+    user = connection_data$username,
+    password = connection_data$password,
+    dbname = connection_data$dbname
+  )
+  return(db_connection)
+}
 is_tip <- function(node, n_tips) {
   # Return T if the node is a tip based on the default node #ing and # tips
   return(as.numeric(node) <= n_tips)

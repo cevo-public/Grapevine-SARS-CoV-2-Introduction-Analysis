@@ -2,11 +2,12 @@
 # Merge swiss seqs until DATE_THRESHOLD, then count how many different lineages there 
 # still are and how many samples were produced by each one.
 
-# DATE_THRESHOLD <- "2020-07-01"
-# TREE <- "/Users/nadeaus/Downloads//tmp/lsd/rep_1_n_sim_1000_n_imports_padded_0.timetree.nex"
-# CLADE_DATA <- "/Users/nadeaus/Downloads//clades/swiss_alignment_filtered2_masked_oneline_clades.tsv"
-# METADATA <- "/Users/nadeaus/Downloads//tmp/alignments/rep_1_n_sim_1000_n_imports_padded_0/rep_1_n_sim_1000_n_imports_padded_0_tree_metadata.txt"
-# UTILITY_FUNCTIONS <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/automated//utility_functions.R"
+DATE_THRESHOLD <- "2020-12-01"
+TREE <- "/Users/nadeaus/Repos/grapevine/dont_commit/2021_01_18_fall/lsd/rep_1_n_sim_1000_n_imports_padded_0.timetree.nex"
+CLADE_DATA <- "/Users/nadeaus/Repos/grapevine/dont_commit/2021_01_18_fall/clades/swiss_alignment_filtered2_masked_oneline_clades.tsv"
+METADATA <- "/Users/nadeaus/Repos/grapevine/dont_commit/2021_01_18_fall/alignment_metadata/rep_1_n_sim_1000_n_imports_padded_0_tree_metadata.txt"
+UTILITY_FUNCTIONS <- "/Users/nadeaus/Repos/grapevine/utility_functions.R"
+OUTDIR <- "/Users/nadeaus/Repos/grapevine/dont_commit/2021_01_18_fall/second_wave_lineages"
 
 require(dplyr)
 require(ape)
@@ -33,11 +34,13 @@ PREFIX_DATA <- args$prefixdata
 source(UTILITY_FUNCTIONS)
 system(command = paste("mkdir -p", OUTDIR))
 
+print("loading data")
 tree <- treeio::read.beast(file = TREE)
 tree_data <- tidytree::as_tibble(tree)
 metadata <- read.table(file = METADATA, sep = "\t", quote = "", fill = T, header = T, stringsAsFactors = F)
 clades <- read.delim(file = CLADE_DATA, sep = "\t")
 
+print("massaging metadata")
 metadata <- merge(
   x = metadata, y = clades[c("seqName", "clade")],
   by.x = "old_strain", by.y = "seqName", all.x = T)
@@ -48,6 +51,7 @@ metadata <- metadata %>%
       originating_lab == "Viollier AG" ~ "viollier",
       T ~ "other")) # count only viollier samples
     
+print("massaging tree data")
 tree_data <- merge(
   x = tree_data, y = metadata[c("strain", "country_recoded", "is_viollier", "clade")],
   by.x = "label", by.y = "strain", all.x = T)
@@ -55,14 +59,22 @@ tree_data <- merge(
 n_tips <- sum(!is.na(tree_data$label))
 tree_data <- delete_internal_zero_branches(tree_data = tree_data, root_node = n_tips + 1, verbose = F)
 
-# Get tips clustered into lineages present on July 1
+# Get tips clustered into lineages present on date threshold
 
 # Recursively traverse tree from the root, as soon as you hit a node 
 # with estimated date after July 1st, if some tips under the node are swiss
 # record the node and tips under it
 get_tips_by_threshold_lineage <- function(node, tree_data, n_tips, tree, date_threshold) {
   # Base case 1: node is tip and is it's own July 1st lineage
-  node_date <- as.Date(tree_data[tree_data$node == node, "date"])
+  if (tree_data[tree_data$node == node, "date"] == "2020") {
+    warning(paste("node", node, "in tree has ambiguous date '2020', coercing to '2020-01-01"))
+    node_date <- as.Date("2020-01-01")
+  } else if (tree_data[tree_data$node == node, "date"] == "2021") {
+    warning(paste("node", node, "in tree has ambiguous date '2021', coercing to '2020-01-01"))
+    node_date <- as.Date("2021-01-01")
+  } else {
+    node_date <- as.Date(tree_data[tree_data$node == node, "date"])
+  }
   tips_below <- get_tips_under_node(node = node, tree_data = tree_data, n_tips = n_tips)
   if (is_tip(node, n_tips = n_tips) & node_date > as.Date(date_threshold)) {
     if (tree_data[tree_data$node == node, "is_viollier"] == "viollier") {
@@ -92,6 +104,7 @@ get_tips_by_threshold_lineage <- function(node, tree_data, n_tips, tree, date_th
   }
 }
 
+print(paste("Getting tips clustered into lineages present on", DATE_THRESHOLD))
 threshold_lineages <- data.frame(
   threshold_node = c(), 
   swiss_tip = c(),
@@ -101,6 +114,7 @@ get_tips_by_threshold_lineage(
   tree_data = tree_data, tree = tree, n_tips = n_tips,
   date_threshold = DATE_THRESHOLD)
 
+print("summarizing lineages")
 threshold_lineages <- merge(
   x = threshold_lineages, y = tree_data[c("node", "clade")], 
   by.x = "swiss_tip", by.y = "node", all.x = T)
@@ -143,6 +157,7 @@ threshold_lineage_summary$clade <- mapply(
   n_20C = threshold_lineage_summary$n_20C,
   n_19A = threshold_lineage_summary$n_19A)
 
+print("writing out lineages crossing date threshold results")
 write.table(
   x = threshold_lineage_summary,
   file = paste(OUTDIR, "/", PREFIX_DATA, "_lineages_crossing_", DATE_THRESHOLD, ".txt", sep = ""),

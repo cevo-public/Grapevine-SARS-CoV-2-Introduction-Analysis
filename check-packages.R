@@ -4,7 +4,10 @@ requiredPackages <- c(
     "lubridate",
     "scatterpie",
     "tidyr",
-    "tidytree"
+    "tidytree",
+    "dplyr",
+    "config", 
+    "DBI"
 )
 
 for (p in requiredPackages) {

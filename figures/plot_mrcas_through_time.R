@@ -1,45 +1,38 @@
 # Plot MRCAs through time
 
-WORKDIR <- "/Users/nadeaus/Documents/2019-ncov-data/CH_sequencing/analyses/2020-10-07_ch_cluster_analysis"
-PREFIX_DATA <- "rep_1_n_sim_1000_n_imports_padded_0"
-PREFIX_PLOT <- "rep_1_n_sim_1000_n_imports_padded_0_m_3_p_1"
-PREFIX_T <- "rep_1_n_sim_1000_n_imports_padded_0_m_3_p_1_swiss_polytomies_T"
-PREFIX_F <- "rep_1_n_sim_1000_n_imports_padded_0_m_3_p_1_swiss_polytomies_F"
+WORKDIR <- "dont_commit/2021_01_18_all"
+PREFIX_DATA <- "rep_1_n_sim_3000_n_imports_padded_1"
+PREFIX_PLOT <- "rep_1_n_sim_3000_n_imports_padded_1_m_3_p_1"
+PREFIX_T <- "rep_1_n_sim_3000_n_imports_padded_1_m_3_p_1_swiss_polytomies_T"
+PREFIX_F <- "rep_1_n_sim_3000_n_imports_padded_1_m_3_p_1_swiss_polytomies_F"
 
-TREE_DATA_WITH_ASR_T <- paste(WORKDIR, "/asr/", PREFIX_T, "_tree_data_with_asr.txt", sep = "")
 CLUSTERS_T <- paste(WORKDIR, "/clusters/", PREFIX_T, "_clusters.txt", sep = "")
-TREE_DATA_WITH_ASR_F <- paste(WORKDIR, "/asr/", PREFIX_F, "_tree_data_with_asr.txt", sep = "")
 CLUSTERS_F <- paste(WORKDIR, "/clusters/", PREFIX_F, "_clusters.txt", sep = "")
-METADATA <- paste(WORKDIR, "/data/alignments/", PREFIX_DATA, "/", PREFIX_DATA, "_tree_metadata.txt", sep = "")
+METADATA <- paste(WORKDIR, "/alignment_metadata/", PREFIX_DATA, "_tree_metadata.txt", sep = "")
 OUTDIR <- paste(WORKDIR, "/figures/mrca_dates/", sep = "")
 
-source(paste(WORKDIR, "scripts/utility_functions.R", sep = "/"))
-source(paste(WORKDIR, "figures/scripts/plotting_utility_functions.R", sep = "/"))
+require(ggplot2)
+require(lubridate)
+source("utility_functions.R")
+source("figures/plotting_utility_functions.R")
 system(command = paste("mkdir -p", OUTDIR))
 
+# Load data --------------------------------------------------------------------
+metadata <- read.table(
+  file = METADATA, sep = "\t", quote = "", fill = T, header = T, stringsAsFactors = F)
+cluster_data_T <- read.delim(file = CLUSTERS_T, stringsAsFactors = F)
+cluster_data_F <- read.delim(file = CLUSTERS_F, stringsAsFactors = F)
+
 # Preliminaries ----------------------------------------------------------------
-week_to_date_ranges <- get_week_to_date_range_mapping(
-  min_date = "2019-12-01", 
-  max_date = "2020-08-31")
-get_week_start <- function(date_range) {
-  return(strsplit(x = date_range, split = " - ")[[1]][1])
-}
-week_to_date_ranges$week_start <- unlist(lapply(
-  X = week_to_date_ranges$date_range, 
-  FUN = get_week_start))
 
 color_scale <- scale_fill_manual(
   values = c("#FDC086", "#BEAED4"), 
   labels = c("FALSE" = "Singletons", "TRUE" = "Transmission chains"),
   name = element_blank())
 
-# Load data --------------------------------------------------------------------
-metadata <- read.table(
-  file = METADATA, sep = "\t", quote = "", fill = T, header = T, stringsAsFactors = F)
-cluster_data_T <- read.delim(file = CLUSTERS_T)
-cluster_data_F <- read.delim(file = CLUSTERS_F)
-tree_data_with_asr_T <- read.delim(file = TREE_DATA_WITH_ASR_T, stringsAsFactors = F)
-tree_data_with_asr_F <- read.delim(file = TREE_DATA_WITH_ASR_F, stringsAsFactors = F)
+dates <- seq.Date(from = as.Date("2020-01-01"), to = as.Date("2021-01-18"), by = 7)
+weeks_to_date_range_mapping <- get_weeks_since_to_date_range_mapping(
+  weeks_since = get_week_since_epidemic_start(dates))
 
 # Get cluster information ------------------------------------------------------
 get_cluster_information <- function(cluster_data, metadata) {
@@ -51,17 +44,19 @@ get_cluster_information <- function(cluster_data, metadata) {
     summarize(first_sample = min(date),
               last_sample = max(date))
   
-  cluster_summary$ch_tmrca_week <- lubridate::week(cluster_summary$ch_tmrca)
+  cluster_summary$ch_tmrca[cluster_summary$ch_tmrca == "2021"] <- "2021-01-01"
+  # cluster_summary$ch_tmrca_week <- lubridate::week(cluster_summary$ch_tmrca)
+  cluster_summary$ch_tmrca_week <- get_week_since_epidemic_start(cluster_summary$ch_tmrca)
   cluster_summary$ch_tmrca_week <- factor(
     x = cluster_summary$ch_tmrca_week,
-    levels = week_to_date_ranges$week,
-    labels = week_to_date_ranges$date_range)
+    levels = weeks_to_date_range_mapping$weeks_since,
+    labels = weeks_to_date_range_mapping$date_range)
   
-  cluster_summary$foreign_tmrca_week <- lubridate::week(cluster_summary$foreign_tmrca)
+  cluster_summary$foreign_tmrca_week <- get_week_since_epidemic_start(cluster_summary$ch_tmrca)
   cluster_summary$foreign_tmrca_week <- factor(
     x = cluster_summary$foreign_tmrca_week,
-    levels = week_to_date_ranges$week,
-    labels = week_to_date_ranges$date_range)
+    levels = weeks_to_date_range_mapping$weeks_since,
+    labels = weeks_to_date_range_mapping$date_range)
   
   return(cluster_summary)
 }
@@ -82,12 +77,31 @@ ch_mrcas_through_time <- ggplot(
   theme_bw() + 
   labs(x = element_blank(), y = "Count") + 
   color_scale + 
-  scale_x_discrete(labels = week_to_date_ranges$week_start, limits = week_to_date_ranges$date_range) + 
   theme(
     axis.text.x = element_text(angle = 90, vjust = 0.5),
     legend.position = "bottom") + 
   facet_wrap(. ~ polyswiss, nrow = 1, scales = "free_y")
 # show(ch_mrcas_through_time)
+
+presentation_fig <- ggplot(
+  data = cluster_summary %>% 
+    filter(polyswiss == "maximum introductions,\nminimum local transmission"),
+  aes(x = ch_tmrca_week, fill = size > 1)) + 
+  geom_bar(position = "stack") + 
+  # geom_text(stat='count', aes(label=..count.., group = size > 1), size = 2, position = position_stack(vjust = 0.5)) + 
+  theme_bw() + 
+  labs(x = element_blank(), y = "Count") + 
+  color_scale + 
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5),
+    legend.position = "none") #+ 
+  # ggtitle("Date and number of Swiss TMRCAs")
+show(presentation_fig)
+ggsave(
+  presentation_fig, 
+  path = "/Users/nadeaus/Documents/Presentations/21_01_20_PHB_infectious_disease_cluster",
+  filename = "ch_mrcas_from_start.png",
+  width = 6, height = 2, units = "in")
 
 foreign_mrcas_through_time <- ggplot(
   data = cluster_summary,
@@ -96,7 +110,6 @@ foreign_mrcas_through_time <- ggplot(
   geom_text(stat='count', aes(label=..count.., group = size > 1), size = 2, position = position_stack(vjust = 0.5)) + 
   theme_bw() + 
   labs(x = element_blank(), y = "Count") + 
-  scale_x_discrete(labels = week_to_date_ranges$week_start, limits = week_to_date_ranges$date_range) + 
   color_scale +
   theme(
     axis.text.x = element_text(angle = 90, vjust = 0.5),

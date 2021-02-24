@@ -4,13 +4,13 @@ set -euo pipefail
 while getopts s:w:d:r:m:p:l: flag
 do
     case "${flag}" in
-        s) SCRIPT_DIR=${OPTARG};;
-        w) WORKDIR=${OPTARG};;
-        d) DATE_THRESHOLD=${OPTARG};;
-        r) PREFIX_DATA=${OPTARG};;
-        m) MAX_NONFOCAL_SUBCLADES=${OPTARG};;
-        p) MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=${OPTARG};;
-		l) TRANSMISSION_TO_TEST_DELAY=${OPTARG};;
+        s) echo SCRIPT_DIR:${OPTARG};SCRIPT_DIR=${OPTARG};;
+        w) echo WORKDIR:${OPTARG};WORKDIR=${OPTARG};;
+        d) echo DATE_THRESHOLD:${OPTARG};DATE_THRESHOLD=${OPTARG};;
+        r) echo PREFIX_DATA:${OPTARG};PREFIX_DATA=${OPTARG};;
+        m) echo MAX_NONFOCAL_SUBCLADES:${OPTARG};MAX_NONFOCAL_SUBCLADES=${OPTARG};;
+        p) echo MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES:${OPTARG};MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=${OPTARG};;
+		l) echo TRANSMISSION_TO_TEST_DELAY:${OPTARG};TRANSMISSION_TO_TEST_DELAY=${OPTARG};;
     esac
 done
 
@@ -39,17 +39,6 @@ Rscript $SCRIPT_DIR/figures/figure_1.R \
 --utilityfunctions $SCRIPT_DIR/utility_functions.R \
 --prefixdata $PREFIX_DATA
 
-# Figure 2 -----------------------------------------------------
-
-Rscript $SCRIPT_DIR/figures/figure_2.R \
---maxclusters $WORKDIR/tmp/clusters/${PREFIX_DATA}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_swiss_polytomies_F_clusters.txt \
---metadata $WORKDIR/tmp/alignments/${PREFIX_DATA}/${PREFIX_DATA}_tree_metadata.txt \
---outdir $WORKDIR/tmp/figures \
---utilityfunctions $SCRIPT_DIR/utility_functions.R \
---treedatawithasr $WORKDIR/tmp/asr/${PREFIX_DATA}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_swiss_polytomies_F_tree_data_with_asr.txt \
---prefix ${PREFIX_DATA}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES} \
---minclustersize 2
-
 # Figure 3 -----------------------------------------------------
 
 # TODO: which countries to emphasize and which are "other" is currently hardcoded, would be better to emphasize always to N countries instead 
@@ -64,3 +53,13 @@ Rscript $SCRIPT_DIR/figures/figure_3.R \
 --transmissiontestdelay $TRANSMISSION_TO_TEST_DELAY \
 --prefix ${PREFIX_DATA}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
 
+# Figure 2 -----------------------------------------------------
+
+Rscript $SCRIPT_DIR/figures/figure_2.R \
+--maxclusters $WORKDIR/tmp/clusters/${PREFIX_DATA}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_swiss_polytomies_F_clusters.txt \
+--metadata $WORKDIR/tmp/alignments/${PREFIX_DATA}/${PREFIX_DATA}_tree_metadata.txt \
+--outdir $WORKDIR/tmp/figures \
+--utilityfunctions $SCRIPT_DIR/utility_functions.R \
+--treedatawithasr $WORKDIR/tmp/asr/${PREFIX_DATA}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_swiss_polytomies_F_tree_data_with_asr.txt \
+--prefix ${PREFIX_DATA}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES} \
+--minclustersize 2
