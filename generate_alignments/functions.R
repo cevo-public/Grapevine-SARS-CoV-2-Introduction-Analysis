@@ -204,7 +204,9 @@ get_travel_cases <- function(db_connection, min_date, max_date, outdir) {
   
   print(paste("Writing out results to", outdir))
   write.csv(
-    x = travel_cases, file = "estimated_travel_cases.csv", row.names = F)
+    x = travel_cases, 
+    file = paste(outdir, "estimated_travel_cases.csv", sep = "/"), 
+    row.names = F)
   
   return(travel_cases)
 }
@@ -503,7 +505,7 @@ get_travel_strains <- function(
 #' @return table with strains and corresponding priority
 run_nextstrain_priority <- function(
   focal_strains, nonfocal_strains, prefix, outdir, 
-  python_path, priorities_script, db_username, db_password, reference
+  python_path, priorities_script, reference
 ) {
   n_focal_strains <- length(focal_strains)
   n_nonfocal_strains <- length(nonfocal_strains)
@@ -540,8 +542,7 @@ run_nextstrain_priority <- function(
     "--context-strains", outfile_context_strains,
     "--reference", reference,
     "--outfile", outfile_priorities,
-    "--username", db_username,
-    "--password", paste("'", db_password, "'", sep = ""))
+    "--automated")
   system(command = priorities_command)
   
   priorities <- read.delim(
@@ -560,7 +561,7 @@ run_nextstrain_priority <- function(
 get_similarity_strains <- function(
   db_connection, qcd_gisaid_query, similarity_context_scale_factor, lineages,
   priorities_script = "database/python/priorities_from_database.py",
-  python_path, db_password, db_username, reference
+  python_path, reference
 ) {
   n_lineages <- nrow(lineages)
   for (i in 1:n_lineages) {
@@ -588,8 +589,6 @@ get_similarity_strains <- function(
       outdir = outdir, 
       priorities_script = priorities_script,
       python_path = python_path, 
-      db_password = db_password,
-      db_username = db_username,
       reference = reference)
     
     n_similarity_seqs <- ceiling(length(focal_strains) * similarity_context_scale_factor)
@@ -617,7 +616,7 @@ get_similarity_strains <- function(
 #' @return Dataframe giving size of each alignment.
 write_out_alignments <- function(
   lineages, travel_strains, similarity_strains, outgroup_gisaid_epi_isls, outdir,
-  qcd_gisaid_query
+  qcd_gisaid_query, db_connection
 ) {
   alignments_generated <- c()
   n_lineages <- nrow(lineages)
@@ -634,11 +633,11 @@ write_out_alignments <- function(
       filter(pangolin_lineage %in% lineages_included)
     similarity_strains_i <- similarity_strains %>% 
       filter(pangolin_lineage %in% lineages_included)
-    alignment_strains_i <- c(
+    alignment_strains_i <- unique(c(
       outgroup_gisaid_epi_isls, 
       focal_strains_i$gisaid_epi_isl,
       travel_strains_i$gisaid_epi_isl, 
-      similarity_strains_i$gisaid_epi_isl)
+      similarity_strains_i$gisaid_epi_isl))
     
     cat(
       "Lineage", lineage, "alignment has", length(alignment_strains_i), "sequences:\n", 
@@ -647,25 +646,37 @@ write_out_alignments <- function(
       nrow(similarity_strains_i), "genetic similarity context seqs and\n",
       length(outgroup_gisaid_epi_isls), "outgroup sequences\n")
     
+    metadata_i <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
+      filter(gisaid_epi_isl %in% !! alignment_strains_i) %>%
+      select(gisaid_epi_isl, strain, date_str, date, region, country, division, 
+             country_exposure, nextstrain_clade, pangolin_lineage, 
+             originating_lab, submitting_lab, authors) %>%
+      collect() %>%
+      mutate(
+        tree_pangolin_lineage = case_when(
+          gisaid_epi_isl %in% outgroup_gisaid_epi_isls ~ pangolin_lineage,
+          T ~ lineage),
+        tree_label = paste(gisaid_epi_isl, date_str, sep = "|"))
+    missing_strains <- alignment_strains_i[!(alignment_strains_i %in% metadata_i$gisaid_epi_isl)]
+    if (length(missing_strains) > 0) {
+      stop(paste(paste0(missing_strains, collapse = ", "), "selected strains not found in table gisaid_sequence."))
+    }
+    write.csv(
+      x = metadata_i, 
+      file = paste(outdir, "/", lineage, "_metadata.csv", sep = ""),
+      row.names = F)
+    
+    header_mapping <- metadata_i$tree_label
+    names(header_mapping) <- metadata_i$gisaid_epi_isl
+      
     export_seqs_as_fasta(
       db_connection = db_connection, 
       sample_names = alignment_strains_i,
       seq_outfile = paste(outdir, "/", lineage, ".fasta", sep = ""),
       table = "gisaid_sequence",
       sample_name_col = "gisaid_epi_isl",
-      seq_col = "aligned_seq")
-    
-    metadata_i <- qcd_gisaid_query %>%
-      filter(gisaid_epi_isl %in% !! alignment_strains_i) %>%
-      select(gisaid_epi_isl, strain, date_str, date, region, country, division, 
-             country_exposure, nextstrain_clade, pangolin_lineage, 
-             originating_lab, submitting_lab, authors) %>%
-      collect() %>%
-      mutate(tree_pangolin_lineage = lineage)
-    write.csv(
-      x = metadata_i, 
-      file = paste(outdir, "/", lineage, "_metadata.csv", sep = ""),
-      row.names = F)
+      seq_col = "aligned_seq",
+      header_mapping = header_mapping)
     
     alignment_info_i <- data.frame(
       lineage = lineage, n_seqs = length(alignment_strains_i))

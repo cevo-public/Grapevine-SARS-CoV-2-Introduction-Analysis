@@ -3,6 +3,15 @@ source("utility_functions.R")
 source("generate_alignments/functions.R")
 require(dplyr)
 
+# min_date <- "2020-08-01"
+# max_date <- "2020-08-31"
+# min_length <- 27000
+# travel_context_scale_factor <- 1
+# similarity_context_scale_factor <- 1
+# outdir <- "/Users/nadeaus/Repos/grapevine/dont_commit/aug_sf1_rep1/alignments"
+# python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
+# reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
+
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
 parser$add_argument("--maxdate", type="character")
@@ -72,8 +81,6 @@ similarity_strains <- get_similarity_strains(
   db_connection = db_connection,
   qcd_gisaid_query = qcd_gisaid_query,
   python_path = python_path,
-  db_username = db_username,
-  db_password = db_password,
   reference = reference
 )
 
@@ -85,7 +92,8 @@ alignments <- write_out_alignments(
   similarity_strains = similarity_strains,
   outgroup_gisaid_epi_isls = outgroup_gisaid_epi_isls,
   outdir = outdir,
-  qcd_gisaid_query = qcd_gisaid_query
+  qcd_gisaid_query = qcd_gisaid_query,
+  db_connection = db_connection
 )
 
 write.csv(
