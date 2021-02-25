@@ -23,20 +23,21 @@ is_tip <- function(node, n_tips) {
   return(as.numeric(node) <= n_tips)
 }
 
+#' Get node data for children of node
+#' @param node integer node number
+#' @param tree_data Tree data in tidytree treedata format.
+#' @return rows of tree_data corresponding to the children of node.
 get_child_node_data <- function(node, tree_data) {
-  # Take node # and tree data (tidytree treedata format, must have cols node, parent)
-  # Return data frame in treedata format for all nodes w/ node as parent 
   child_node_data <- tree_data[tree_data$parent == node, ]
-  # If node is root, do not return root as child
-  child_node_data <- child_node_data[child_node_data$parent != child_node_data$node, ]  
+  child_node_data <- child_node_data[child_node_data$parent != child_node_data$node, ]  # If node is root, do not return root as child
   return(child_node_data)
 }
 
-get_n_descendent_swiss_mrcas <- function(node, tree_data, cluster_data, n_tips) {
+get_n_descendent_swiss_mrcas <- function(node, tree_data, chains, n_tips) {
   # Returns 1 if the node is a Swiss MRCA, otherwise returns the # Swiss MRCAs
   # descending from the node. Counts only the uppermost MRCA if there additional
   # Swiss MRCAs are nested under a Swiss MRCA higher in the tree.
-  if (node %in% cluster_data$ch_mrca) {
+  if (node %in% chains$ch_mrca) {
     return(1)
   } else if (node <= n_tips) {
     return(0)
@@ -47,7 +48,7 @@ get_n_descendent_swiss_mrcas <- function(node, tree_data, cluster_data, n_tips) 
     X = child_node_data$node,
     FUN = get_n_descendent_swiss_mrcas,
     tree_data = tree_data, 
-    cluster_data = cluster_data, 
+    chains = chains, 
     n_tips = n_tips)))
   return(n_descendent_swiss_mrcas)
 }
@@ -88,31 +89,6 @@ get_node_has_context_seqs <- function(tree_data, node, context_node_set, n_tips)
       tree_data = tree_data, context_node_set = context_node_set, n_tips = n_tips)))
   }
   return(has_context)
-}
-
-is_swiss_cluster <- function(cluster) {
-  # If cluster object has null size, it's a dummy cluster 
-  return(!(is.na(cluster$size)))
-}
-
-get_cluster_size <- function(cluster) {
-  return(cluster$size)
-}
-
-get_cluster_tips <- function(cluster) {
-  return(cluster$tips)
-}
-
-get_cluster_tip_nodes <- function(cluster) {
-  return(cluster$tip_nodes)
-}
-
-get_n_nonfocal_subclades <- function(cluster) {
-  return(cluster$n_nonfocal_subclades)
-}
-
-get_n_basal_nonswiss_clades <- function(cluster) {
-  return(cluster$n_basal_nonswiss_clades)
 }
 
 check_all_tips_in_metadata <- function(metadata_ids, tree_ids) {
@@ -269,26 +245,28 @@ get_weeks_since_to_date_range_mapping <- function(weeks_since, first_seq_date = 
   return(data.frame(weeks_since = complete_weeks_since, date_range = complete_date_ranges))
 }
 
-get_cluster_data_by_tip <- function(cluster_data, metadata) {
-  # Takes cluster data and spreads it into one row per tip with cluster idx variable
+get_chain_data_by_tip <- function(chains, metadata = NULL) {
+  # Takes transmission chain data and spreads it into one row per tip with chain idx variable
   # Also merges in tip metadata
-  cluster_data_by_tip <- cluster_data %>%
-    mutate(cluster_idx = 1:n()) %>%
+  chain_data_by_tip <- chains %>%
+    mutate(chain_idx = 1:n()) %>%
     tidyr::separate(
       col = tips,
       sep = ", ",
-      into = paste("tip", 1:max(cluster_data$size), sep = "_"),
+      into = paste("tip", 1:max(chains$size), sep = "_"),
       remove = F,
       fill = "right") %>% 
     tidyr::pivot_longer(
-      cols = paste("tip", 1:max(cluster_data$size), sep = "_"),
+      cols = paste("tip", 1:max(chains$size), sep = "_"),
       values_to = "tip",
       names_to = "tip_idx",
       names_prefix = "tip_") %>%
     filter(!(is.na(tip)))
-  cluster_data_by_tip <- merge(
-    x = cluster_data_by_tip, y = metadata,
-    by.x = "tip", by.y = "strain", all.x = T)
-  return(cluster_data_by_tip)
+  if (!is.null(metadata)) {
+    chain_data_by_tip <- merge(
+      x = chain_data_by_tip, y = metadata,
+      by.x = "tip", by.y = "tree_label", all.x = T)
+  }
+  return(chain_data_by_tip)
 }
 

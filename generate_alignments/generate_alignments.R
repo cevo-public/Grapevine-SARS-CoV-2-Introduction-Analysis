@@ -6,9 +6,9 @@ require(dplyr)
 # min_date <- "2020-08-01"
 # max_date <- "2020-08-31"
 # min_length <- 27000
-# travel_context_scale_factor <- 1
+# travel_context_scale_factor <- 5
 # similarity_context_scale_factor <- 1
-# outdir <- "/Users/nadeaus/Repos/grapevine/dont_commit/aug_sf1_rep1/alignments"
+# outdir <- "/Users/nadeaus/Repos/grapevine/dont_commit/aug_test/alignments"
 # python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
 # reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
 
@@ -20,7 +20,7 @@ parser$add_argument("--travelcontextscalefactor", type="integer", help="Multipli
 parser$add_argument("--similaritycontextscalefactor", type="integer", help="Multiplicative factor, how many times the # swiss sequences should we select for the genetic similarity context set?")
 parser$add_argument("--outdir", type="character")
 parser$add_argument("--pythonpath", type="character", help="e.g. /Users/nadeaus/Repos/database/python/venv/bin/python3")
-parser$add_argument("--reference", type="integer", help="e.g. /Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta")
+parser$add_argument("--reference", type="character", help="e.g. /Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta")
 
 args <- parser$parse_args()
 
@@ -85,7 +85,6 @@ similarity_strains <- get_similarity_strains(
 )
 
 # Write out alignments, one per pangolin lineage
-system(command = paste("mkdir -p ", outdir, "/alignments", sep = ""))
 alignments <- write_out_alignments(
   lineages = lineages,
   travel_strains = travel_strains,

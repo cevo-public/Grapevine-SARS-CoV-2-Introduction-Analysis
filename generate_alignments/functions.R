@@ -34,7 +34,7 @@ get_exposures_per_country_month <- function(db_connection, min_date, max_date) {
 get_tourist_arrivals_per_country_month <- function(db_connection, min_date, max_date) {
   print("Estimating number of tourists arriving in Switzerland by origin country and month of arrival.")
   tourist_arrivals_per_country_month <- dplyr::tbl(
-    db_connection, "fso_tourist_accommodation") %>%
+    db_connection, "ext_fso_tourist_accommodation") %>%
     filter(date <= !! max_date, date >= !! min_date) %>%
     collect() %>%
     tidyr::complete(
@@ -55,7 +55,7 @@ get_tourist_arrivals_per_country_month <- function(db_connection, min_date, max_
 get_commuter_permits_per_country_month <- function(db_connection, min_date, max_date) { 
   print("Getting number of cross-border commuter permits for Switzerland by origin country and month.")
   commuter_permits_per_country_month <- dplyr::tbl(
-    db_connection, "fso_cross_border_commuters") %>%
+    db_connection, "ext_fso_cross_border_commuters") %>%
     filter(date <= !! max_date, date >= !! min_date) %>%
     collect() %>%
     tidyr::complete(
@@ -76,7 +76,7 @@ get_commuter_permits_per_country_month <- function(db_connection, min_date, max_
 get_avg_infectious_per_country_month <- function(db_connection, min_date, max_date) {
   print("Geting average daily infectious population (per million) by country and month.")
   avg_infectious_per_country_month <- dplyr::tbl(
-    db_connection, "owid_global_cases") %>%
+    db_connection, "ext_owid_global_cases") %>%
     filter(date <= !! max_date, date >= !! min_date) %>%
     select(iso_code, date, new_cases_per_million) %>%
     group_by(iso_code) %>%
@@ -547,6 +547,7 @@ run_nextstrain_priority <- function(
   
   priorities <- read.delim(
     file = paste(outdir, "/", prefix, "_priorities.txt", sep = ""),
+    header = F,
     col.names = c("strain", "priority"),
     stringsAsFactors = F) %>%
     arrange(desc(priority))
@@ -656,7 +657,16 @@ write_out_alignments <- function(
         tree_pangolin_lineage = case_when(
           gisaid_epi_isl %in% outgroup_gisaid_epi_isls ~ pangolin_lineage,
           T ~ lineage),
-        tree_label = paste(gisaid_epi_isl, date_str, sep = "|"))
+        tree_label = paste(gisaid_epi_isl, date_str, sep = "|"),
+        travel_context = case_when(
+          gisaid_epi_isl %in% travel_strains_i$gisaid_epi_isl ~ T,
+          T ~ F),
+        similarity_context = case_when(
+          gisaid_epi_isl %in% similarity_strains_i$gisaid_epi_isl ~ T,
+          T ~ F),
+        focal_sequence = case_when(
+          gisaid_epi_isl %in% focal_strains_i$gisaid_epi_isl ~ T,
+          T ~ F))
     missing_strains <- alignment_strains_i[!(alignment_strains_i %in% metadata_i$gisaid_epi_isl)]
     if (length(missing_strains) > 0) {
       stop(paste(paste0(missing_strains, collapse = ", "), "selected strains not found in table gisaid_sequence."))
