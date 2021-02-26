@@ -1,0 +1,11 @@
+install.packages(c(
+  "argparse",
+  "ggtree",
+  "lubridate",
+  "scatterpie",
+  "tidyr",
+  "tidytree",
+  "dplyr",
+  "config",
+  "DBI"
+))

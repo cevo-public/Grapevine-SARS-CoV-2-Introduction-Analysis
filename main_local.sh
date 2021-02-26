@@ -4,8 +4,7 @@ set -euo pipefail
 # ------------------------------------------------------
 # Settings
 
-ANALYSIS=test_travel_scale_2
-WORKDIR=/Users/nadeaus/Repos/grapevine/dont_commit/${ANALYSIS}
+WORKDIR=/workdir
 
 REFERENCE=$WORKDIR/input/reference.fasta
 MIN_DATE=2020-07-01
@@ -13,8 +12,8 @@ MAX_DATE=2020-07-31
 MIN_LENGTH=27000
 TRAVEL_CONTEXT_SCALE_FACTOR=2
 SIMILARITY_CONTEXT_SCALE_FACTOR=1
-IQTREE=/Users/nadeaus/programs/iqtree-2.0.6-MacOSX/bin/iqtree2
-PYTHON=/Users/nadeaus/Repos/database/python/venv/bin/python3
+IQTREE=/app/iqtree-2.0.6-Linux/bin/iqtree2
+PYTHON=python3
 
 # All input files for this pipeline should be stored in this directory. Files in this directory will not be changed
 # by this script.
