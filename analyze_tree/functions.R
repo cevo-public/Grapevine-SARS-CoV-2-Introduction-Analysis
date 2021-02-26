@@ -342,7 +342,6 @@ finish_cluster <- function(
     "tip_nodes" = child_cluster$tip_nodes,
     "n_intl_subclades" = child_cluster$n_intl_subclades,
     "n_basal_intl_clades" = 0)
-  print(cluster_finished)
   return(cluster_finished)
 }
 
