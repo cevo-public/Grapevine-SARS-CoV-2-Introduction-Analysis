@@ -1,0 +1,8 @@
+default:
+  database:
+    server:
+      host: ***REMOVED***
+      port: 5432
+      username: nadeaus
+      dbname: sars_cov_2
+      dbpassword: <password>
