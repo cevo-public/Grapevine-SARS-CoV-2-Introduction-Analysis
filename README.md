@@ -1,19 +1,21 @@
 # Grapevine: CH Sequence Analysis Pipeline
 
 TODOs
-* Tree rooting no longer necessary b/c have defined outgroup?
-* Does LSD handle incomplete dates correctly? The resulting tree data has date on 15th for unknown day
-* Also updating case data every time? Looks like no.
+* Tree rooting currently done based on one of the outgroup sequences, think about whether this makes sense even when the lineage is this sequence's lineage
+* The code doesn't filter out uncertain dates; instead LSD handle incomplete dates by e.g. assigning the 15th for an unknown day and a known month
+* The confirmed case data in the database isn't updated by the script, and the travel data is updated every single time the script is run - instead check the age of the tables and decide whether they need to be updated
+* Currently the full alignment is used - re-implement site masking according to De Maio et al.
 
 ## Usage
 
 ### Expected Input Files
 
-The script expects an input folder with the following files:
+The script expects the following directory structure:
 
 ```
-input
-└─01- reference.fasta
+workdir
+├── input
+│   ├─01- reference.fasta
 ```
 
 - The files (01) is the reference genome which can be downloaded from https://www.ncbi.nlm.nih.gov/nuccore/MN908947
@@ -21,19 +23,16 @@ input
 
 ### Required Programs
 
-The following programs and commands have to be installed:
+The pipeline is run in a docker (or singularity) container so all required programs are installed. The requirements are:
 
 - R
 - python3
 - iqtree
+- database repository (https://gitlab.ethz.ch/sars_cov_2/database)
+- access to the sars_cov_2 database (sars_cov_2@id-hdb-psgr-cp61.ethz.ch)
 
-The paths to iqtree and mafft can be changed in `main.sh`.
-R and python are already installed on Euler and can be loaded with the commands:
-env2lmod
-module load r/4.0.2
-module load python/3.7.4
-
-A list of required R packages are listed in `check-packages.R`.
+A list of required R packages are listed in `install-packages.R`.
+A list of required python packates are listed in `database/python/requirements.txt`.
 
 
 ### Settings
@@ -43,21 +42,32 @@ All the settings are at the top of `main.sh`.
 
 ### Output Structure
 
-The script will write into two folders: one for **temporary** files and one for the final **output** files. Their paths can be changed in the settings. The script will not make any change to the **input** directory.
+```
+workdir
+├── input
+│   ├─01- reference.fasta
+├── temp
+├── output
+```
+
+The script will write into two folders: one for **temporary** files and one for the final **output** files. The script will not make any change to the **input** directory.
 
 
 ### Run
 
-The script is designed to run on the Euler server. Please make sure that all required modules are loaded and programs and commands can be found.
+The script is designed to run on the Euler server. Please make sure that the required input is provided and the job will have internet access by executing `module load eth_proxy`. See https://scicomp.ethz.ch/wiki/Getting_started_with_clusters#Security for further information.
 
-The batch jobs have to be able to access the network. Execute `module load eth_proxy` to allow that. See https://scicomp.ethz.ch/wiki/Getting_started_with_clusters#Security for further information.
+Build the singularity container with the command:
 
-Since the script needs a long time to run (approx. 6 to 12h), it is advised to use a terminal multiplexer such as `screen` or `tmux`.
+```
+singularity build --docker-login grapevine.sif docker://registry.ethz.ch/sars_cov_2/grapevine:latest
+# Enter credentials for ETH gitlab
+```
 
 Finally, run:
 
 ```
-bash main.sh
+bsub -N -n 4 -R "rusage[mem=1000]" -W 1:00 -B "singularity run --bind /scratch:/scratch --bind <path to workdir with required input>/workdir:/app/workdir grapevine.sif"
 ```
 
 ### Pipeline structure
