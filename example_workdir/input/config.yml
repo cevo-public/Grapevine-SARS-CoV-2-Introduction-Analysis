@@ -1,0 +1,8 @@
+default:
+  database:
+    server:
+      host: id-hdb-psgr-cp61.ethz.ch
+      port: 5432
+      username: nadeaus
+      dbname: sars_cov_2
+      dbpassword: <password>
