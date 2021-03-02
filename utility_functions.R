@@ -2,22 +2,38 @@
 # trees.
 
 #' Overwrites the open_database_connection function: Connection data (including the password) must be provided via
-#' config file.
+#' environment variables.
+# open_database_connection <- function (...) {
+#   db_connection <- DBI::dbConnect(
+#     RPostgres::Postgres(),
+#     host = Sys.getenv("DB_HOST"),
+#     port = Sys.getenv("DB_PORT"),
+#     user = Sys.getenv("DB_USER"),
+#     password = Sys.getenv("DB_PASSWORD"),
+#     dbname = Sys.getenv("DB_DBNAME")
+#   )
+#   return(db_connection)
+# }
 open_database_connection <- function (
   db_instance = "server",
-  config_file = "database/config.yml"
+  config_file = "workdir/input/config.yml"
 ) {
+  print(paste("config_file location:", config_file))
+  print(paste("config file exists", file.exists(config_file)))
   connection_data <- config::get("database", file = config_file)[[db_instance]]
   db_connection <- DBI::dbConnect(
     RPostgres::Postgres(),
     host = connection_data$host,
     port = connection_data$port,
     user = connection_data$username,
-    password = connection_data$password,
+    password = connection_data$dbpassword,
     dbname = connection_data$dbname
   )
   return(db_connection)
 }
+
+
+
 is_tip <- function(node, n_tips) {
   # Return T if the node is a tip based on the default node #ing and # tips
   return(as.numeric(node) <= n_tips)

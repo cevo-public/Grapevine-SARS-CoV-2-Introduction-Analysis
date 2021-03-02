@@ -16,6 +16,7 @@ The script expects the following directory structure:
 workdir
 ├── input
 │   ├─01- reference.fasta
+│   ├─02- config.yml
 ```
 
 - The files (01) is the reference genome which can be downloaded from https://www.ncbi.nlm.nih.gov/nuccore/MN908947
@@ -23,16 +24,10 @@ workdir
 
 ### Required Programs
 
-The pipeline is run in a docker (or singularity) container so all required programs are installed. The requirements are:
+The pipeline is run in a docker (or singularity) container so all required programs (R, python3, IQ-TREE) are installed. However, access to the sars_cov_2 database (sars_cov_2@id-hdb-psgr-cp61.ethz.ch) is required.
 
-- R
-- python3
-- iqtree
-- database repository (https://gitlab.ethz.ch/sars_cov_2/database)
-- access to the sars_cov_2 database (sars_cov_2@id-hdb-psgr-cp61.ethz.ch)
-
-A list of required R packages are listed in `install-packages.R`.
-A list of required python packates are listed in `database/python/requirements.txt`.
+A list of R packages used are listed in `install-packages.R`.
+A list of python packates used are listed in `database/python/requirements.txt`.
 
 
 ### Settings
@@ -46,7 +41,7 @@ All the settings are at the top of `main.sh`.
 workdir
 ├── input
 │   ├─01- reference.fasta
-├── temp
+├── tmp
 ├── output
 ```
 
@@ -55,7 +50,20 @@ The script will write into two folders: one for **temporary** files and one for 
 
 ### Run
 
-The script is designed to run on the Euler server. Please make sure that the required input is provided and the job will have internet access by executing `module load eth_proxy`. See https://scicomp.ethz.ch/wiki/Getting_started_with_clusters#Security for further information.
+The script is designed to run on the Euler server. Please make sure that the required input is provided and the job will have internet access by executing:
+
+```
+module load eth_proxy
+```
+
+See https://scicomp.ethz.ch/wiki/Getting_started_with_clusters#Security for further information.
+
+Also make sure the `tmp/` and `output/` directories do not already exist
+
+```
+rm -r workdir/tmp
+rm -r workdir/output
+```
 
 Build the singularity container with the command:
 
@@ -67,7 +75,7 @@ singularity build --docker-login grapevine.sif docker://registry.ethz.ch/sars_co
 Finally, run:
 
 ```
-bsub -N -n 4 -R "rusage[mem=1000]" -W 1:00 -B "singularity run --bind /scratch:/scratch --bind <path to workdir with required input>/workdir:/app/workdir grapevine.sif"
+bsub -N -n 8 -R "rusage[mem=2048]" -W 12:00 -B "singularity run --bind /scratch:/scratch --bind /cluster/scratch/nadeaus/grapevine/workdir:/app/workdir grapevine.sif"
 ```
 
 ### Pipeline structure

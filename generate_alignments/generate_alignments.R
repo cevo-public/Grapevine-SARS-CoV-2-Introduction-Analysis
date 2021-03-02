@@ -38,6 +38,8 @@ n_trees <- args$ntrees
 # Hardcoded parameters
 outgroup_gisaid_epi_isls = c("EPI_ISL_406798", "EPI_ISL_402125")  # The nextstrain global tree is rooted between these two sequences (Wuhan/WH01/2019 & Wuhan/Hu-1/2019), which you can see by filtering the tree to Chinese sequences (to make it reasonably small), downloading the newick tree, and plotting it.
 
+print("opening database connection")
+print(open_database_connection)
 db_connection = open_database_connection()
 system(command = paste("mkdir -p", outdir))
 
