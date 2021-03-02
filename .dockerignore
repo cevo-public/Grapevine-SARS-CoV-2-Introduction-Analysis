@@ -2,3 +2,6 @@
 .DS_Store
 ncov/
 dont_commit
+database/dont_commit
+database/config.yml
+.git

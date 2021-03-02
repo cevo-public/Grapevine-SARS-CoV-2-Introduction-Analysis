@@ -1,11 +1,18 @@
 install.packages(c(
   "argparse",
-  "ggtree",
   "lubridate",
   "scatterpie",
   "tidyr",
   "tidytree",
   "dplyr",
   "config",
-  "DBI"
+  "DBI",
+  "countrycode",
+  "RColorBrewer"
 ))
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("treeio")
+BiocManager::install("ggtree")

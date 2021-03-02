@@ -1,6 +1,0 @@
-Subject: CH sequence analysis pipeline finished with success
-
-The pipeline has finished without errors.
-
-Best wishes,
-Your bash script via Euler

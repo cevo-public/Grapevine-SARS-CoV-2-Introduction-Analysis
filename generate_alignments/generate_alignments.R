@@ -21,6 +21,7 @@ parser$add_argument("--similaritycontextscalefactor", type="integer", help="Mult
 parser$add_argument("--outdir", type="character")
 parser$add_argument("--pythonpath", type="character", help="e.g. /Users/nadeaus/Repos/database/python/venv/bin/python3")
 parser$add_argument("--reference", type="character", help="e.g. /Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta")
+parser$add_argument("--ntrees", default = -1, type="integer", help="For testing, one can specify a number of alignments to output. Default -1 results in all alignments being generated.")
 
 args <- parser$parse_args()
 
@@ -32,6 +33,7 @@ similarity_context_scale_factor <- args$similaritycontextscalefactor
 outdir <- args$outdir
 python_path <- args$pythonpath
 reference <- args$reference
+n_trees <- args$ntrees
 
 # Hardcoded parameters
 outgroup_gisaid_epi_isls = c("EPI_ISL_406798", "EPI_ISL_402125")  # The nextstrain global tree is rooted between these two sequences (Wuhan/WH01/2019 & Wuhan/Hu-1/2019), which you can see by filtering the tree to Chinese sequences (to make it reasonably small), downloading the newick tree, and plotting it.
@@ -56,6 +58,13 @@ lineages <- get_pangolin_lineages(
   outdir = outdir,
   qcd_gisaid_query = qcd_gisaid_query
 )
+
+if (n_trees > 0) {
+  n_lineages <- min(n_trees, nrow(lineages))
+  warning(paste("Only generating", n_lineages, "even though there are", nrow(lineages), "total."))
+  lineages <- lineages %>% arrange(is_swiss_TRUE)
+  lineages <- lineages[1:n_lineages, ]
+}
 
 # Estimate travel cases by source country and month
 travel_cases <- get_travel_cases(
