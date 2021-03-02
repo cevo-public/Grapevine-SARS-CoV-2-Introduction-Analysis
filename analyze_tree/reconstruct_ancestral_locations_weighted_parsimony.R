@@ -1,5 +1,20 @@
+# This script infers ancestral locations on the tree. For this, we use only tips 
+# in the context dataset and ignore tips in the similarity dataset. 
+# Otherwise, over-sequenced locations would show up too often as sources. 
+# Our procedure is as follows: we begin by labelling the MRCAs of Swiss 
+# transmission chains and all subtending nodes in the tree (excepting exported 
+# clades) as Swiss. Switzerland is excluded as a possible location for all 
+# other nodes. Given these constraints, we calculate the parsimony score for 
+# each possible location at each remaining node. Among the possible locations, 
+# we also include a “dummy” location to record the maximum parsimony score. So, 
+# in a first step we calculate parsimony scores up the tree. In a second step, 
+# we covert the parsimony scores at each node to location weights by taking the 
+# difference to the “dummy” score. Thus, locations with no support in the 
+# subtending tree are given a weight 0 and supported locations are weighted by 
+# the number of location changes they prevent.
+
 # This script takes a tree (possibly with polytomies) and calculates parsimony
-# scores for all possible loctions at ancestral nodes. 
+# scores (number of downstream changes necessary) for all possible loctions at ancestral nodes. 
 # It's a modification of the Sankoff algorithm described by Joe Felsenstein:
 # https://evolution.gs.washington.edu/gs541/2010/lecture1.pdf
 # The modification is that all the nodes that are ancestors of tips classified 
@@ -21,17 +36,17 @@ require(treeio)
 require(ggplot2)
 require(ggtree)
 
-# # tree_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/lsd/B.1.1.277.timetree.nex"
-# # metadata_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/alignments/B.1.1.277_metadata.csv"
-# chains_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/chains/B.1.1.296_m_3_p_1_s_T_chains.txt"
-# tree_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/lsd/B.1.1.296.timetree.nex"
-# metadata_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/alignments/B.1.1.296_metadata.csv"
-# s <- T
+# # tree_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/lsd/B.1.1.277.timetree.nex"
+# # metadata_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/alignments/B.1.1.277_metadata.csv"
+# chains_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/chains/B.1.1.162_m_3_p_1_s_F_chains.txt"
+# tree_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/lsd/B.1.1.162.timetree.nex"
+# metadata_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/alignments/B.1.1.162_metadata.csv"
+# s <- F
 # # chains_file <- paste("/Users/nadeaus/Downloads/test_s_", s, "_chains.txt", sep = "")
 # outdir <- "~/Downloads"
-# verbose <- F
+# verbose <- T
 # plot_tree <- T
-# write_scores <- F
+# write_scores <- T
 # prefix <- paste("test_s_", s, sep = "")
 
 parser <- argparse::ArgumentParser()
@@ -347,7 +362,7 @@ calc_score <- function(max_changes, min_changes, num_changes) {
     return(1)
   # If the location the best possible, return score 1 (encompasses the case in which the loc is the only valid option)
   } else if (num_changes == min_changes) {
-    return(1)
+    return(max_changes - num_changes)
   # Otherwise, return score as # changes avoided
   } else {
     return(max_changes - num_changes)
@@ -433,7 +448,7 @@ if (plot_tree) {
   
   ggsave(
     file = paste(outdir, paste(prefix, "tree_with_asr.png", sep = "_"), sep = "/"), 
-    plot = p,
+    plot = p
     )
 }
 
