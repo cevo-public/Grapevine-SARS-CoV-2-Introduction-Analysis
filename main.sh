@@ -8,10 +8,10 @@ set -euo pipefail
 WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here 
 REFERENCE=$WORKDIR/input/reference.fasta
 MIN_DATE=2020-01-01
-MAX_DATE=2021-03-01
+MAX_DATE=2020-12-31
 MIN_LENGTH=27000
-TRAVEL_CONTEXT_SCALE_FACTOR=1
-SIMILARITY_CONTEXT_SCALE_FACTOR=1
+TRAVEL_CONTEXT_SCALE_FACTOR=0.5
+SIMILARITY_CONTEXT_SCALE_FACTOR=0.5
 IQTREE=/app/iqtree-2.0.6-Linux/bin/iqtree2
 PYTHON=python3
 N_TREES=-1  # will generate all trees unless a positive integer

@@ -402,7 +402,7 @@ get_travel_context <- function(
   context_strains <- qcd_gisaid_query %>%
     select(country, date_str) %>%
     collect() %>%
-    mutate(date = as.Date(date_str), 
+    mutate(date = as.Date(date_str, optional = T), 
            date = format(date, "%Y-%m-01"),
            iso_code = countrycode::countrycode(
              sourcevar = country, origin = "country.name", 
@@ -451,7 +451,7 @@ get_travel_strains <- function(
   context_strains <- qcd_gisaid_query %>%
     select(gisaid_epi_isl, country, date_str, pangolin_lineage) %>%
     collect() %>%
-    mutate(date = as.Date(date_str), 
+    mutate(date = as.Date(date_str, optional = T), 
            date = format(date, "%Y-%m-01"),
            iso_code = countrycode::countrycode(
              sourcevar = country, origin = "country.name", 
