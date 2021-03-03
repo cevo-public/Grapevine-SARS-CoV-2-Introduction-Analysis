@@ -286,3 +286,36 @@ get_chain_data_by_tip <- function(chains, metadata = NULL) {
   return(chain_data_by_tip)
 }
 
+#' @param qc_gisaid_query A database query providing sequence filtering criteria 
+#' for table gisaid_sequence.
+#' @return Dataframe with one row per week and columns giving the number of 
+#' sequences in the gisaid_sequence table from Switzerland passing the filter
+#' criteria.
+get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query) {
+  sequence_data_query <- qcd_gisaid_query %>%
+    filter(country == "Switzerland") %>%
+    mutate(
+      is_viollier = originating_lab == "Viollier AG",
+      week = date_trunc('week', date)) %>%
+    group_by(is_viollier, week) %>%
+    summarize(n_seqs = n())
+  
+  case_data_query <- dplyr::tbl(db_connection, "ext_owid_global_cases") %>%
+    filter(iso_code == "CHE") %>%
+    mutate(week = date_trunc('week', date)) %>%
+    group_by(week) %>%
+    summarise(n_conf_cases = sum(new_cases))
+  
+  weekly_case_and_seq_data <- dplyr::full_join(
+    x = sequence_data_query, y = case_data_query, by = "week") %>% 
+    collect() %>%
+    filter(!is.na(is_viollier)) %>%
+    tidyr::pivot_wider(
+      names_from = "is_viollier", 
+      values_from = "n_seqs", 
+      names_prefix = "is_viollier_") %>%
+    rename("n_seqs_viollier" = "is_viollier_TRUE",
+           "n_seqs_other" = "is_viollier_FALSE") 
+  return(weekly_case_and_seq_data)
+}
+

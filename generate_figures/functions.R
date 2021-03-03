@@ -128,7 +128,7 @@ load_chains_asr <- function(s, workdir) {
   return(chains_asr)
 }
 
-#' Plot a lineage annotated with BAG meldeformular data.
+#' Plot a lineage annotated with BAG meldeformular data. This function is an unfinished TODO
 plot_lineage_with_exposure_location <- function(db_connection, lineage, workdir) {
   sql <- "select bm.exp_land, si.gisaid_id from
   sequence_identifier si
@@ -155,22 +155,62 @@ plot_lineage_with_exposure_location <- function(db_connection, lineage, workdir)
       label = strain,
       color = country),
       hjust = -0.01)
-  ggsave(plot = p, file = "~/Downloads/test_tree.png")
-    # scale_alpha_manual(
-    #   values = c("Priority" = 0.5, "Context" = 1),
-    #   name = "Sample type",
-    #   na.translate = F) +
-    # scale_color_discrete(guide = F) +
-    # theme(legend.position = "bottom") +
-    # geom_nodelab(aes(
-    #   label = ifelse(
-    #     test = is.na(node_annotation),
-    #     yes = "",
-    #     no = paste(node, node_annotation))),
-    #   hjust = 0.01)
+
+    ggsave(
+    file = paste(outdir, paste(prefix, "tree_with_asr.png", sep = "_"), sep = "/"), 
+    plot = p)
+}
+
+#' Plot barchart of sampling intensity through time.
+#' TODO: plot for samples actually included, rather than pulling eligible samples from the database
+#' TODO: include unsampled seqeunces from viollier again
+plot_sampling_intensity <- function(db_connection, qcd_gisaid_query, outdir) {
+  weekly_case_and_seq_data <- get_weekly_case_and_seq_data(
+    db_connection = db_connection, qcd_gisaid_query = qcd_gisaid_query) 
+  plot_data <- weekly_case_and_seq_data %>%
+    mutate(n_unseq_conf_cases = n_conf_cases - n_seqs_viollier - n_seqs_other) %>%
+    tidyr::pivot_longer(
+      cols = c("n_seqs_viollier", "n_seqs_other", "n_unseq_conf_cases"),
+      names_to = "case_type",
+      values_to = "n_cases", 
+      names_prefix = "is_|n_") %>%
+    mutate(week = as.Date(week), n_cases = as.numeric(n_cases), 
+           n_conf_cases = as.numeric(n_conf_cases))
+  
+  freq_plot <- ggplot(
+    data = plot_data, 
+    aes(x = week, y = n_cases, fill = case_type)) + 
+    geom_col(position = position_fill()) +
+    labs(x = element_blank(), y = "Weekly percentage of cases")
+  abs_plot <- ggplot(
+    data = plot_data, 
+    aes(x = week, y = n_cases, fill = case_type)) + 
+    geom_col(position = position_stack()) +
+    labs(x = element_blank(), y = "Weekly number of cases")
+  abs_scatterplot <- ggplot(
+    data = plot_data %>% filter(case_type == "seqs_viollier"),
+    aes(x = n_conf_cases, y = n_cases)) + 
+    geom_point(aes(color = week)) + 
+    geom_abline(slope = 0.01)  # show what a specific percent sampling would look like
+  show(abs_scatterplot)
+  
+  shared_scale_fill <- scale_fill_manual(
+      values = RColorBrewer::brewer.pal(n = 3, name = "Dark2"),
+      labels = c("seqs_viollier" = "Sequenced, from Viollier", 
+                 "seqs_other" = "Sequenced, from another lab",
+                 "unseq_conf_cases" = "Unsequenced confirmed case"),
+      name = element_blank())
+  shared_theme <- theme_bw()
+  
+  sampling_intensity_plot <- ggpubr::ggarrange(
+    freq_plot + shared_scale_fill + shared_theme,
+    abs_plot + shared_scale_fill + shared_theme,
+    nrow = 2, common.legend = T, legend = "right")
   
   ggsave(
-    file = paste(outdir, paste(prefix, "tree_with_asr.png", sep = "_"), sep = "/"), 
-    plot = p,
-  )
+    file = paste(outdir, "sampling_intensity.png", sep = "/"), 
+    plot = sampling_intensity_plot)
+    
+  return(plot_data)
 }
+
