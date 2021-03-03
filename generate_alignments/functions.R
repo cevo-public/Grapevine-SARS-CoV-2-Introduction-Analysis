@@ -298,7 +298,7 @@ add_split_lineages <- function(
   return(pangolin_lineages)
 }
 
-get_unsplit_lineages <- function(
+add_unsplit_lineages <- function(
   db_connection, qcd_gisaid_query, split_off_lineages
 ) {
   pangolin_lineages <- qcd_gisaid_query %>%
@@ -321,7 +321,7 @@ get_unsplit_lineages <- function(
 #' with the number of Swiss and non-Swiss sequences in the lineage, respectively.
 get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query, split_off_lineages) {
   print("Querying database for pangolin lineages, apply specified lineage splits.")
-  pangolin_lineages <- get_unsplit_lineages(
+  pangolin_lineages <- add_unsplit_lineages(
     db_connection, qcd_gisaid_query, split_off_lineages)
   pangolin_lineages <- add_split_lineages(
     qcd_gisaid_query, pangolin_lineages, db_connection, split_off_lineages)
