@@ -89,18 +89,21 @@ Rscript generate_alignments/generate_alignments.R \
     --ntrees $N_TREES
 
 # ------------------------------------------------------
-echo "--- Build ML trees ---"
+echo "--- Build ML trees using same 'fast' settings as Nextstrain augur ---"
 
 for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
     PREFIX="$(basename "${FASTA_FILE}" | sed 's/.fasta//g')"
     $IQTREE \
         -s $FASTA_FILE \
         -m HKY+F+G4 \
-        -pre $TMP_IQTREE/$PREFIX
+        -pre $TMP_IQTREE/$PREFIX \
+        -ninit 2 \
+        -n 2 \
+        -me 0.05
 done
 
 # ------------------------------------------------------
-echo "--- Date rooted trees with LSD: root defined by outgroup ---"
+echo "--- Date rooted trees with LSD implemented in IQTREE: root defined by outgroup EPI_ISL_406798|2019-12-26 ---"
 
 # Keep identical sequences for LSD because otherwise IQ-TREE throws them out and then complains it can't find all the outgroup seqs
 for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
