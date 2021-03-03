@@ -3,12 +3,12 @@ source("utility_functions.R")
 source("generate_alignments/functions.R")
 require(dplyr)
 
-# min_date <- "2020-08-01"
-# max_date <- "2020-08-31"
+# min_date <- "2020-01-01"
+# max_date <- "2021-03-01"
 # min_length <- 27000
 # travel_context_scale_factor <- 5
 # similarity_context_scale_factor <- 1
-# outdir <- "/Users/nadeaus/Repos/grapevine/dont_commit/aug_test/alignments"
+# outdir <- "~/Downloads"
 # python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
 # reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
 
@@ -19,8 +19,8 @@ parser$add_argument("--minlength", type="integer")
 parser$add_argument("--travelcontextscalefactor", type="double", help="Multiplicative factor, how many times the # swiss sequences should we select for the travel context set?")
 parser$add_argument("--similaritycontextscalefactor", type="double", help="Multiplicative factor, how many times the # swiss sequences should we select for the genetic similarity context set?")
 parser$add_argument("--outdir", type="character")
-parser$add_argument("--pythonpath", type="character", help="e.g. /Users/nadeaus/Repos/database/python/venv/bin/python3")
-parser$add_argument("--reference", type="character", help="e.g. /Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta")
+parser$add_argument("--pythonpath", type="character", help="Path to python3 with required packages installed.")
+parser$add_argument("--reference", type="character", help="Reference sequence.")
 parser$add_argument("--ntrees", default = -1, type="integer", help="For testing, one can specify a number of alignments to output. Default -1 results in all alignments being generated.")
 
 args <- parser$parse_args()
@@ -38,8 +38,6 @@ n_trees <- args$ntrees
 # Hardcoded parameters
 outgroup_gisaid_epi_isls = c("EPI_ISL_406798", "EPI_ISL_402125")  # The nextstrain global tree is rooted between these two sequences (Wuhan/WH01/2019 & Wuhan/Hu-1/2019), which you can see by filtering the tree to Chinese sequences (to make it reasonably small), downloading the newick tree, and plotting it.
 
-print("opening database connection")
-print(open_database_connection)
 db_connection = open_database_connection()
 system(command = paste("mkdir -p", outdir))
 
@@ -54,11 +52,15 @@ qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
     nextclade_qc_private_mutations_status == 'good', 
     nextclade_qc_overall_status != 'bad')
 
+# Get split off lineages
+split_off_lineages <- get_split_off_lineages(db_connection)
+
 # Get pangolin lineages to write out alignments for
 lineages <- get_pangolin_lineages(
   db_connection = db_connection,
   outdir = outdir,
-  qcd_gisaid_query = qcd_gisaid_query
+  qcd_gisaid_query = qcd_gisaid_query,
+  split_off_lineages = split_off_lineages
 )
 
 if (n_trees > 0) {
@@ -85,10 +87,14 @@ travel_strains <- get_travel_strains(
   qcd_gisaid_query = qcd_gisaid_query
 )
 
+# Get which strains belong to defined split-off lineages
+split_off_lineages <- get_split_off_lineages(db_connection)
+
 # Get similarity context set based on genetic proximity
 similarity_strains <- get_similarity_strains(
   similarity_context_scale_factor = similarity_context_scale_factor,
   lineages = lineages,
+  split_off_lineages = split_off_lineages,
   db_connection = db_connection,
   qcd_gisaid_query = qcd_gisaid_query,
   python_path = python_path,
@@ -98,6 +104,7 @@ similarity_strains <- get_similarity_strains(
 # Write out alignments, one per pangolin lineage
 alignments <- write_out_alignments(
   lineages = lineages,
+  split_off_lineages = split_off_lineages,
   travel_strains = travel_strains,
   similarity_strains = similarity_strains,
   outgroup_gisaid_epi_isls = outgroup_gisaid_epi_isls,
