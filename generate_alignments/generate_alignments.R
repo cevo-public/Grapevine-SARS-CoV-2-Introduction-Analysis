@@ -3,11 +3,11 @@ source("utility_functions.R")
 source("generate_alignments/functions.R")
 require(dplyr)
 
-# min_date <- "2020-01-01"
-# max_date <- "2021-03-01"
+# min_date <- "2020-08-01"
+# max_date <- "2020-10-01"
 # min_length <- 27000
-# travel_context_scale_factor <- 5
-# similarity_context_scale_factor <- 1
+# travel_context_scale_factor <- 0.5
+# similarity_context_scale_factor <- 0.5
 # outdir <- "~/Downloads"
 # python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
 # reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
@@ -52,15 +52,18 @@ qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
     nextclade_qc_private_mutations_status == 'good', 
     nextclade_qc_overall_status != 'bad')
 
-# Get split off lineages
-split_off_lineages <- get_split_off_lineages(db_connection)
-
 # Get pangolin lineages to write out alignments for
 lineages <- get_pangolin_lineages(
   db_connection = db_connection,
   outdir = outdir,
+  qcd_gisaid_query = qcd_gisaid_query
+)
+
+# Downsample Swiss sequences
+qcd_gisaid_query <- downsample_swiss_sequences(
   qcd_gisaid_query = qcd_gisaid_query,
-  split_off_lineages = split_off_lineages
+  max_sampling_frac = 0.005,
+  db_connection = db_connection
 )
 
 if (n_trees > 0) {
@@ -79,22 +82,22 @@ travel_cases <- get_travel_cases(
 )
 
 # Get travel context set based on travel cases
+n_strains <- nrow(qcd_gisaid_query %>%
+  filter(country == "Switzerland") %>%
+  collect())
 travel_strains <- get_travel_strains(
-  n_strains = sum(lineages$is_swiss_TRUE) * travel_context_scale_factor,
+  n_strains = n_strains,
   travel_cases = travel_cases,
   db_connection = db_connection,
   outdir = outdir,
   qcd_gisaid_query = qcd_gisaid_query
 )
 
-# Get which strains belong to defined split-off lineages
-split_off_lineages <- get_split_off_lineages(db_connection)
 
 # Get similarity context set based on genetic proximity
 similarity_strains <- get_similarity_strains(
   similarity_context_scale_factor = similarity_context_scale_factor,
   lineages = lineages,
-  split_off_lineages = split_off_lineages,
   db_connection = db_connection,
   qcd_gisaid_query = qcd_gisaid_query,
   python_path = python_path,
@@ -104,7 +107,6 @@ similarity_strains <- get_similarity_strains(
 # Write out alignments, one per pangolin lineage
 alignments <- write_out_alignments(
   lineages = lineages,
-  split_off_lineages = split_off_lineages,
   travel_strains = travel_strains,
   similarity_strains = similarity_strains,
   outgroup_gisaid_epi_isls = outgroup_gisaid_epi_isls,
