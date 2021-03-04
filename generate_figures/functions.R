@@ -32,6 +32,208 @@ get_country_colors <- function(
   return(colors)
 }
 
+#' Pivot chains dataframe to one row per sample with chain_idx information
+#' Optionally attach sample metadata to table.
+pivot_chains_to_samples <- function(
+  chains, metadata = NULL, metadata_samplecol = "tree_label"
+) {
+  samples <- chains %>%
+    tidyr::separate(
+      col = tips,
+      sep = ", ",
+      into = paste("sample", 1:max(chains$size), sep = "_"),
+      remove = T,
+      fill = "right") %>% 
+    tidyr::pivot_longer(
+      cols = paste("sample", 1:max(chains$size), sep = "_"),
+      values_to = "sample",
+      names_to = "sample_idx",
+      names_prefix = "sample_") %>%
+    filter(!(is.na(sample)))
+  if (!is.null(metadata)) {
+    samples<- merge(
+      x = samples, y = metadata,
+      by.x = "sample", by.y = metadata_samplecol, all.x = T)
+  }
+  return(samples)
+}
+
+#' Load metadata from each alignment, concatenate
+load_sample_metadata <- function(workdir, pattern = "*_metadata.csv") {
+  metadata_path <- paste(workdir, "tmp/alignments", sep = "/")
+  metadata_files <- list.files(path = metadata_path, pattern = pattern, full.names = T)
+  metadata <-
+    metadata_files %>% 
+    purrr::map_df(~readr::read_csv(
+      ., 
+      col_types = readr::cols(
+        date = readr::col_date(format = "%Y-%m-%d"),
+        date_str = readr::col_character()
+      )
+    ))
+  print(paste("Loaded and concatenated", length(metadata_files), "metadata files."))
+  return(metadata)
+}
+
+#' Plot samples by inferred transmission chain
+plot_chains <- function(
+  workdir, outdir, country_colors, min_chain_size = 2, plot_height_in = 15
+) {
+  foreign_mrca_color <- "grey"
+  ch_mrca_color <- "black"
+  
+  chains <- load_chains_asr(s = F, workdir = workdir) %>%  # load max chains, then group by polytomy in plot
+    filter(size > min_chain_size) %>%
+    mutate(chain_idx = 1:n())
+    
+  sample_metadata <- load_sample_metadata(workdir = workdir)
+  samples <- pivot_chains_to_samples(chains = chains, metadata = sample_metadata)
+  
+  samples_info <- samples %>%
+    group_by(chain_idx) %>%
+    mutate(first_sample_in_chain = min(date),
+           last_sample_in_chain = max(date)) %>%
+    ungroup() %>%
+    tidyr::unite(col = "unique_foreign_mrca", tree_pangolin_lineage, foreign_mrca)  # add facetting variable for each separate foreign attachment node on global tree
+  
+  chain_info <- samples_info %>% 
+    group_by(chain_idx, first_sample_in_chain, last_sample_in_chain, unique_foreign_mrca, ch_tmrca) %>%
+    summarize(size = n()) %>%
+    full_join(y = chains) %>%
+    group_by(tree, foreign_mrca) %>%
+    arrange(desc(ch_tmrca)) %>%
+    mutate(chain_order_within_foreign_mrca = 1:n()) %>%
+    ungroup()
+  
+  samples_info <- samples_info %>%
+    left_join(y = chain_info) %>%  # attach chain_order_within_foreign_mrca info to samples
+    mutate(date = as.Date(date))  # format date information for samples
+  
+  chain_info <- chain_info %>%
+    tidyr::separate(
+      foreign_tmrca_CI, 
+      into = c("foreign_tmrca_CI_min", "foreign_tmrca_CI_max"),
+      sep = ", ") %>%
+    mutate(
+      foreign_tmrca_CI_min = gsub(x = foreign_tmrca_CI_min, pattern = "c\\(", replacement = ""),
+      foreign_tmrca_CI_max = gsub(x = foreign_tmrca_CI_max, pattern = "\\)", replacement = ""),
+      foreign_tmrca_CI_min = as.Date(foreign_tmrca_CI_min),
+      foreign_tmrca_CI_max = as.Date(foreign_tmrca_CI_max)) %>%
+    tidyr::separate(
+      ch_tmrca_CI, 
+      into = c("ch_tmrca_CI_min", "ch_tmrca_CI_max"),
+      sep = ", ") %>%
+    mutate(
+      ch_tmrca_CI_min = gsub(x = ch_tmrca_CI_min, pattern = "c\\(", replacement = ""),
+      ch_tmrca_CI_max = gsub(x = ch_tmrca_CI_max, pattern = "\\)", replacement = ""),
+      ch_tmrca_CI_min = as.Date(ch_tmrca_CI_min),
+      ch_tmrca_CI_max = as.Date(ch_tmrca_CI_max),
+      first_sample_in_chain = as.Date(first_sample_in_chain),
+      last_sample_in_chain = as.Date(last_sample_in_chain),
+      foreign_tmrca = as.Date(foreign_tmrca),
+      ch_tmrca = as.Date(ch_tmrca))  # format date information for chains
+  
+  samples_info <- samples_info %>% 
+    mutate(unique_foreign_mrca = factor(
+      x = samples_info$unique_foreign_mrca,
+      levels = unique(unlist(samples_info %>% arrange(foreign_tmrca) %>% select(unique_foreign_mrca)))))  # order facets by node times
+  chain_info <- chain_info %>% 
+    mutate(unique_foreign_mrca = factor(
+      x = chain_info$unique_foreign_mrca,
+      levels = unique(unlist(chain_info %>% arrange(foreign_tmrca) %>% select(unique_foreign_mrca)))))  # order facets by node times
+  
+  custom_theme_elements <- theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_blank(), 
+    panel.background = element_blank(), 
+    panel.grid = element_blank(), 
+    panel.spacing.x = unit(0,"line"),
+    strip.text.y = element_blank(),
+    legend.position = c(0.07, 0.45),
+    legend.background = element_rect(fill = "transparent"),
+    panel.spacing = unit(0, "lines"))
+  axis_labs <- labs(x = element_blank(), y = element_blank())
+  
+  lockdown_end <- as.Date("2020-06-15")
+  lockdown_start <- as.Date("2020-03-25")
+
+  transmission_chain_plot <- ggplot() + 
+    geom_segment(
+      data = chain_info,
+      aes(x = first_sample_in_chain, 
+          xend = last_sample_in_chain,
+          y = chain_order_within_foreign_mrca, 
+          yend = chain_order_within_foreign_mrca),
+      linetype = "dashed") +
+    geom_point(
+      data = chain_info,
+      aes(x = foreign_tmrca,
+          y = chain_order_within_foreign_mrca),
+      shape = 4, color = foreign_mrca_color) +
+    geom_point(
+      data = chain_info,
+      aes(x = ch_tmrca,
+          y = chain_order_within_foreign_mrca),
+      shape = 4, color = ch_mrca_color) +
+    geom_errorbarh(
+      data = chain_info,
+      aes(xmin = ch_tmrca_CI_min,
+          xmax = ch_tmrca_CI_max,
+          y = chain_order_within_foreign_mrca),
+      color = ch_mrca_color) +
+    geom_errorbarh(
+      data = chain_info,
+      aes(xmin = foreign_tmrca_CI_min,
+          xmax = foreign_tmrca_CI_max,
+          y = chain_order_within_foreign_mrca),
+      color = foreign_mrca_color) +
+    geom_point(
+      data = samples_info,
+      aes(x = date,
+          y = chain_order_within_foreign_mrca)) +
+          # color = country_exposure)) +
+    # # Plot colored points over the top so they stand out more
+    # geom_point(
+    #   data = samples_info %>% filter(country_exposure != country),
+    #   aes(x = date, 
+    #       y = chain_order_within_foreign_mrca, 
+    #       color = country_exposure)) + 
+    # geom_rect(
+    #   data = chain_info,
+    #   aes(xmin = lockdown_start, 
+    #       xmax = lockdown_end,
+    #       ymin = min(chain_order_within_foreign_mrca),
+    #       ymax = max(chain_order_within_foreign_mrca)),
+    #   alpha = 0.2) + 
+    geom_vline(xintercept = lockdown_start, linetype = "longdash") + 
+    geom_vline(xintercept = lockdown_end, linetype = "longdash") + 
+    facet_grid(unique_foreign_mrca ~ ., scales = "free_y", space = "free_y") + 
+    custom_theme_elements + 
+    scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
+    axis_labs
+  
+  ggsave(transmission_chain_plot, 
+         file = paste(outdir, "transmission_chains.png", sep = "/"), 
+         height = plot_height_in)
+  
+  # + geom_scatterpie(
+  #     data = mrca_asr_data_2,
+  #     aes(x = x_axis_days, y = cluster_order_midpoint, r = 4),
+  #     cols = c(countries_to_plot, "other"),
+  #     color = NA) +
+  #   theme_bw() + 
+  #   custom_theme_elements +
+  #   scale_fill_manual(
+  #     values = color_scale, 
+  #     name = element_blank(), 
+  #     aesthetics = c("fill", "color"),
+  #     breaks = c(countries_to_plot[countries_to_plot != "Switzerland"], "other")) + 
+  #   x_scale +
+  #   labs(y = "\n\n", x = element_blank()) + 
+  #   facet_grid(foreign_mrca ~ ., scales = "free_y", space = "free_y")
+}
+
 #' Plot estimated origins of swiss transmission lineages through time.
 plot_chain_sources <- function(s, workdir, outdir, country_colors) {
   chains_asr <- load_chains_asr(s = s, workdir = workdir)
