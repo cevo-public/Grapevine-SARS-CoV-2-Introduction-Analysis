@@ -1,3 +1,47 @@
+#' @param qcd_gisaid_query Query of database table gisaid_sequence with QC filters
+#' @return qcd_gisaid_query Query expanded to include only selected swiss samples
+downsample_swiss_sequences <- function (
+  qcd_gisaid_query, db_connection, max_sampling_frac
+) {
+  sampling_data <- get_weekly_case_and_seq_data(
+    db_connection = db_connection, qcd_gisaid_query = qcd_gisaid_query) %>%
+    mutate(
+      n_seqs_viollier = tidyr::replace_na(n_seqs_viollier, replace = 0),
+      n_seqs_other = tidyr::replace_na(n_seqs_other, replace = 0),
+      n_seqs = n_seqs_viollier + n_seqs_other,
+      max_seqs = floor(n_conf_cases * max_sampling_frac),
+      n_to_sample = pmin(n_seqs, max_seqs))
+  
+  qcd_gisaid_query_temp <- qcd_gisaid_query %>%
+    filter(country == "Switzerland") %>%
+    mutate(week = date_trunc('week', date))
+  
+  sampled_strains <- c()
+  for (i in 1:nrow(sampling_data)) {
+    week_i <- sampling_data[[i, "week"]]
+    n_samples_i <- as.numeric(sampling_data[[i, "n_to_sample"]])
+    n_actual_samples <- nrow(qcd_gisaid_query_temp %>%
+                               filter(week == week_i) %>%
+                               select(strain) %>%
+                               collect())
+    print(paste("sampling", n_samples_i, "Swiss samples from", n_actual_samples, "in week", week_i))
+    
+    sampled_strains_i <- unname(unlist(qcd_gisaid_query_temp %>%
+      filter(week == week_i) %>%
+      select(strain) %>%
+      collect() %>%
+      sample_n(size = n_samples_i, replace = F)))
+    
+    sampled_strains <- c(sampled_strains, sampled_strains_i)
+  }
+
+  qcd_gisaid_query_swiss_downsampled <- qcd_gisaid_query %>%
+    filter(!(country == 'Switzerland' & !(strain %in% !! sampled_strains)))
+  
+  return(qcd_gisaid_query_swiss_downsampled)
+}
+
+# ------------------------------------------------------------------------------
 
 #' Get number of cases by exposure country and month of case confirmation from 
 #' BAG meldeformular.
@@ -256,53 +300,11 @@ aggregate_predominatly_swiss_lineages <- function(pangolin_lineages) {
   return(pangolin_lineages_aggregated)
 }
 
-add_split_lineages <- function(
-  qcd_gisaid_query, pangolin_lineages, db_connection, split_off_lineages
-) {
-  for (i in 1:length(split_off_lineages)) {
-    lineage <- names(split_off_lineages)[i]
-    split_lineages <- split_off_lineages[[i]]
-    strains_considered <- c()
-    # Add each split-off lineage
-    for (j in 1:length(split_lineages)) {
-      lineage_strains <- split_lineages[[j]]
-      split_lineage_name <- names(split_lineages)[j]
-      pangolin_lineage_split <- qcd_gisaid_query %>%
-        filter(strain %in% !! lineage_strains) %>%
-        mutate(is_swiss = country == "Switzerland") %>%
-        group_by(is_swiss) %>%
-        summarize(n_seqs = n()) %>%
-        mutate(pangolin_lineage = split_lineage_name) %>%
-        collect() %>%
-        tidyr::pivot_wider(
-          names_from = is_swiss, names_prefix = "is_swiss_", values_from = n_seqs) %>%
-        tidyr::replace_na(replace = list("is_swiss_TRUE" = 0, "is_swiss_FALSE" = 0)) %>%  # because by default 0s show up as NA after group_by %>% summarize
-        filter(is_swiss_TRUE > 0)
-      pangolin_lineages <- dplyr::bind_rows(pangolin_lineages, pangolin_lineage_split)
-      strains_considered <- c(strains_considered, lineage_strains)
-    }
-    # Add remaining lineage (not split off)
-    pangolin_lineage_remaining <- qcd_gisaid_query %>%
-      filter(pangolin_lineage == lineage, !(strain %in% !! strains_considered)) %>%
-      mutate(is_swiss = country == "Switzerland") %>%
-      group_by(is_swiss) %>%
-      summarize(n_seqs = n()) %>%
-      mutate(pangolin_lineage = lineage) %>%
-      collect() %>%
-      tidyr::pivot_wider(
-        names_from = is_swiss, names_prefix = "is_swiss_", values_from = n_seqs) %>%
-      tidyr::replace_na(replace = list("is_swiss_TRUE" = 0, "is_swiss_FALSE" = 0)) %>%  # because by default 0s show up as NA after group_by %>% summarize
-      filter(is_swiss_TRUE > 0)
-    pangolin_lineages <- dplyr::bind_rows(pangolin_lineages, pangolin_lineage_remaining)
-  }
-  return(pangolin_lineages)
-}
-
-add_unsplit_lineages <- function(
-  db_connection, qcd_gisaid_query, split_off_lineages
-) {
+#' QC gisaid data and split by pangolin lineage, aggregating lineages that are 
+#' predominantly Swiss into the parent lineage.
+get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query) {
+  print("Querying database for pangolin lineages.")
   pangolin_lineages <- qcd_gisaid_query %>%
-    filter(!(pangolin_lineage %in% !! names(split_off_lineages))) %>%
     mutate(is_swiss = country == "Switzerland") %>%
     group_by(pangolin_lineage, is_swiss) %>%
     summarize(n_seqs = n()) %>%
@@ -310,84 +312,24 @@ add_unsplit_lineages <- function(
     tidyr::pivot_wider(
       names_from = is_swiss, names_prefix = "is_swiss_", values_from = n_seqs) %>%
     tidyr::replace_na(replace = list("is_swiss_TRUE" = 0, "is_swiss_FALSE" = 0)) %>%  # because by default 0s show up as NA after group_by %>% summarize
-    filter(is_swiss_TRUE > 0)
-  return(pangolin_lineages)
-}
-
-#' QC gisaid data and split by pangolin lineage, aggregating lineages that are 
-#' predominantly Swiss into the parent lineage.
-#' @return pangolin_lineages Dataframe with one row per lineage and columns  
-#' 'pangolin_lineage' with the lineage name, is_swiss_TRUE' and 'is_swiss_FALSE' 
-#' with the number of Swiss and non-Swiss sequences in the lineage, respectively.
-get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query, split_off_lineages) {
-  print("Querying database for pangolin lineages, apply specified lineage splits.")
-  pangolin_lineages <- add_unsplit_lineages(
-    db_connection, qcd_gisaid_query, split_off_lineages)
-  pangolin_lineages <- add_split_lineages(
-    qcd_gisaid_query, pangolin_lineages, db_connection, split_off_lineages)
-  
-  print("Aggregating predominantly Swiss lineages into parent lineage.")
-  pangolin_lineages_aggregated <- pangolin_lineages %>%
+    filter(is_swiss_TRUE > 0) %>%
     mutate(
       should_aggregate = is_swiss_TRUE > is_swiss_FALSE,
       parent_lineage = get_parent_lineage(pangolin_lineage),
       n_lineages_aggregated = 1,
       lineages_aggregated = pangolin_lineage)
+  print("Aggregating predominantly Swiss lineages into parent lineage.")
+  pangolin_lineages_aggregated <- pangolin_lineages
   while(any(!is.na(pangolin_lineages_aggregated$parent_lineage) & 
             pangolin_lineages_aggregated$should_aggregate)) {
     pangolin_lineages_aggregated <- aggregate_predominatly_swiss_lineages(
       pangolin_lineages_aggregated)
   }
-  pangolin_lineages <- pangolin_lineages_aggregated
-  
   write.csv(
-    x = pangolin_lineages,
-    file = paste(outdir, "pangolin_lineages_used.csv", sep = "/"),
+    x = pangolin_lineages_aggregated,
+    file = paste(outdir, "pangolin_lineages_aggregated.csv", sep = "/"),
     row.names = F)
-  return(pangolin_lineages)
-}
-
-#' For large pangolin lineages, split the lineage based on clustering of the 
-#' amino acid mutations. 
-#' @param max_lineage_size The maximum number of focal (Swiss) sequences permitted
-#' in a lineage.
-#' @param pangolin_lineages Dataframe with one row per lineage and columns  
-#' 'pangolin_lineage' with the lineage name, is_swiss_TRUE' and 'is_swiss_FALSE' 
-#' with the number of Swiss and non-Swiss sequences in the lineage, respectively.
-# split_large_lineages <- function(pangolin_lineages, db_connection, max_lineage_size = 1000) {
-#   large_lineages <- pangolin_lineages %>% 
-#     filter(is_swiss_TRUE > max_lineage_size)
-#   for (i in 1:nrow(large_lineages)) {
-#     # TODO
-#   }
-# }
-
-#' For large pangolin lineages, split the lineage based on defined amino acid mutations. 
-#' @param lineage_splits Named list where names are pangolin lineages and values
-#' are an amino acid mutation to split the lineage by.
-#' @return Named vector where names are pangolin_lineages, values are named 
-#' vector where names are newly created lineages and values are
-#' vectors of strains belonging to the lineage.
-get_split_off_lineages <- function(
-  db_connection, 
-  lineage_splits = c("B.1.160" = "ORF7a:T14I")) {
-  split_off_lineages <- c()
-  for (i in 1:length(lineage_splits)) {
-    lineage <- names(lineage_splits[i])
-    split_aa_mutation <- lineage_splits[i]
-    split_lineage <- paste(lineage, split_aa_mutation, sep = ".")
-    print(paste("Splitting", split_lineage, "off from", lineage))
-    strain_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
-      filter(pangolin_lineage == lineage)
-    aa_mutation_query <- dplyr::tbl(db_connection, "gisaid_sequence_nextclade_mutation_aa") %>%
-      filter(aa_mutation == split_aa_mutation)
-    lineage_split <- dplyr::inner_join(
-      x = strain_query, y = aa_mutation_query, by = "strain") %>%
-      select(strain, aa_mutation) %>%
-      collect()
-    split_off_lineages[[lineage]][[split_lineage]] = lineage_split$strain
-  }
-  return(split_off_lineages)
+  return(pangolin_lineages_aggregated)
 }
 
 # ------------------------------------------------------------------------------
@@ -502,14 +444,15 @@ get_travel_context <- function(
 ) {
   # Get available sequences per country month
   context_strains <- qcd_gisaid_query %>%
-    select(country, date_str) %>%
+    select(country, date, date_str) %>%
     collect() %>%
-    mutate(date = as.Date(date_str, optional = T), 
-           date = format(date, "%Y-%m-01"),
+    mutate(
+      date_validity = grepl(x = date_str, pattern = "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}"),
+      date = format(date, "%Y-%m-01"),
            iso_code = countrycode::countrycode(
              sourcevar = country, origin = "country.name", 
              destination = "iso3c")) %>%
-    filter(!is.na(date)) %>%
+    filter(date_validity) %>%
     group_by(date, country, iso_code) %>%
     summarize(n_seqs_available = n()) %>% 
     filter(!is.na(iso_code))
@@ -551,14 +494,14 @@ get_travel_strains <- function(
   
   print("Getting available sequences per country month from database table gisaid_sequence.")
   context_strains <- qcd_gisaid_query %>%
-    select(gisaid_epi_isl, country, date_str, pangolin_lineage) %>%
+    select(gisaid_epi_isl, country, date, date_str, pangolin_lineage) %>%
     collect() %>%
-    mutate(date = as.Date(date_str, optional = T), 
+    mutate(date_validity = grepl(x = date_str, pattern = "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}"), 
            date = format(date, "%Y-%m-01"),
            iso_code = countrycode::countrycode(
              sourcevar = country, origin = "country.name", 
              destination = "iso3c")) %>%
-    filter(!is.na(date), iso_code %in% travel_context$iso_code)
+    filter(date_validity, iso_code %in% travel_context$iso_code)
   
   travel_context_nonzero_samples <- travel_context %>% filter(n_seqs_actual > 0)
   n_country_months <- nrow(travel_context_nonzero_samples)
@@ -583,6 +526,7 @@ get_travel_strains <- function(
         },
         error = function(cond) {
           message(paste(status, "resulted in an error with message", cond))
+          stop()
         }
       )
       if (l == 1) {
@@ -603,7 +547,7 @@ get_travel_strains <- function(
 # ------------------------------------------------------------------------------
 
 #' Run nextstrain priority script to rank context sequences by genetic proximity
-#' to focal sequences. Writes out file with strains and corresponding priority.
+#' to focal sequenes. Writes out file with strains and corresponding priority.
 #' @return table with strains and corresponding priority
 run_nextstrain_priority <- function(
   focal_strains, nonfocal_strains, prefix, outdir, 
@@ -663,48 +607,29 @@ run_nextstrain_priority <- function(
 
 get_similarity_strains <- function(
   db_connection, qcd_gisaid_query, similarity_context_scale_factor, lineages,
-  split_off_lineages,
   priorities_script = "database/python/priorities_from_database.py",
   python_path, reference
 ) {
   n_lineages <- nrow(lineages)
-  split_off_lineage_names <- c()
-  for (lineage in split_off_lineages) {
-    split_off_lineage_names <- c(split_off_lineage_names, names(lineage))
-  }
   for (i in 1:n_lineages) {
     lineage <- lineages$pangolin_lineage[i]
     lineages_included_str <- lineages$lineages_aggregated[i]
     lineages_included <- strsplit(lineages_included_str, split = ", ")[[1]]
     
-    is_split_lineage_remainder <- lineage %in% names(split_off_lineages)
-    is_split_off_lineage <- lineage %in% split_off_lineage_names
+    focal_seqs <- qcd_gisaid_query %>%
+      filter(country == "Switzerland", 
+             pangolin_lineage %in% !! lineages_included) %>%
+      select(strain) %>%
+      collect()
+    prospective_context_seqs <- qcd_gisaid_query %>%
+      filter(country != "Switzerland",
+             pangolin_lineage %in% !! lineages_included) %>%
+      select(strain, gisaid_epi_isl, country, date_str, date) %>%
+      collect()
     
-    if (is_split_off_lineage) {
-      focal_seqs <- qcd_gisaid_query %>%
-        filter(country == "Switzerland", 
-               pangolin_lineage %in% !! lineages_included) %>%
-        select(strain) %>%
-        collect()
-      prospective_context_seqs <- qcd_gisaid_query %>%
-        filter(country != "Switzerland",
-               pangolin_lineage %in% !! lineages_included) %>%
-        select(strain, gisaid_epi_isl, country, date_str, date) %>%
-        collect()
-    } else if (is_split_lineage_remainder) {
-      
-    } else {
-      strains
-      focal_seqs <- qcd_gisaid_query %>%
-        filter(country == "Switzerland", 
-               pangolin_lineage %in% !! lineages_included) %>%
-        select(strain) %>%
-        collect()
-      prospective_context_seqs <- qcd_gisaid_query %>%
-        filter(country != "Switzerland",
-               pangolin_lineage %in% !! lineages_included) %>%
-        select(strain, gisaid_epi_isl, country, date_str, date) %>%
-        collect()
+    if (nrow(focal_seqs) == 0 | nrow(prospective_context_seqs) == 0) {
+      print(paste("No focal sequences from lineage", lineage))
+      next
     }
     
     focal_strains <- focal_seqs$strain
@@ -756,6 +681,12 @@ write_out_alignments <- function(
       filter(country == "Switzerland", 
              pangolin_lineage %in% !! lineages_included) %>%
       collect()
+    
+    if (nrow(focal_strains_i) == 0) {
+      print(paste("No focal strains for lineage", lineage, "so not writing out an alignment."))
+      next
+    }
+    
     travel_strains_i <- travel_strains %>% 
       filter(pangolin_lineage %in% lineages_included)
     similarity_strains_i <- similarity_strains %>% 
