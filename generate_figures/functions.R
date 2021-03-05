@@ -416,3 +416,61 @@ plot_sampling_intensity <- function(db_connection, qcd_gisaid_query, outdir) {
   return(plot_data)
 }
 
+#' Plot maximum and minimum-bound estimates on the number of introductions per
+#' week.
+plot_introductions <- function(workdir, outdir) {
+  chains_max <- load_chains_asr(s = F, workdir = workdir) %>%  
+    filter(size > min_chain_size) %>%
+    mutate(chain_idx = 1:n())
+  chains_min <- load_chains_asr(s = T, workdir = workdir) %>%  
+    filter(size > min_chain_size) %>%
+    mutate(chain_idx = 1:n())
+  
+  sample_metadata <- load_sample_metadata(workdir = workdir)
+  samples <- rbind(
+    pivot_chains_to_samples(chains = chains_max, metadata = sample_metadata) %>%
+      mutate(chains_assumption = "max"),
+    pivot_chains_to_samples(chains = chains_min, metadata = sample_metadata) %>%
+      mutate(chains_assumption = "min")) %>%
+    filter(originating_lab == "Viollier AG")
+  
+  week_to_week_start <- data.frame(
+    day = seq.Date(
+    from = min(samples$date), 
+    to = max(samples$date), 
+    by = "day")) %>%
+    mutate(week = format(day, "%Y.%W")) %>%
+    group_by(week) %>%
+    top_n(n = 1, wt = desc(day))
+  
+  introduction_detections <- samples %>%
+    group_by(chains_assumption, chain_idx) %>%
+    arrange(desc(date)) %>%
+    mutate(sample_idx = 1:n()) %>%
+    top_n(n = 1, wt = sample_idx) %>%
+    select(chains_assumption, date, chain_idx) %>%
+    mutate(week = format(date, "%Y.%W")) %>%
+    group_by(week, chains_assumption) %>%
+    summarise(n_introductions = n()) %>%
+    tidyr::pivot_wider(
+      names_from = chains_assumption, 
+      values_from = n_introductions,
+      names_prefix = "introductions_",
+      values_fill = list(n_introductions = 0)) %>%
+    left_join(y = week_to_week_start, by = "week")
+    
+  introduction_plot <- ggplot() + 
+    geom_errorbar(
+      data = introduction_detections,
+      aes(x = day, 
+          ymin = introductions_min,
+          ymax = introductions_max)) + 
+    scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
+    theme_bw() + 
+    labs(x = element_blank(), y = "Weekly number newly sampled introductions")
+  
+  ggsave(
+    file = paste(outdir, "introductions.png", sep = "/"), 
+    plot = introduction_plot)
+}
+
