@@ -6,15 +6,11 @@ require(ggplot2)
 require(ggtree)
 require(argparse)
 
-# min_date <- "2020-01-01"
 # max_date <- "2020-12-31"
-# min_length <- 27000
-# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_no-max-sampling_-5_context-sf"
+# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-005_max-sampling_-5_context-sf"
 
 parser <- argparse::ArgumentParser()
-parser$add_argument("--mindate", type="character")
 parser$add_argument("--maxdate", type="character")
-parser$add_argument("--minlength", type="integer")
 parser$add_argument("--workdir", type="character")
 
 args <- parser$parse_args()
@@ -27,16 +23,6 @@ workdir <- args$workdir
 db_connection = open_database_connection()
 outdir <- paste(workdir, "output", sep = "/")
 system(command = paste("mkdir -p", outdir))
-
-qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
-  filter(
-    date <= !! max_date,
-    date >= !! min_date, 
-    length >= min_length,
-    host == 'Human', 
-    nextclade_qc_snp_clusters_status == 'good', 
-    nextclade_qc_private_mutations_status == 'good', 
-    nextclade_qc_overall_status != 'bad')
 
 # Define variables to be shared across figures
 country_colors <- get_country_colors(db_connection)

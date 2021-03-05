@@ -250,6 +250,7 @@ plot_chain_sources <- function(s, workdir, outdir, country_colors) {
 #' @param chains Data frame with fields describing transmission chains.
 #' @param country_colors Named list with color values for countries.
 #' @return plot
+#' TODO: fix that "other" shows up as transparent in plot
 make_plot_chain_sources <- function(chains_asr, country_colors) {
   chains_asr_representative <- chains_asr %>% 
     mutate(foreign_mrca_month = format(as.Date(foreign_tmrca), "%Y-%m-01")) %>%
@@ -276,24 +277,32 @@ make_plot_chain_sources <- function(chains_asr, country_colors) {
     mutate(
       source_to_plot = case_when(
         source %in% source_summary$source[1:8] ~ source,
-        T ~ "other"))
+        T ~ "other"),
+      source_to_plot = gsub(x = source_to_plot, pattern = "\\.", replacement = " "))
   
   n_nodes_data <- chains_asr_representative %>% 
     group_by(foreign_mrca_month) %>%
     summarize(
       n_foreign_mrcas = n(), 
-      n_foreign_mrcas_with_asr = sum(!is.na(Switzerland_loc_weight))) %>%  # nodes without ASR have NA for all locations, including Switzerland
+      n_foreign_mrcas_with_asr = sum(!is.na(Switzerland_loc_weight) & Switzerland_loc_weight != 1)) %>%  # Sum across nodes with NA for all locations, including Switzerland (no travel context sequences = no ASR) and nodes with Switzerland estimated as ASR (a polytomy where the same node is both ch_mrca and foreign_mrca).
     mutate(label = paste(n_foreign_mrcas_with_asr, "(", n_foreign_mrcas, ")", sep = ""))
   
   plot <- ggplot(
     data = chains_asr_to_plot, 
-    aes(x = foreign_mrca_month, y = asr_contribution)) + 
-    geom_col(aes(fill = source_to_plot), position = "fill") +  # bars show percentage of all foreign mrcas
+    aes(x = as.Date(foreign_mrca_month), y = asr_contribution)) + 
+    geom_area(
+      aes(group = source_to_plot, fill = source_to_plot),
+      position = "stack") +  # 'fill' means height corresponds to percentage of all classifiable foreign mrcas in month
     geom_text(
       data = n_nodes_data,
-      aes(y = 1, label = label), 
-      vjust = 0) +  # annotate bars with number of foreign mrcas
-    scale_fill_manual(values = country_colors)
+      aes(y = 0, label = label),
+      vjust = 1) +  # annotate bars with total number of foreign mrcas in month, including those unclassifiable for reasons commented above
+    scale_fill_manual(values = country_colors) + 
+    labs(x = "Month of foreign attachment point", 
+         y = "Number of lineages") + 
+    scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
+    theme_bw()
+
   return(plot)
 }
 
