@@ -364,20 +364,27 @@ plot_lineage_with_exposure_location <- function(db_connection, lineage, workdir)
 }
 
 #' Plot barchart of sampling intensity through time.
-#' TODO: plot for samples actually included, rather than pulling eligible samples from the database
 #' TODO: include unsampled seqeunces from viollier again
-plot_sampling_intensity <- function(db_connection, qcd_gisaid_query, outdir) {
+plot_sampling_intensity <- function(db_connection, workdir, outdir, max_date) {
+  sample_metadata <- load_sample_metadata(workdir = workdir)
+  samples_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
+    filter(gisaid_epi_isl %in% !! sample_metadata$gisaid_epi_isl)
   weekly_case_and_seq_data <- get_weekly_case_and_seq_data(
-    db_connection = db_connection, qcd_gisaid_query = qcd_gisaid_query) 
+    db_connection = db_connection, qcd_gisaid_query = samples_query) %>%
+    filter(as.Date(week) <= as.Date(max_date))
   plot_data <- weekly_case_and_seq_data %>%
-    mutate(n_unseq_conf_cases = n_conf_cases - n_seqs_viollier - n_seqs_other) %>%
+    mutate(n_unseq_conf_cases = pmax(n_conf_cases - n_seqs_viollier - n_seqs_other, 0)) %>%  # For any weeks where # sequences > # confirmed cases, set # unsequenced confirmed cases to 0.
     tidyr::pivot_longer(
       cols = c("n_seqs_viollier", "n_seqs_other", "n_unseq_conf_cases"),
       names_to = "case_type",
       values_to = "n_cases", 
       names_prefix = "is_|n_") %>%
-    mutate(week = as.Date(week), n_cases = as.numeric(n_cases), 
-           n_conf_cases = as.numeric(n_conf_cases))
+    mutate(week = as.Date(week))
+  plot_data$case_type <- factor(
+    x = plot_data$case_type, 
+    levels = c("unseq_conf_cases", "seqs_other", "seqs_viollier"))
+  
+  shared_theme <- theme_bw()
   
   freq_plot <- ggplot(
     data = plot_data, 
@@ -389,20 +396,20 @@ plot_sampling_intensity <- function(db_connection, qcd_gisaid_query, outdir) {
     aes(x = week, y = n_cases, fill = case_type)) + 
     geom_col(position = position_stack()) +
     labs(x = element_blank(), y = "Weekly number of cases")
-  abs_scatterplot <- ggplot(
-    data = plot_data %>% filter(case_type == "seqs_viollier"),
-    aes(x = n_conf_cases, y = n_cases)) + 
-    geom_point(aes(color = week)) + 
-    geom_abline(slope = 0.01)  # show what a specific percent sampling would look like
-  show(abs_scatterplot)
-  
+
+  weekly_samples_vs_cases <- ggplot(
+    data = weekly_case_and_seq_data,
+    aes(x = n_conf_cases, y = n_seqs_total)) + 
+    geom_point(aes(color = week)) +
+    labs(x = "Weekly number confirmed cases", y = "Weekly number sequences analyzed") + 
+    shared_theme
+
   shared_scale_fill <- scale_fill_manual(
       values = RColorBrewer::brewer.pal(n = 3, name = "Dark2"),
       labels = c("seqs_viollier" = "Sequenced, from Viollier", 
                  "seqs_other" = "Sequenced, from another lab",
                  "unseq_conf_cases" = "Unsequenced confirmed case"),
       name = element_blank())
-  shared_theme <- theme_bw()
   
   sampling_intensity_plot <- ggpubr::ggarrange(
     freq_plot + shared_scale_fill + shared_theme,
@@ -412,6 +419,9 @@ plot_sampling_intensity <- function(db_connection, qcd_gisaid_query, outdir) {
   ggsave(
     file = paste(outdir, "sampling_intensity.png", sep = "/"), 
     plot = sampling_intensity_plot)
+  ggsave(
+    file = paste(outdir, "weekly_samples_vs_cases.png", sep = "/"),
+    plot = weekly_samples_vs_cases)
     
   return(plot_data)
 }

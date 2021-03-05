@@ -9,7 +9,7 @@ require(argparse)
 # min_date <- "2020-01-01"
 # max_date <- "2020-12-31"
 # min_length <- 27000
-# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-005_max-sampling_-5_context-sf"
+# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_no-max-sampling_-5_context-sf"
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
@@ -44,8 +44,9 @@ country_colors <- get_country_colors(db_connection)
 # Plot barchart of sampling intensity through time
 sampling_intensity_data <- plot_sampling_intensity(
   db_connection = db_connection,
-  qcd_gisaid_query = qcd_gisaid_query,
-  outdir = outdir
+  workdir = workdir,
+  outdir = outdir,
+  max_date = max_date
 )
 
 # Plot barchart of transmission chain origins through time
