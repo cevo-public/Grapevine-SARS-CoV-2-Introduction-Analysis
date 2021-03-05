@@ -9,7 +9,7 @@ require(argparse)
 # min_date <- "2020-01-01"
 # max_date <- "2020-12-31"
 # min_length <- 27000
-# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_no-max-sampling_-5_context-sf"
+# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-005_max-sampling_-5_context-sf"
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
@@ -41,22 +41,22 @@ qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
 # Define variables to be shared across figures
 country_colors <- get_country_colors(db_connection)
 
-# # Plot barchart of sampling intensity through time
-# sampling_intensity_data <- plot_sampling_intensity(
-#   db_connection = db_connection,
-#   qcd_gisaid_query = qcd_gisaid_query,
-#   outdir = outdir
-# )
-#
-# # Plot barchart of transmission chain origins through time
-# for (s in c(T, F)) {
-#   plot_chain_sources(
-#     s = s,
-#     workdir = workdir,
-#     outdir = outdir,
-#     country_colors = country_colors
-#   )
-# }
+# Plot barchart of sampling intensity through time
+sampling_intensity_data <- plot_sampling_intensity(
+  db_connection = db_connection,
+  qcd_gisaid_query = qcd_gisaid_query,
+  outdir = outdir
+)
+
+# Plot barchart of transmission chain origins through time
+for (s in c(T, F)) {
+  plot_chain_sources(
+    s = s,
+    workdir = workdir,
+    outdir = outdir,
+    country_colors = country_colors
+  )
+}
 
 # Plot transmission chains through time
 plot_chains(
@@ -67,7 +67,11 @@ plot_chains(
   plot_height_in = 15
 )
 
-
+# Plot number of introductions through time
+plot_introductions(
+  workdir = workdir,
+  outdir = outdir
+)
 
 
 
