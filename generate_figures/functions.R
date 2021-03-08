@@ -234,6 +234,54 @@ plot_chains <- function(
   #   facet_grid(foreign_mrca ~ ., scales = "free_y", space = "free_y")
 }
 
+plot_source_prior <- function(
+  workdir, outdir, country_colors, n_sources_to_plot = 10
+) {
+  source_estimates <- read.table(
+    file = paste(
+      workdir, "tmp/alignments/estimated_monthly_infectious_arrivals.txt", 
+      sep = "/"), 
+    sep = "\t", header = T, stringsAsFactors = F)
+  
+  source_estimates_long <- source_estimates %>%
+    tidyr::pivot_longer(
+      cols = c("n_tourist_arrivals", "n_commuter_permits"),
+      names_to = "ind_type",
+      names_prefix = "n_",
+      values_to = "n_inds") %>%
+   select(-c(n_infectious_arrivals, n_arrivals)) %>%
+   mutate(n_infectious_inds = avg_daily_n_infectious_per_million * n_inds / 1E6)
+  
+  source_summary <- source_estimates_long %>%
+    group_by(origin) %>% 
+    summarise(prior_contribution = sum(n_infectious_inds, na.rm = T)) %>%
+    arrange(desc(prior_contribution))  
+  
+  sources_to_plot <- source_estimates_long %>%
+    mutate(
+      source_to_plot = case_when(
+        origin %in% source_summary$origin[1:n_sources_to_plot] ~ origin,
+        T ~ "other")) %>%
+    tidyr::unite(col = "source_to_plot_ind_type", source_to_plot, ind_type, remove = F)
+  
+  plot <- ggplot(
+    data = sources_to_plot, 
+    aes(x = as.Date(date), y = as.numeric(n_infectious_inds))) + 
+    geom_area(
+      aes(group = source_to_plot_ind_type, fill = source_to_plot, alpha = ind_type),
+      position = "stack") +  # 'fill' means height corresponds to percentage of all classifiable foreign mrcas in month
+    scale_fill_manual(values = country_colors, name = "Source country") + 
+    scale_alpha_manual(
+      values = c(tourist_arrivals = 1, commuter_permits = 0.65), 
+      name = "Arrival type") + 
+    labs(x = "Month of entry", 
+         y = "Estimated number of infectious arrivals") + 
+    scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
+    theme_bw()
+  
+  ggsave(plot = plot, file = paste(outdir, "chain_source_prior.png", sep = "/"))
+}
+
 #' Plot estimated origins of swiss transmission lineages through time.
 plot_chain_sources <- function(s, workdir, outdir, country_colors) {
   chains_asr <- load_chains_asr(s = s, workdir = workdir)
@@ -251,7 +299,9 @@ plot_chain_sources <- function(s, workdir, outdir, country_colors) {
 #' @param country_colors Named list with color values for countries.
 #' @return plot
 #' TODO: fix that "other" shows up as transparent in plot
-make_plot_chain_sources <- function(chains_asr, country_colors) {
+make_plot_chain_sources <- function(
+  chains_asr, country_colors, n_sources_to_plot = 10
+) {
   chains_asr_representative <- chains_asr %>% 
     mutate(foreign_mrca_month = format(as.Date(foreign_tmrca), "%Y-%m-01")) %>%
     group_by(tree, foreign_mrca) %>%
@@ -276,7 +326,7 @@ make_plot_chain_sources <- function(chains_asr, country_colors) {
     summarise(asr_contribution = sum(asr_contribution, na.rm = T)) %>%
     mutate(
       source_to_plot = case_when(
-        source %in% source_summary$source[1:8] ~ source,
+        source %in% source_summary$source[1:n_sources_to_plot] ~ source,
         T ~ "other"),
       source_to_plot = gsub(x = source_to_plot, pattern = "\\.", replacement = " "))
   

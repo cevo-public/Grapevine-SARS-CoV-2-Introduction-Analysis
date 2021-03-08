@@ -35,7 +35,14 @@ sampling_intensity_data <- plot_sampling_intensity(
   max_date = max_date
 )
 
-# Plot barchart of transmission chain origins through time
+# Plot estimated infectious arrivals through time
+plot_source_prior(
+  workdir = workdir,
+  outdir = outdir,
+  country_colors = country_colors
+)
+
+# Plot transmission chain origins through time
 for (s in c(T, F)) {
   plot_chain_sources(
     s = s,
@@ -54,10 +61,18 @@ plot_chains(
   plot_height_in = 15
 )
 
-# Plot number of introductions through time
-plot_introductions(
+# Plot number of introductions, chain deaths through time
+plot_introductions_and_extinctions(
   workdir = workdir,
   outdir = outdir
+)
+
+# Plot introductions/time during on-qurantine list vs. off-quarantine list periods
+# TODO
+plot_travel_quarantine_effect(
+  workdir = workdir,
+  outdir = outdir,
+  db_connection = db_connection
 )
 
 
