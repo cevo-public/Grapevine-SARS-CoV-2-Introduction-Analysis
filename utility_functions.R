@@ -286,8 +286,9 @@ get_chain_data_by_tip <- function(chains, metadata = NULL) {
   return(chain_data_by_tip)
 }
 
+#' Get number of sequences compared to unsequenced confirmed cases per week.
 #' @param qc_gisaid_query A database query providing sequence filtering criteria 
-#' for table gisaid_sequence.
+#' for seq data in table gisaid_sequence.
 #' @return Dataframe with one row per week and columns giving the number of 
 #' sequences in the gisaid_sequence table from Switzerland passing the filter
 #' criteria.
@@ -304,18 +305,27 @@ get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query) {
     filter(iso_code == "CHE") %>%
     mutate(week = date_trunc('week', date)) %>%
     group_by(week) %>%
-    summarise(n_conf_cases = sum(new_cases))
+    summarise(n_conf_cases = sum(new_cases, na.rm = T))
   
   weekly_case_and_seq_data <- dplyr::full_join(
     x = sequence_data_query, y = case_data_query, by = "week") %>% 
     collect() %>%
-    filter(!is.na(is_viollier)) %>%
+    tidyr::replace_na(replace = list(is_viollier = F)) %>%  # weeks with 0 seqs have all 0 seqs coming from other labs, dummy val
     tidyr::pivot_wider(
       names_from = "is_viollier", 
       values_from = "n_seqs", 
-      names_prefix = "is_viollier_") %>%
+      names_prefix = "is_viollier_",
+      values_fill = list(n_seqs = 0)) %>%
     rename("n_seqs_viollier" = "is_viollier_TRUE",
-           "n_seqs_other" = "is_viollier_FALSE") 
+           "n_seqs_other" = "is_viollier_FALSE") %>%
+    mutate(n_seqs_total = n_seqs_viollier + n_seqs_other,
+           n_seqs_viollier = as.numeric(n_seqs_viollier),
+           n_seqs_other = as.numeric(n_seqs_other),
+           n_seqs_total = as.numeric(n_seqs_total),
+           n_conf_cases = as.numeric(n_conf_cases)) %>%
+    tidyr::replace_na(replace = list(n_conf_cases = 0, 
+                                     n_seqs_total = 0,
+                                     n_seqs_other = 0))
   return(weekly_case_and_seq_data)
 }
 
