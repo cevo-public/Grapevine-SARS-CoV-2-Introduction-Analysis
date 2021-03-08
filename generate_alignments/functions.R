@@ -210,7 +210,7 @@ report_infectious_arrivals <- function(infectious_arrivals, outdir) {
 #' in Switzerland from each country.
 #' @param db_connection
 get_travel_cases <- function(db_connection, min_date, max_date, outdir) {
-  print("Pulling tourist accomodation and cross-border commuter stats from FSO into the database.")
+  print("Pulling tourist accommodation and cross-border commuter stats from FSO into the database.")
   source("database/R/import_fso_travel_stats.R")
   import_fso_tourist_accommodation(db_connection = db_connection)
   import_fso_cross_border_commuters(db_connection = db_connection)
