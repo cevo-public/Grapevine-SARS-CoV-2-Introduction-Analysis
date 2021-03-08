@@ -1,7 +1,7 @@
-.idea/
-Rplots.pdf
+.idea
 .Rhistory
 .DS_Store
 ncov/
 dont_commit
 workdir
+Rplots.pdf
