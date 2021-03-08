@@ -16,6 +16,7 @@ parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
 parser$add_argument("--maxdate", type="character")
 parser$add_argument("--minlength", type="integer")
+parser$add_argument("--maxsamplingfrac", type="double", help="Maximum sampling fraction to take for Swiss sequences, e.g. 0.005 takes at most X = (0.005 * confirmed cases) Swiss sequences from each week")
 parser$add_argument("--travelcontextscalefactor", type="double", help="Multiplicative factor, how many times the # swiss sequences should we select for the travel context set?")
 parser$add_argument("--similaritycontextscalefactor", type="double", help="Multiplicative factor, how many times the # swiss sequences should we select for the genetic similarity context set?")
 parser$add_argument("--outdir", type="character")
@@ -28,6 +29,7 @@ args <- parser$parse_args()
 min_date <- args$mindate
 max_date <- args$maxdate
 min_length <- args$minlength
+max_samp_frac <- args$maxsamplingfrac
 travel_context_scale_factor <- args$travelcontextscalefactor
 similarity_context_scale_factor <- args$similaritycontextscalefactor
 outdir <- args$outdir
@@ -62,7 +64,7 @@ lineages <- get_pangolin_lineages(
 # Downsample Swiss sequences
 qcd_gisaid_query <- downsample_swiss_sequences(
   qcd_gisaid_query = qcd_gisaid_query,
-  max_sampling_frac = 0.005,
+  max_sampling_frac = max_samp_frac,
   db_connection = db_connection
 )
 

@@ -5,9 +5,7 @@ TODOs
 * The code only filters out uncertain dates in travel context set; for other seqs LSD handles incomplete dates by e.g. assigning the 15th for an unknown day and a known month
 * The confirmed case data in the database isn't updated by the script, and the travel data is updated every single time the script is run - instead check the age of the tables and decide whether they need to be updated
 * Currently the unmasked alignment is used - re-implement site masking according to De Maio et al.
-* Make the max weekly sampling proportion a command-line parameter rather than hardcoded 
 * Finish implementing manually defined lineage splits (see branch reduce-large-lineages)
-* Have program write out a log, including the parameter settings it was run with
 
 ## Usage
 

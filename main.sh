@@ -4,14 +4,17 @@ set -euo pipefail
 # ------------------------------------------------------
 # Settings
 
-
-WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here 
-REFERENCE=$WORKDIR/input/reference.fasta
+# The user should set these settings prior to building the docker image
 MIN_DATE=2020-01-01
 MAX_DATE=2020-12-31
 MIN_LENGTH=27000
+MAX_SAMPLING_FRACTION=0.01
 TRAVEL_CONTEXT_SCALE_FACTOR=0.5
 SIMILARITY_CONTEXT_SCALE_FACTOR=0.5
+
+# These settings should not generally be modified
+WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here 
+REFERENCE=$WORKDIR/input/reference.fasta
 IQTREE=/app/iqtree-2.0.6-Linux/bin/iqtree2
 PYTHON=python3
 N_TREES=-1  # will generate all trees unless a positive integer
@@ -58,6 +61,7 @@ done
 
 # Create output and tmp folders if they do not exist
 mkdir -p $TMP_DIR
+mkdir -p $OUTPUT_DIR
 
 TMP_ALIGNMENTS=$TMP_DIR/alignments
 mkdir -p $TMP_ALIGNMENTS
@@ -74,6 +78,14 @@ mkdir -p $TMP_CHAINS
 TMP_ASR=$TMP_DIR/asr
 mkdir -p $TMP_ASR
 
+# Write out settings
+echo "MIN_DATE: $MIN_DATE" > ${OUTPUT_DIR}/main_settings.txt
+echo "MAX_DATE: $MAX_DATE" >> ${OUTPUT_DIR}/main_settings.txt
+echo "MIN_LENGTH: $MIN_LENGTH" >> ${OUTPUT_DIR}/main_settings.txt
+echo "MAX_SAMPLING_FRACTION: $MAX_SAMPLING_FRACTION" >> ${OUTPUT_DIR}/main_settings.txt
+echo "TRAVEL_CONTEXT_SCALE_FACTOR: $TRAVEL_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
+echo "SIMILARITY_CONTEXT_SCALE_FACTOR: $SIMILARITY_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
+
 # ------------------------------------------------------
 echo "--- Generate one alignment per pangolin lineage ---"
 
@@ -81,6 +93,7 @@ Rscript generate_alignments/generate_alignments.R \
     --mindate $MIN_DATE \
     --maxdate $MAX_DATE \
     --minlength $MIN_LENGTH \
+    --maxsamplingfrac $MAX_SAMPLING_FRACTION \
     --travelcontextscalefactor $TRAVEL_CONTEXT_SCALE_FACTOR \
     --similaritycontextscalefactor $SIMILARITY_CONTEXT_SCALE_FACTOR \
     --outdir $TMP_ALIGNMENTS \
