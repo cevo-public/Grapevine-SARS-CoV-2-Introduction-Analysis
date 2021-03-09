@@ -7,11 +7,12 @@ require(ggtree)
 require(argparse)
 
 # max_date <- "2020-12-31"
-# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-005_max-sampling_-5_context-sf"
+# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-01_max_sampling_-5_context-sf"
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--maxdate", type="character")
 parser$add_argument("--workdir", type="character")
+parser$add_argument("--minchainsizeforplot", type="integer", default = 1)
 
 args <- parser$parse_args()
 
@@ -19,6 +20,7 @@ min_date <- args$mindate
 max_date <- args$maxdate
 min_length <- args$minlength
 workdir <- args$workdir
+min_chain_size <- args$minchainsizeforplot
 
 db_connection = open_database_connection()
 outdir <- paste(workdir, "output", sep = "/")
@@ -36,7 +38,7 @@ sampling_intensity_data <- plot_sampling_intensity(
 )
 
 # Plot estimated infectious arrivals through time
-plot_source_prior(
+plot_origin_prior(
   workdir = workdir,
   outdir = outdir,
   country_colors = country_colors
@@ -44,11 +46,20 @@ plot_source_prior(
 
 # Plot transmission chain origins through time
 for (s in c(T, F)) {
-  plot_chain_sources(
+  plot_chain_origins(
     s = s,
     workdir = workdir,
     outdir = outdir,
     country_colors = country_colors
+  )
+}
+
+# Table prior vs. posterior transmission chain origins in 1st & 2nd wave
+for (s in c(T, F)) {
+  table_chain_origins(
+    s = s,
+    workdir = workdir,
+    outdir = outdir
   )
 }
 
@@ -57,7 +68,7 @@ plot_chains(
   workdir = workdir,
   outdir = outdir,
   country_colors = country_colors,
-  min_chain_size = 3,
+  min_chain_size = min_chain_size,
   plot_height_in = 15
 )
 
@@ -69,11 +80,11 @@ plot_introductions_and_extinctions(
 
 # Plot introductions/time during on-qurantine list vs. off-quarantine list periods
 # TODO
-plot_travel_quarantine_effect(
-  workdir = workdir,
-  outdir = outdir,
-  db_connection = db_connection
-)
+# plot_travel_quarantine_effect(
+#   workdir = workdir,
+#   outdir = outdir,
+#   db_connection = db_connection
+# )
 
 
 
