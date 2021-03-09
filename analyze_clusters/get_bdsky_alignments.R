@@ -3,17 +3,17 @@ source("generate_figures/functions.R")
 source("utility_functions.R")
 require(dplyr)
 
-workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-005_max-sampling_-5_context-sf"
+# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-005_max-sampling_-5_context-sf"
 
-# parser <- argparse::ArgumentParser()
-# parser$add_argument("--workdir", type="character")
-# 
-# args <- parser$parse_args()
-# 
-# workdir <- args$workdir
+parser <- argparse::ArgumentParser()
+parser$add_argument("--workdir", type="character")
+
+args <- parser$parse_args()
+
+workdir <- args$workdir
 
 db_connection = open_database_connection()
-outdir <- paste(workdir, "output", sep = "/")
+outdir <- paste(workdir, "output/transmission_chain_alignments", sep = "/")
 system(command = paste("mkdir -p", outdir))
 
 print("Loading sample metadata and inferred transmission chain data.")
@@ -114,7 +114,7 @@ chain_summary <- rbind(chains_max, chains_min) %>%
   group_by(chains_assumption) %>%
   summarise(n_singleton_chains = sum(size == 1),
             n_seqs_in_biggest_chain = max(size))
-summary <- merge(x = alignment_summary, y = chain_summary)  %>%
+summary <- merge(alignment_summary, chain_summary)  %>%
   mutate(timespan = "after jan 1")
 
 alignment_after_may_1_summary <- viollier_samples %>% 
@@ -131,10 +131,11 @@ chain_after_may_1_summary <- viollier_samples %>%
   summarise(n_singleton_chains = sum(size == 1),
             n_seqs_in_biggest_chain = max(size))
 
-summary_after_may_1 <- merge(x = alignment_after_may_1_summary, y = chain_after_may_1_summary) %>%
+summary_after_may_1 <- merge(alignment_after_may_1_summary, chain_after_may_1_summary) %>%
   mutate(timespan = "after may 1")
 
-summary_to_print <- merge(x = summary, y = summary_after_may_1)
+summary_to_print <- rbind(x = summary, y = summary_after_may_1)
 
 write.csv(x = summary_to_print,
-          file = paste(outdir, "chains_summary.csv", sep = "/"))
+          file = paste(outdir, "chains_summary.csv", sep = "/"),
+          row.names = F)
