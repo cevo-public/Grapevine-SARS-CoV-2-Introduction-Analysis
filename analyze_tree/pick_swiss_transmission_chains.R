@@ -1,12 +1,19 @@
 # This script takes a tree and tip location information and returns 
 # chain assignments based on a user-defined max number of monophyletic foreign
-# sub-clades (exports) and a max number of foreign clades budding from any internal
-# branch. Note: the tree is NOT allowed to be one big chain (at the highest 
-# level of aggregation, clades descending from the root will be chains). Also
-# note that the number of budding (pendant) subclades is calculated as the maximum 
-# # pendant (budding subclades) to any swiss child plus the number of non-swiss
-# siblings. This is conservative because it assumes polytomies would be resolved
-# such that the maximum # non-swiss clades bud off in a row.
+# sub-clades (exports) and a max number of foreign clades budding from the spine
+# of a Swiss transmission chain in a row. 
+# Note: the tree is NOT allowed to be one big chain (at the highest 
+# level of aggregation, clades descending from the root will be separate 
+# transmission chains). 
+# Note: When calculating the number of foreign clades that bud off from a Swiss
+# transmission chain in a row, foreign descendents of polytomies are assumed to 
+# be one clade. The rationale is that a single export from a Swiss chain seems 
+# more likely than a series of many exports in a row.
+# Note: When calculating the minimum plausible number of chains (polytomies are
+# assumed to be Swiss, s = T), at large polytomies swiss descendents are 
+# aggregated into transmission chains in size order. This doesn't guarantee the
+# largest possible transmission chains are formed but should promote the 
+# formation of large transmission chains.  
 
 require(treeio)
 require(tidytree)

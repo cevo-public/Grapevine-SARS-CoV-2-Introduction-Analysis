@@ -23,9 +23,6 @@ pick_chains <- function(tree_data, m, p, s, verbose) {
     tree_data = tree_data, 
     m = m, p = p, s = s,
     verbose = verbose)  # this recursive function updates the chains object
-  # chains$m <- m
-  # chains$p <- p
-  # chains$s <- s
   
   return(chains)
 }
@@ -92,15 +89,18 @@ get_cluster_from_node <- function(
     n_pendant_subclades_to_swiss_children <- unlist(lapply(
       X = child_clusters, 
       FUN = get_n_basal_intl_clades))
+    child_sizes <- unlist(lapply(
+      X = child_clusters,
+      FUN = get_cluster_size))
     n_intl_children <- sum(!child_swissness)  
-    n_pendant_subclades <- max(n_pendant_subclades_to_swiss_children) + n_intl_children
+    n_pendant_subclades <- case_when(
+      sum(child_swissness) == 1 ~ max(n_pendant_subclades_to_swiss_children) + 1,
+      T ~ max(n_pendant_subclades_to_swiss_children)) # "pendant" means branching off in a row. The spine of the clade is proposed to be swiss, so we only add a pendant subclade if all the siblings are non-swiss
     
     if (verbose) {
-      print(paste("Checking to merge clusters at node", 
-                  node, "which has", 
-                  max(n_pendant_subclades_to_swiss_children), 
-                  "from max to a swiss child and", n_intl_children, 
-                  "from international children"))
+      print(paste("Checking whether to merge clusters at node", 
+                  node, "which would introduce a Swiss cluser with", 
+                  n_pendant_subclades, "pendant subclades."))
     }
     
     # Recursive case 1: no children are swiss, return 1 international subclade
@@ -109,10 +109,11 @@ get_cluster_from_node <- function(
       return(intl_cluster)
     }
     
-    # Recursive case 2: merge child clusters to same transmission chain
     m_condition <- sum(n_intl_subclades_in_children) <= m
     p_condition <- n_pendant_subclades <= p
     root_condition <- node != n_tips + 1  # root not allowed to be swiss
+    
+    # Recursive case 2: merging all child clusters to same transmission chain doesn't violate transmission chain criteria
     if (m_condition & p_condition & root_condition) {  
       if (sum(child_swissness) > 1) {
         merged_cluster <- merge_child_swiss_clusters(
@@ -131,39 +132,46 @@ get_cluster_from_node <- function(
       }
       return(merged_cluster)
       
-    # Recursive cases 3: merge as many swiss descendents of polytomy as possible
+    # Recursive cases 3a: merging all child clusters to same transmission chain violates transmission chain criteria,
+    # but we assume polytomies is resolved such that as many swiss clusters as possible are merged
+    # Don't need to consider p condition here because not merging in any intl siblings, only combining swiss clades
     } else if (s & root_condition & sum(child_swissness) > 1) {
-      child_idxs_to_merge <- get_child_idxs_to_merge(n_intl_subclades_in_children, m, child_swissness)
-      if (length(child_idxs_to_merge) == sum(child_swissness)) {
-        child_idxs_unmerged <- c()
-      } else {
-        all_child_idxs <- 1:length(child_clusters)
-        swiss_child_idxs <- all_child_idxs[child_swissness]
-        child_idxs_unmerged <- swiss_child_idxs[!(swiss_child_idxs %in% child_idxs_to_merge)]
-      }
-      merged_cluster <- merge_child_swiss_clusters(
-        child_clusters[child_idxs_to_merge],
-        node_data,
-        n_intl_subclades = sum(n_intl_subclades_in_children[child_idxs_to_merge]),
-        n_basal_intl_clades = n_pendant_subclades,
-        verbose = verbose)
-      cluster <- finish_cluster(
-        merged_cluster,
-        child_node_data = node_data,
-        node_data = node_data,
-        verbose = verbose)
-      chains <<- rbind(chains, cluster, stringsAsFactors = F)
-      for (child_idx in child_idxs_unmerged) {
-        if (child_swissness[child_idx]) {
+      child_merge_list <- get_child_idxs_to_merge(
+        ms = n_intl_subclades_in_children,
+        sizes = child_sizes,
+        swissness = child_swissness,
+        m = m, verbose = verbose)
+      for (i in 1:length(child_merge_list)) {
+        child_idxs_to_merge <- child_merge_list[[i]]
+        if (verbose) {
+          print("Merging children")
+          print(child_idxs_to_merge)
+        }
+        if (length(child_idxs_to_merge) > 1) {
+          merged_cluster <- merge_child_swiss_clusters(
+            child_clusters[child_idxs_to_merge],
+            node_data,
+            n_intl_subclades = sum(n_intl_subclades_in_children[child_idxs_to_merge]),
+            n_basal_intl_clades = n_pendant_subclades,
+            verbose = verbose)
+          cluster <- finish_cluster(
+            merged_cluster,
+            child_node_data = node_data,
+            node_data = node_data,
+            verbose = verbose)
+          chains <<- rbind(chains, cluster, stringsAsFactors = F)
+        } else {
           child_cluster <- finish_cluster(
-            child_clusters[[child_idx]],
-            child_node_data = child_node_data[child_idx, ],
+            child_clusters[[child_idxs_to_merge]],
+            child_node_data = child_node_data[child_idxs_to_merge, ],
             node_data = node_data,
             verbose = verbose)
           chains <<- rbind(chains, child_cluster, stringsAsFactors = F)
         }
       }
-    # Finish each child of polytomy seperatly
+
+    # Recursive cases 3b: merging all child clusters to same transmission chain violates transmission chain criteria,
+    # and we assume polytomy is not in Switzerland: finish each child of polytomy seperately.
     } else {
       for (child_idx in (1:length(child_clusters))[child_swissness]) {
         child_cluster <- finish_cluster(
@@ -179,28 +187,45 @@ get_cluster_from_node <- function(
   }
 }
 
-#' Get the most children possible to merge before violating transmission chain
-#' criterion m.
-#' @param n_intl_subclades_in_children A vector of the number intl subclades in each child.
+#' At a polytomy, generate the largest Swiss cluster possible by combining 
+#' daughter clades in order of size (# Swiss descendents) as long as transmission chain
+#' criteria m is satisfied. When no more daughter clades can be added, 
+#' finish the set to merge and start another merge, working from largest to smallest size.
+#' @param ms A vector of the number intl subclades in each child.
+#' @param sizes Sizes (# Swiss descendents) in each child.
+#' @param swissness Boolean vector whether each child is Swiss or not.
+#' @param m Maximum # non-Swiss subclades in a transmission chain.
 #' @return A vector of indexes in list child_clusters that can be merged.
-get_child_idxs_to_merge <- function(n_intl_subclades_in_children, m, child_swissness) {
-  n_intl_subclades_in_children[!child_swissness] <- Inf  # don't ever merge non-Swiss children
-  child_order_by_n_intl_subclades <- order(n_intl_subclades_in_children)
-  merge_complete <- F
-  i <- 0
-  n_intl <- 0
-  child_idxs_to_merge <- c()
-  while(!merge_complete & i < length(child_order_by_n_intl_subclades)) {
-    i <- i + 1
-    child_idx_to_merge <- child_order_by_n_intl_subclades[i]
-    n_intl <- n_intl + n_intl_subclades_in_children[child_idx_to_merge]
-    if (n_intl < m) {
-      child_idxs_to_merge <- c(child_idxs_to_merge, child_idx_to_merge)
+get_child_idxs_to_merge <- function(
+  ms, sizes, swissness, m, verbose
+) {
+  nodes <- 1:length(ms)
+  merge_data <- data.frame(
+    node = nodes[swissness],
+    size = sizes[swissness],
+    m = ms[swissness]) %>%
+    arrange(desc(size))
+  
+  m_tally <- 0
+  merge_idx <- "A"
+  merge_list <- list()
+  for (i in 1:nrow(merge_data)) {
+    m_tally_proposed <- m_tally + merge_data[i, "m"]
+    if (m_tally_proposed <= m) {
+      m_tally <- m_tally_proposed
     } else {
-      merge_complete <- T
+      m_tally <-  merge_data[i, "m"]
+      merge_idx <- intToUtf8(utf8ToInt(merge_idx) + 1)
+      merge_list[[merge_idx]] <- c()
     }
+    merge_list[[merge_idx]] <- c(merge_list[[merge_idx]], merge_data[i, "node"])
   }
-  return(child_idxs_to_merge)
+  if (verbose) {
+    print(merge_data)
+    print("Results in the following merges:")
+    print(merge_list)
+  }
+  return(merge_list)
 }
 
 #' Create a placeholder cluster representing an international tip or clade
@@ -438,8 +463,8 @@ plot_chains_on_tree <- function(chains, max_chains_to_plot = 4) {
   return(tree_plot)
 }
 
-# tree <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/lsd/B.1.1.70.timetree.nex"
-# metadata <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/alignments/B.1.1.70_metadata.csv"
+# tree <- "/Users/nadeaus/Repos/grapevine/dont_commit/grapevine_for_testing_scripts/tmp/lsd/B.1.1.74.timetree.nex"
+# metadata <- "/Users/nadeaus/Repos/grapevine/dont_commit/grapevine_for_testing_scripts/tmp/alignments/B.1.1.74_metadata.csv"
 # 
 # # Load data
 # tree <- treeio::read.beast(file = tree)
@@ -448,6 +473,12 @@ plot_chains_on_tree <- function(chains, max_chains_to_plot = 4) {
 # tree_data <- merge(
 #   x = tree_data, y = metadata %>% select(-c(date)),
 #   by.x = "label", by.y = "tree_label", all.x = T)
+# tree_data[tree_data$node %in% c(27, 13, 14), "country"] <- "Switzerland"
+# 
+# ggtree(tr = tree) %<+% tree_data + 
+#   geom_tippoint(aes(color = country == "Switzerland"))
+# 
+# source("utility_functions.R")
 # 
 # # Get transmission chains
 # chains <- pick_chains(
@@ -457,5 +488,6 @@ plot_chains_on_tree <- function(chains, max_chains_to_plot = 4) {
 #   s = T,
 #   verbose = T
 # )
-# source("utility_functions.R")
+# 
+# plot_chains_on_tree(chains = chains, max_chains_to_plot = 10)
 
