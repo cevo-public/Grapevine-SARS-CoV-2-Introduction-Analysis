@@ -26,10 +26,10 @@ db_connection = open_database_connection()
 outdir <- paste(workdir, "output", sep = "/")
 system(command = paste("mkdir -p", outdir))
 
-# Define variables to be shared across figures
+print("Defining variables to be shared across figures.")
 country_colors <- get_country_colors(db_connection)
 
-# Plot barchart of sampling intensity through time
+print("Plotting barchart of sampling intensity through time.")
 sampling_intensity_data <- plot_sampling_intensity(
   db_connection = db_connection,
   workdir = workdir,
@@ -37,14 +37,14 @@ sampling_intensity_data <- plot_sampling_intensity(
   max_date = max_date
 )
 
-# Plot estimated infectious arrivals through time
+print("Plotting estimated infectious arrivals through time.")
 plot_origin_prior(
   workdir = workdir,
   outdir = outdir,
   country_colors = country_colors
 )
 
-# Plot transmission chain origins through time
+print("Plotting transmission chain origins through time.")
 for (s in c(T, F)) {
   plot_chain_origins(
     s = s,
@@ -54,7 +54,7 @@ for (s in c(T, F)) {
   )
 }
 
-# Table prior vs. posterior transmission chain origins in 1st & 2nd wave
+print("Tabling prior vs. posterior transmission chain origins in 1st & 2nd wave.")
 for (s in c(T, F)) {
   table_chain_origins(
     s = s,
@@ -63,7 +63,7 @@ for (s in c(T, F)) {
   )
 }
 
-# Plot transmission chains through time
+print("Plotting transmission chains through time.")
 plot_chains(
   workdir = workdir,
   outdir = outdir,
@@ -72,7 +72,7 @@ plot_chains(
   plot_height_in = 15
 )
 
-# Plot number of introductions, chain deaths through time
+print("Plotting number of introductions, chain extinctins through time.")
 plot_introductions_and_extinctions(
   workdir = workdir,
   outdir = outdir

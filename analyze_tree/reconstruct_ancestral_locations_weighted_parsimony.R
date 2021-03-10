@@ -36,17 +36,14 @@ require(treeio)
 require(ggplot2)
 require(ggtree)
 
-# # tree_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/lsd/B.1.1.277.timetree.nex"
-# # metadata_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/alignments/B.1.1.277_metadata.csv"
-# chains_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/chains/B.1.1.162_m_3_p_1_s_F_chains.txt"
-# tree_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/lsd/B.1.1.162.timetree.nex"
-# metadata_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/test_travel_scale_1/tmp/alignments/B.1.1.162_metadata.csv"
+# tree_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/grapevine_for_testing_scripts/tmp/lsd/B.1.1.74.timetree.nex"
+# metadata_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/grapevine_for_testing_scripts/tmp/alignments/B.1.1.74_metadata.csv"
+# chains_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/grapevine_for_testing_scripts/tmp/chains_new_def/B.1.1.74_m_3_p_1_s_F_chains.txt"
 # s <- F
-# # chains_file <- paste("/Users/nadeaus/Downloads/test_s_", s, "_chains.txt", sep = "")
 # outdir <- "~/Downloads"
 # verbose <- T
 # plot_tree <- T
-# write_scores <- T
+# write_scores <- F
 # prefix <- paste("test_s_", s, sep = "")
 
 parser <- argparse::ArgumentParser()

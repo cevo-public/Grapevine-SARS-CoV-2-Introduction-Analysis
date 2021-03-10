@@ -409,9 +409,10 @@ plot_chain_origins <- function(s, workdir, outdir, country_colors) {
 make_plot_chain_origins <- function(
   chains_asr, country_colors, n_origins_to_plot = 10
 ) {
-  chains_asr_representative <- pick_origin_representative_chains(chains_asr)
-  chains_asr_long <- pivot_chains_longer(chains_asr_representative) %>%
+  chains_asr <- chains_asr %>%
     mutate(foreign_mrca_month = format(as.Date(foreign_tmrca), "%Y-%m-01"))
+  chains_asr_representative <- pick_origin_representative_chains(chains_asr)
+  chains_asr_long <- pivot_chains_longer(chains_asr_representative)
   
   most_common_origins <- get_most_common_origins(
     chains_asr_long = chains_asr_long, n = n_origins_to_plot)
@@ -654,6 +655,6 @@ plot_introductions_and_extinctions <- function(
   
   ggsave(
     file = paste(outdir, "introductions_and_extinctions.png", sep = "/"), 
-    plot = introduction_plot)
+    plot = introductions_and_extinctions_plot)
 }
 
