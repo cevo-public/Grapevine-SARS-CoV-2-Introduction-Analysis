@@ -303,16 +303,23 @@ load_origin_estimates <- function(workdir) {
   return(origin_estimates_long)
 }
 
-#' Pick representative transmission chains for summarizing chain origins
-#' Keep only one representative chain for chains descending from same polytomy 
-#' so that polytomy ASR's aren't overweighted when s = F.
+#' Summarize all chains descending from each foreign mrca node. 
+#' This is equivalend to keeping only one representative chain for chains 
+#' descending from the same polytomy so that polytomy ASR's aren't overweighted 
+#' when s = F.
 #' @param chains_asr Dataframe with fields describing transmission chains and 
 #' normalized ancestral state location weights. Output of load_chains_asr.
+#' @return Dataframe with fields describing ancestral state location
+#' estimates (weights) and number of swiss transmission chains descending from
+#' each foriegn mrca in the tree.
 pick_origin_representative_chains <- function(chains_asr) {
   chains_asr_representative <- chains_asr %>% 
-    group_by(tree, foreign_mrca) %>%
-    mutate(child_idx = 1:n()) %>%
-    top_n(n = 1, wt = child_idx)
+    group_by(tree, foreign_mrca, foreign_tmrca, foreign_tmrca_CI) %>%
+    mutate(n_descendent_swiss_chains = n()) %>%
+    summarize_at(
+      .vars = vars(ends_with("_loc_weight"), n_descendent_swiss_chains),
+      .funs  = ~head(., 1))  # the _loc_weight values are the same for all chains descending from the same foreign_mrca, so just take the first values
+  
   return(chains_asr_representative)
 }
 
@@ -449,9 +456,8 @@ plot_chain_origins <- function(s, workdir, outdir, country_colors) {
 make_plot_chain_origins <- function(
   chains_asr, country_colors, n_origins_to_plot = 10
 ) {
-  chains_asr <- chains_asr %>%
+  chains_asr_representative <- pick_origin_representative_chains(chains_asr) %>%
     mutate(foreign_mrca_month = format(as.Date(foreign_tmrca), "%Y-%m-01"))
-  chains_asr_representative <- pick_origin_representative_chains(chains_asr)
   chains_asr_long <- pivot_chains_longer(chains_asr_representative)
   
   most_common_origins <- get_most_common_origins(
@@ -461,7 +467,7 @@ make_plot_chain_origins <- function(
     summarise(asr_contribution = sum(asr_contribution, na.rm = T)) %>%
     mutate(
       origin_to_plot = case_when(
-        origin %in% most_common_origins ~ origin,
+        country_name_to_iso_code(origin) %in% most_common_origins ~ origin,
         T ~ "other"))
   
   n_nodes_data <- chains_asr_representative %>% 
