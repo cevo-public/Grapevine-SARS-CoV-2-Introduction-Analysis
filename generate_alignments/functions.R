@@ -144,7 +144,7 @@ get_avg_infectious_per_country_month <- function(db_connection, min_date, max_da
 #' month of arrival.
 #' @param db_connection
 #' @param max_date Character date, e.g. "2021-01-30" to extrapolate data to.
-get_infected_arrivals_per_country_month <- function(db_connection, min_date, max_date, outdir) {
+get_infected_arrivals_per_country_month <- function(db_connection, min_date, max_date, outdir = NULL) {
   print("Estimating number of infectious arrivals into Switzerland by origin country and month of arrival.")
   tourists <- get_tourist_arrivals_per_country_month(db_connection, min_date, max_date)
   commuters <- get_commuter_permits_per_country_month(db_connection, min_date, max_date)
@@ -160,7 +160,9 @@ get_infected_arrivals_per_country_month <- function(db_connection, min_date, max
   infectious_arrivals <- infectious_arrivals %>% 
     filter(!is.na(avg_daily_n_infectious_per_million)) %>%
     mutate(n_infectious_arrivals = avg_daily_n_infectious_per_million * n_arrivals / 1E6)
-  report_infectious_arrivals(infectious_arrivals, outdir)
+  if (!is.null(outdir)) {
+    report_infectious_arrivals(infectious_arrivals, outdir)
+  }
   return(infectious_arrivals)
 }
 
@@ -204,11 +206,18 @@ report_infectious_arrivals <- function(infectious_arrivals, outdir) {
     plot = p)
 }
 
+psum <- function(..., na.rm = T) { 
+  rowSums(do.call(cbind,list(...)), na.rm = na.rm) 
+} 
+
 #' Get a set of strains proportional to estimated travel connections to Switzerland.
 #' Estimated infectious individuals arriving and travel exposure cases are both
 #' in absolute numbers, so sum for total number infectious inidiviuals arriving
 #' in Switzerland from each country.
 #' @param db_connection
+#' @return Dataframe with information on number of infected individuals arriving
+#' each month from each geographic origin. NA is only filled with zeros in col
+#' n_travel_cases, otherwise NA means no source data.
 get_travel_cases <- function(db_connection, min_date, max_date, outdir) {
   print("Pulling tourist accommodation and cross-border commuter stats from FSO into the database.")
   source("database/R/import_fso_travel_stats.R")
@@ -223,9 +232,7 @@ get_travel_cases <- function(db_connection, min_date, max_date, outdir) {
   travel_cases <- merge(
     x = infected_arrivals, y = exposures, 
     all = T, by = c("date", "iso_code")) %>%
-    tidyr::replace_na(
-      replace = list("n_exposures" = 0, "n_infectious_arrivals" = 0)) %>%
-    mutate(n_travel_cases = n_exposures + n_infectious_arrivals) %>%
+    mutate(n_travel_cases = psum(n_exposures, n_infectious_arrivals, na.rm = T)) %>%
     arrange(date, desc(n_infectious_arrivals))
   
   to_remove <- travel_cases %>%
@@ -239,12 +246,16 @@ get_travel_cases <- function(db_connection, min_date, max_date, outdir) {
   
   print("Completing travel case data with zero values for months with no travel cases.")
   travel_cases <- travel_cases %>%
+    select(-c(origin, destination, n_arrivals, exp_land)) %>%
     tidyr::complete(
       date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
       iso_code) %>%  
     group_by(iso_code) %>%
     arrange(date) %>%
-    tidyr::replace_na(replace = list("n_travel_cases" = 0))  # fill in missing months with 0 value
+    tidyr::replace_na(replace = list("n_travel_cases" = 0)) %>%  # fill in missing months with 0 value
+    mutate(n_travel_cases = case_when(
+      n_travel_cases < 0 ~ 0,
+      T ~ n_travel_cases))  # when negative (can happen due to corrections in case count data), assume zero travel cases
   
   print(paste("Writing out results to", outdir))
   write.csv(
