@@ -6,11 +6,13 @@ require(dplyr)
 # workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-005_max-sampling_-5_context-sf"
 
 parser <- argparse::ArgumentParser()
-parser$add_argument("--workdir", type="character")
+parser$add_argument("--workdir", type = "character")
+parser$add_argument("--maxdate", type = "character")
 
 args <- parser$parse_args()
 
 workdir <- args$workdir
+max_date <- as.Date(args$maxdate)
 
 db_connection = open_database_connection()
 outdir <- paste(workdir, "output/transmission_chain_alignments", sep = "/")
@@ -33,7 +35,8 @@ viollier_samples <- rbind(
          submitting_lab == "Department of Biosystems Science and Engineering, ETH Zürich",  # because some samples sequenced by University Hospital Basel, Clinical Bacteriology also come from Viollier
          focal_sequence) %>%  
   tidyr::unite(col = "header", strain, sample, chain_idx, sep = "|", remove = F) %>%  # headers form: <strain with "\" & " " --> "_">|<gisaid_epi_isl>|<yyyy-mm-dd date>|<cluster_idx>
-  mutate(after_may_1 = date >= as.Date("2020-05-01"))
+  mutate(after_may_1 = date >= as.Date("2020-05-01")) %>%
+  filter(date <= max_date)
   
 max_chain_header_mapping <- unlist(
   viollier_samples %>%
