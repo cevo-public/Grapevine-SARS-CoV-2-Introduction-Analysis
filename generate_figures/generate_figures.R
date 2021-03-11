@@ -6,21 +6,20 @@ require(ggplot2)
 require(ggtree)
 require(argparse)
 
-# max_date <- "2020-12-31"
-# workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-01_max_sampling_-5_context-sf"
+max_date <- "2020-12-31"
+workdir <- "/Users/nadeaus/NonRepoProjects/cov-swiss-phylogenetics/grapevine/jan-dec_-01_max_sampling_-5_context-sf"
+min_chain_size <- 1
 
-parser <- argparse::ArgumentParser()
-parser$add_argument("--maxdate", type="character")
-parser$add_argument("--workdir", type="character")
-parser$add_argument("--minchainsizeforplot", type="integer", default = 1)
-
-args <- parser$parse_args()
-
-min_date <- args$mindate
-max_date <- args$maxdate
-min_length <- args$minlength
-workdir <- args$workdir
-min_chain_size <- args$minchainsizeforplot
+# parser <- argparse::ArgumentParser()
+# parser$add_argument("--maxdate", type="character")
+# parser$add_argument("--workdir", type="character")
+# parser$add_argument("--minchainsizeforplot", type="integer", default = 1)
+# 
+# args <- parser$parse_args()
+# 
+# max_date <- args$maxdate
+# workdir <- args$workdir
+# min_chain_size <- args$minchainsizeforplot
 
 db_connection = open_database_connection()
 outdir <- paste(workdir, "output", sep = "/")
