@@ -12,8 +12,7 @@ get_country_colors <- function(
     arrange(desc(n_seqs)) %>%
     collect()
   countries <- countries %>% 
-    mutate(iso3 = countrycode::countrycode(
-      sourcevar = country, origin = "country.name", destination = "iso3c"))
+    mutate(iso3 = country_name_to_iso_code(country))
   if (is.null(n_unique_colors)) {
     n <- nrow(countries)
     all_colors = grDevices::colors()[grep('gr(a|e)y', grDevices::colors(), invert = T)]
@@ -237,32 +236,23 @@ plot_chains <- function(
 plot_origin_prior <- function(
   workdir, outdir, country_colors, n_origins_to_plot = 10
 ) {
-  origin_estimates <- read.table(
-    file = paste(
-      workdir, "tmp/alignments/estimated_monthly_infectious_arrivals.txt", 
-      sep = "/"), 
-    sep = "\t", header = T, stringsAsFactors = F)
-  
-  origin_estimates_long <- origin_estimates %>%
-    tidyr::pivot_longer(
-      cols = c("n_tourist_arrivals", "n_commuter_permits"),
-      names_to = "ind_type",
-      names_prefix = "n_",
-      values_to = "n_inds") %>%
-   select(-c(n_infectious_arrivals, n_arrivals)) %>%
-   mutate(n_infectious_inds = avg_daily_n_infectious_per_million * n_inds / 1E6)
+  origin_estimates_long <- load_origin_estimates(workdir = workdir)
   
   origin_summary <- origin_estimates_long %>%
-    group_by(origin) %>% 
+    group_by(iso_code) %>% 
     summarise(prior_contribution = sum(n_infectious_inds, na.rm = T)) %>%
     arrange(desc(prior_contribution))  
   
   origins_to_plot <- origin_estimates_long %>%
     mutate(
       origin_to_plot = case_when(
-        origin %in% origin_summary$origin[1:n_origins_to_plot] ~ origin,
+        iso_code %in% origin_summary$iso_code[1:n_origins_to_plot] ~ 
+          iso_code_to_country_name(iso_code),
         T ~ "other")) %>%
     tidyr::unite(col = "origin_to_plot_ind_type", origin_to_plot, ind_type, remove = F)
+  origins_to_plot$ind_type <- factor(
+    x = origins_to_plot$ind_type,
+    levels = c("exposures", "tourist_arrivals", "commuter_permits"))
   
   plot <- ggplot(
     data = origins_to_plot, 
@@ -272,7 +262,10 @@ plot_origin_prior <- function(
       position = "stack") +  # 'fill' means height corresponds to percentage of all classifiable foreign mrcas in month
     scale_fill_manual(values = country_colors, name = "origin country") + 
     scale_alpha_manual(
-      values = c(tourist_arrivals = 1, commuter_permits = 0.65), 
+      values = c(exposures = 1, tourist_arrivals = 0.75, commuter_permits = 0.5),
+      labels = c(exposures = "Reported exposure", 
+                 tourist_arrivals = "Infected tourist (estimated)",
+                 commuter_permits = "Infected commuter (estimated)"),
       name = "Arrival type") + 
     labs(x = "Month of entry", 
          y = "Estimated number of infectious arrivals") + 
@@ -280,6 +273,34 @@ plot_origin_prior <- function(
     theme_bw()
   
   ggsave(plot = plot, file = paste(outdir, "chain_origin_prior.png", sep = "/"))
+}
+
+#' @param workdir Directory containing grapevine's results
+#' @return Dataframe with columns 'date', 'iso_code', 'ind_type' 
+#' (tourist_arrivals or commuter_permits), and 'n_infectious_inds' (estimated 
+#' number of infectious individuals of type ind_type arriving in Switzerland
+#' in month of date).
+load_origin_estimates <- function(workdir) {
+  origin_estimates <- read.csv(
+    file = paste(
+      workdir, "tmp/alignments/estimated_travel_cases.csv", 
+      sep = "/"), 
+    header = T, stringsAsFactors = F)
+  
+  origin_estimates_long <- origin_estimates %>%
+    tidyr::pivot_longer(
+      cols = c("n_tourist_arrivals", "n_commuter_permits", "n_exposures"),
+      names_to = "ind_type",
+      names_prefix = "n_",
+      values_to = "n_inds") %>%
+    mutate(n_infectious_inds = case_when(
+      ind_type == "exposures" ~ 
+        n_inds,
+      ind_type %in% c("tourist_arrivals", "commuter_permits") ~ 
+        avg_daily_n_infectious_per_million * n_inds / 1E6)) %>%
+   select(date, iso_code, ind_type, n_infectious_inds) %>%
+   filter(!is.na(n_infectious_inds), n_infectious_inds > 0)  # remove months and countries with no estimated infectious arrivals
+  return(origin_estimates_long)
 }
 
 #' Pick representative transmission chains for summarizing chain origins
@@ -319,8 +340,9 @@ get_most_common_origins <- function(chains_asr_long, n = 8) {
   origin_summary <- chains_asr_long %>%
     group_by(origin) %>% 
     summarise(asr_contribution = sum(asr_contribution, na.rm = T)) %>%
-    arrange(desc(asr_contribution))
-  most_common_origins <- origin_summary$origin[1:n]
+    arrange(desc(asr_contribution)) %>%
+    mutate(iso_code = country_name_to_iso_code(country = origin))
+  most_common_origins <- origin_summary$iso_code[1:n]
   return(most_common_origins)
 }
 
@@ -331,18 +353,15 @@ table_chain_origins <- function(
   workdir, outdir, s, period_breaks = c("2020-05-01"), n_origins_to_table = 15
 ) {
   # Load prior and posterior 
-  origin_estimates <- read.table(
-    file = paste(
-      workdir, "tmp/alignments/estimated_monthly_infectious_arrivals.txt", 
-      sep = "/"), 
-    sep = "\t", header = T, stringsAsFactors = F)
+  origin_estimates_long <- load_origin_estimates(workdir = workdir)
+  
   chains_asr <- load_chains_asr(s = s, workdir = workdir)
   chains_asr_representative <- pick_origin_representative_chains(chains_asr)
   chains_asr_long <- pivot_chains_longer(chains_asr_representative)
   
   # Summarize prior and posterior origin contributions by period
   complete_period_breaks <- c(
-    range(c(origin_estimates$date, chains_asr_long$foreign_tmrca)), 
+    range(c(origin_estimates_long$date, chains_asr_long$foreign_tmrca)), 
     period_breaks)  # most extreme dates + specified intermediate breakpoints
   posterior_by_period <- chains_asr_long %>%
     mutate(
@@ -352,19 +371,20 @@ table_chain_origins <- function(
     group_by(period, origin) %>%
     summarise(asr_contribution = sum(asr_contribution, na.rm = T)) %>%
     group_by(period) %>%
-    mutate(frac_posterior = asr_contribution / sum(asr_contribution))
-  prior_by_period <- origin_estimates %>%
+    mutate(frac_posterior = asr_contribution / sum(asr_contribution),
+           iso_code = country_name_to_iso_code(country = origin)) %>%
+    select(-c(origin))
+  prior_by_period <- origin_estimates_long %>%
     mutate(
       period = cut.Date(x = as.Date(date), 
                         breaks = as.Date(complete_period_breaks),
-                        include.lowest = T),
-      origin = recode(origin, "United States" = "USA")) %>%
-    group_by(period, origin) %>%
-    summarise(n_infectious_arrivals = sum(n_infectious_arrivals, na.rm = T)) %>%
+                        include.lowest = T)) %>%
+    group_by(period, iso_code) %>%
+    summarise(n_infectious_inds = sum(n_infectious_inds, na.rm = T)) %>%
     group_by(period) %>%
-    mutate(frac_prior = n_infectious_arrivals / sum(n_infectious_arrivals))
+    mutate(frac_prior = n_infectious_inds / sum(n_infectious_inds))
   posterior_vs_prior_by_period <- merge(
-    x = posterior_by_period, y = prior_by_period, by = c("period", "origin"),
+    x = posterior_by_period, y = prior_by_period, by = c("period", "iso_code"),
     all = T) %>%
     mutate(frac_posterior_to_frac_prior_ratio = frac_posterior / frac_prior)
   
@@ -372,12 +392,14 @@ table_chain_origins <- function(
   most_common_origins <- get_most_common_origins(
     chains_asr_long = chains_asr_long, n = n_origins_to_table)
   posterior_vs_prior_by_period_to_table <- posterior_vs_prior_by_period %>%
-    filter(origin %in% most_common_origins) %>%
-    select(period, frac_posterior_to_frac_prior_ratio, origin) %>%
-    mutate(frac_posterior_to_frac_prior_ratio = signif(
-      frac_posterior_to_frac_prior_ratio, digits = 2)) %>%
+    filter(iso_code %in% most_common_origins) %>%
+    select(period, frac_posterior_to_frac_prior_ratio, iso_code) %>%
+    mutate(
+      frac_posterior_to_frac_prior_ratio = signif(
+        frac_posterior_to_frac_prior_ratio, digits = 2),
+      country = iso_code_to_country_name(iso_code = iso_code)) %>%
     tidyr::pivot_wider(
-      names_from = period, 
+      names_from = period,
       values_from = frac_posterior_to_frac_prior_ratio,
       names_prefix = "Period beginning ")
   
@@ -387,6 +409,24 @@ table_chain_origins <- function(
     x = posterior_vs_prior_by_period_to_table,
     file = paste(outdir, filename, sep = "/"),
     row.names = F)
+}
+
+#' Convert iso codes to English language country names
+iso_code_to_country_name <- function(iso_code) {
+  return(countrycode::countrycode(
+    sourcevar = iso_code,
+    origin = "iso3c",
+    destination = "country.name",
+    custom_match = c("XKX" = "Kosovo")))
+}
+
+#' Convert English language country names to iso codes
+country_name_to_iso_code <- function(country) {
+  return(countrycode::countrycode(
+    sourcevar = country, 
+    origin = "country.name", 
+    destination = "iso3c",
+    custom_match = c("Kosovo" = "XKX")))
 }
 
 #' Plot estimated origins of swiss transmission lineages through time.
