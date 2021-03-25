@@ -13,7 +13,7 @@ downsample_swiss_sequences <- function (
       n_to_sample = pmin(n_seqs, max_seqs))
   
   qcd_gisaid_query_temp <- qcd_gisaid_query %>%
-    filter(country == "Switzerland") %>%
+    filter(iso_country == "CHE") %>%
     mutate(week = date_trunc('week', date))
   
   sampled_strains <- c()
@@ -36,7 +36,7 @@ downsample_swiss_sequences <- function (
   }
 
   qcd_gisaid_query_swiss_downsampled <- qcd_gisaid_query %>%
-    filter(!(country == 'Switzerland' & !(strain %in% !! sampled_strains)))
+    filter(!(iso_country == 'CHE' & !(strain %in% !! sampled_strains)))
   
   return(qcd_gisaid_query_swiss_downsampled)
 }
@@ -50,32 +50,25 @@ get_exposures_per_country_month <- function(db_connection, min_date, max_date) {
   print("Getting number of cases by exposure country and month of case confirmation from BAG meldeformular.")
   exposures_per_country_month <- dplyr::tbl(
     db_connection, "bag_meldeformular") %>%
-    filter(!is.na(exp_land), exp_land != "Schweiz", 
-           fall_dt <= !! max_date, fall_dt >= !! min_date) %>%
-    select(exp_land, fall_dt) %>%
+    filter(!is.na(iso_country_exp), !(iso_country_exp %in% c('CHE', 'XXX')), 
+           fall_dt <= !! max_date, 
+           fall_dt >= !! min_date) %>%
+    select(iso_country_exp, fall_dt) %>%
     collect() %>%
     mutate(date = format(fall_dt, "%Y-%m-01")) %>%
-    group_by(date, exp_land) %>%
+    group_by(date, iso_country_exp) %>%
     summarise(n_exposures = n()) %>%
-    mutate(exp_land = recode(
-      exp_land, 
-      "Deutschland ohne nähere Angaben" = "Deutschland"))
-  country_translation <- dplyr::tbl(db_connection, "country") %>% 
-    collect() %>%
-    rename("exp_land" = "german_name")
-  exposures_per_country_month_2 <- left_join(
-    x = exposures_per_country_month, y = country_translation, 
-    na_matches = "never", by = "exp_land") %>%
-    select(-c(english_name)) %>%
-    rename("iso_code" = "iso3166_alpha3_code")
-  return(exposures_per_country_month_2)
+    rename("iso_country" = "iso_country_exp")
+  return(exposures_per_country_month)
 }
 
 #' Estimate number of tourists arriving in Switzerland by origin country and 
 #' month of arrival. 
 #' @param db_connection
 #' @param max_date Character date, e.g. "2021-01-30" to extrapolate data to.
-get_tourist_arrivals_per_country_month <- function(db_connection, min_date, max_date) {
+get_tourist_arrivals_per_country_month <- function(
+  db_connection, min_date, max_date
+) {
   print("Estimating number of tourists arriving in Switzerland by origin country and month of arrival.")
   tourist_arrivals_per_country_month <- dplyr::tbl(
     db_connection, "ext_fso_tourist_accommodation") %>%
@@ -83,12 +76,11 @@ get_tourist_arrivals_per_country_month <- function(db_connection, min_date, max_
     collect() %>%
     tidyr::complete(
       date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
-      iso_code) %>%  
-    group_by(iso_code) %>%
+      iso_country) %>%  
+    group_by(iso_country) %>%
     arrange(date) %>%
     tidyr::fill(n_arrivals) %>% # fill in missing months with prev month's value
-    rename(n_tourist_arrivals = n_arrivals) %>%
-    filter(!is.na(iso_code))
+    rename(n_tourist_arrivals = n_arrivals)
   return(tourist_arrivals_per_country_month)
 }
 
@@ -104,13 +96,12 @@ get_commuter_permits_per_country_month <- function(db_connection, min_date, max_
     collect() %>%
     tidyr::complete(
       date = seq.Date(from = as.Date(min_date), to = as.Date(max_date), by = "month"), 
-      iso_code, wirtschaftsabteilung) %>% 
-    group_by(iso_code, wirtschaftsabteilung) %>%
+      iso_country, wirtschaftsabteilung) %>% 
+    group_by(iso_country, wirtschaftsabteilung) %>%
     arrange(date) %>%
     tidyr::fill(n_permits) %>% # fill in months with quarterly values, missing quarters with previous quarter's value
-    group_by(iso_code, date) %>%
-    summarise(n_commuter_permits = sum(n_permits)) %>%  # sum across sectors
-    filter(!is.na(iso_code))
+    group_by(iso_country, date) %>%
+    summarise(n_commuter_permits = sum(n_permits)) # sum across sectors
   return(commuter_permits_per_country_month)
 }
 
@@ -122,21 +113,22 @@ get_avg_infectious_per_country_month <- function(db_connection, min_date, max_da
   avg_infectious_per_country_month <- dplyr::tbl(
     db_connection, "ext_owid_global_cases") %>%
     filter(date <= !! max_date, date >= !! min_date) %>%
-    select(iso_code, date, new_cases_per_million) %>%
-    group_by(iso_code) %>%
+    select(iso_country, date, new_cases_per_million) %>%
+    group_by(iso_country) %>%
     arrange(date) %>%
     mutate(cumul_cases_per_million = cumsum(new_cases_per_million)) %>%
     collect() %>%
     mutate(n_infectious_cases_per_million = lead(cumul_cases_per_million, n = 10) - cumul_cases_per_million) %>%
     mutate(date = as.Date(format(date, "%Y-%m-01"))) %>%
-    group_by(date, iso_code) %>%
-    summarise(avg_daily_n_infectious_per_million = mean(n_infectious_cases_per_million, na.rm = T)) %>%
+    filter(!is.na(n_infectious_cases_per_million)) %>%  # filters out NAs at ends of lead date ranges
+    group_by(date, iso_country) %>%
+    summarise(avg_daily_n_infectious_per_million = mean(n_infectious_cases_per_million)) %>%
     tidyr::complete(
-      date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
+      date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"),
+      iso_country,
       avg_daily_n_infectious_per_million) %>% 
     arrange(date) %>%
-    tidyr::fill(avg_daily_n_infectious_per_million) %>% # fill in months with previous monthly value
-    filter(!is.na(iso_code))
+    tidyr::fill(avg_daily_n_infectious_per_million) # fill in months with previous monthly value
   return(avg_infectious_per_country_month)  
 }
 
@@ -144,18 +136,23 @@ get_avg_infectious_per_country_month <- function(db_connection, min_date, max_da
 #' month of arrival.
 #' @param db_connection
 #' @param max_date Character date, e.g. "2021-01-30" to extrapolate data to.
-get_infected_arrivals_per_country_month <- function(db_connection, min_date, max_date, outdir = NULL) {
+get_infected_arrivals_per_country_month <- function(
+  db_connection, min_date, max_date, outdir = NULL
+) {
   print("Estimating number of infectious arrivals into Switzerland by origin country and month of arrival.")
-  tourists <- get_tourist_arrivals_per_country_month(db_connection, min_date, max_date)
-  commuters <- get_commuter_permits_per_country_month(db_connection, min_date, max_date)
-  infectious <- get_avg_infectious_per_country_month(db_connection, min_date, max_date)
+  tourists <- get_tourist_arrivals_per_country_month(
+    db_connection, min_date, max_date)
+  commuters <- get_commuter_permits_per_country_month(
+    db_connection, min_date, max_date)
+  infectious <- get_avg_infectious_per_country_month(
+    db_connection, min_date, max_date)
   arrivals <- merge(x = tourists, y = commuters, all = T, 
-                    by = c("date", "iso_code")) %>%
+                    by = c("date", "iso_country")) %>%
     tidyr::replace_na(replace = list("n_tourist_arrivals" = 0, 
                                      "n_commuter_permits" = 0)) %>%
     mutate(n_arrivals = n_tourist_arrivals + n_commuter_permits)
   infectious_arrivals <- merge(x = arrivals, y = infectious, 
-                               by = c("date", "iso_code"), all.x = T)
+                               by = c("date", "iso_country"), all.x = T)
   warn_missing_infectious_arrivals(infectious_arrivals)
   infectious_arrivals <- infectious_arrivals %>% 
     filter(!is.na(avg_daily_n_infectious_per_million)) %>%
@@ -170,7 +167,7 @@ warn_missing_infectious_arrivals <- function(infectious_arrivals) {
   missing_case_data <- infectious_arrivals %>%
     filter(is.na(avg_daily_n_infectious_per_million), 
            date >= as.Date("2020-03-01")) %>%
-    group_by(iso_code, date) %>%
+    group_by(iso_country, date) %>%
     summarize(missing_case_data = T) 
   if (nrow(missing_case_data) > 0) {
     warning(
@@ -187,14 +184,14 @@ report_infectious_arrivals <- function(infectious_arrivals, outdir) {
     file = paste(outdir, "estimated_monthly_infectious_arrivals.txt", sep = "/"),
     row.names = F, col.names = T, quote = F, sep = "\t")
   top_10_countries <- infectious_arrivals %>%
-    group_by(iso_code) %>%
+    group_by(iso_country) %>%
     summarize(total_infectious_arrivals = sum(n_infectious_arrivals)) %>%
     top_n(n = 8, wt = total_infectious_arrivals) %>%
-    select(iso_code)
+    select(iso_country)
   p <- ggplot(
     data = infectious_arrivals %>% 
       mutate(source_country = case_when(
-        iso_code %in% top_10_countries$iso_code ~ iso_code,
+        iso_country %in% top_10_countries$iso_country ~ iso_country,
         T ~ "Other")),
     aes(x = format(date, "%Y-%m"), y = n_infectious_arrivals)) +
     geom_col(aes(fill = source_country)) + 
@@ -225,32 +222,33 @@ get_travel_cases <- function(db_connection, min_date, max_date, outdir) {
   import_fso_cross_border_commuters(db_connection = db_connection)
   
   print("Querying tourist and exposure information from database.")
-  infected_arrivals <- get_infected_arrivals_per_country_month(db_connection, min_date, max_date, outdir)
+  infected_arrivals <- get_infected_arrivals_per_country_month(
+    db_connection, min_date, max_date, outdir)
   exposures <- get_exposures_per_country_month(db_connection, min_date, max_date)
   
   print("Merging arrival and exposure data.")
   travel_cases <- merge(
     x = infected_arrivals, y = exposures, 
-    all = T, by = c("date", "iso_code")) %>%
+    all = T, by = c("date", "iso_country")) %>%
     mutate(n_travel_cases = psum(n_exposures, n_infectious_arrivals, na.rm = T)) %>%
     arrange(date, desc(n_infectious_arrivals))
   
   to_remove <- travel_cases %>%
-    filter(is.na(iso_code)) %>%
-    select(origin, exp_land, n_arrivals, n_exposures)
+    filter(is.na(iso_country)) %>%
+    select(iso_country, country, n_arrivals, n_exposures)
   if (length(to_remove) > 0) {
     warning("Not adding travel context sequences for these entries because no valid iso country code found.\n",
             paste(capture.output(print(to_remove)), collapse = "\n"))
-    travel_cases <- travel_cases %>% filter(!is.na(iso_code))
+    travel_cases <- travel_cases %>% filter(!is.na(iso_country))
   }
   
   print("Completing travel case data with zero values for months with no travel cases.")
   travel_cases <- travel_cases %>%
-    select(-c(origin, destination, n_arrivals, exp_land)) %>%
+    select(-c(country, n_arrivals)) %>%
     tidyr::complete(
       date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
-      iso_code) %>%  
-    group_by(iso_code) %>%
+      iso_country) %>%  
+    group_by(iso_country) %>%
     arrange(date) %>%
     tidyr::replace_na(replace = list("n_travel_cases" = 0)) %>%  # fill in missing months with 0 value
     mutate(n_travel_cases = case_when(
@@ -346,13 +344,13 @@ get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query) {
 # ------------------------------------------------------------------------------
 
 #' Take sequences from the next month if insufficient samples are available from
-#' current month. Assumes travel_context has complete cases with respect to iso_code
+#' current month. Assumes travel_context has complete cases with respect to iso_country
 #' and date (all months have an entry for each country).
 fill_travel_context_forward <- function(travel_context) {
   is_first <- T
-  for (country_i in unique(travel_context$iso_code)) {
+  for (country_i in unique(travel_context$iso_country)) {
     travel_context_i <- travel_context %>% 
-      filter(iso_code == country_i) %>%
+      filter(iso_country == country_i) %>%
       arrange(date)
     if (nrow(travel_context_i) > 1) {
       for (j in 1:(nrow(travel_context_i) - 1)) {
@@ -379,13 +377,13 @@ fill_travel_context_forward <- function(travel_context) {
 }
 
 #' Take sequences from the previous month if insufficient samples are available from
-#' current month. Assumes travel_context has complete cases with respect to iso_code
+#' current month. Assumes travel_context has complete cases with respect to iso_country
 #' and date (all months have an entry for each country).
 fill_travel_context_backward <- function(travel_context) {
   is_first <- T
-  for (country_i in unique(travel_context$iso_code)) {
+  for (country_i in unique(travel_context$iso_country)) {
     travel_context_i <- travel_context %>% 
-      filter(iso_code == country_i) %>%
+      filter(iso_country == country_i) %>%
       arrange(date)
     if (nrow(travel_context_i) > 1) {
       for (j in nrow(travel_context_i):2) {
@@ -428,7 +426,7 @@ report_travel_sampling <- function(travel_context, outdir) {
     row.names = F, col.names = T, quote = F, sep = "\t")
   
   travel_context_summary <- travel_context %>%
-    group_by(iso_code) %>%
+    group_by(iso_country) %>%
     summarise(actual_total_seqs = sum(n_seqs_actual),
               ideal_total_seqs = sum(n_seqs_ideal))
   
@@ -455,22 +453,18 @@ get_travel_context <- function(
 ) {
   # Get available sequences per country month
   context_strains <- qcd_gisaid_query %>%
-    select(country, date, date_str) %>%
+    select(iso_country, date, date_str) %>%
     collect() %>%
     mutate(
       date_validity = grepl(x = date_str, pattern = "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}"),
-      date = format(date, "%Y-%m-01"),
-           iso_code = countrycode::countrycode(
-             sourcevar = country, origin = "country.name", 
-             destination = "iso3c")) %>%
+      date = format(date, "%Y-%m-01")) %>%
     filter(date_validity) %>%
-    group_by(date, country, iso_code) %>%
-    summarize(n_seqs_available = n()) %>% 
-    filter(!is.na(iso_code))
+    group_by(date, iso_country) %>%
+    summarize(n_seqs_available = n())
     
   travel_context <- merge(
     x = travel_cases, y = context_strains, 
-    all.x = T, by = c("iso_code", "date")) %>%
+    all.x = T, by = c("iso_country", "date")) %>%
     tidyr::replace_na(replace = list("n_seqs_available" = 0))
   
   # Get ideal number sequences per country month
@@ -505,25 +499,22 @@ get_travel_strains <- function(
   
   print("Getting available sequences per country month from database table gisaid_sequence.")
   context_strains <- qcd_gisaid_query %>%
-    select(gisaid_epi_isl, country, date, date_str, pangolin_lineage) %>%
+    select(gisaid_epi_isl, iso_country, date, date_str, pangolin_lineage) %>%
     collect() %>%
     mutate(date_validity = grepl(x = date_str, pattern = "[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}"), 
-           date = format(date, "%Y-%m-01"),
-           iso_code = countrycode::countrycode(
-             sourcevar = country, origin = "country.name", 
-             destination = "iso3c")) %>%
-    filter(date_validity, iso_code %in% travel_context$iso_code)
+           date = format(date, "%Y-%m-01")) %>%
+    filter(date_validity, iso_country %in% travel_context$iso_country)
   
   travel_context_nonzero_samples <- travel_context %>% filter(n_seqs_actual > 0)
   n_country_months <- nrow(travel_context_nonzero_samples)
   l <- 0
-  for (iso_code_i in unique(travel_context_nonzero_samples$iso_code)) {
-    travel_context_i <- travel_context_nonzero_samples %>% filter(iso_code == iso_code_i)
-    context_strains_i <- context_strains %>% filter(iso_code == iso_code_i)
+  for (iso_country_i in unique(travel_context_nonzero_samples$iso_country)) {
+    travel_context_i <- travel_context_nonzero_samples %>% filter(iso_country == iso_country_i)
+    context_strains_i <- context_strains %>% filter(iso_country == iso_country_i)
     for (j in 1:nrow(travel_context_i)) {
       date_k <- travel_context_i[j, "date"]
       n_seqs_actual_k <- travel_context_i[j, "n_seqs_actual"]
-      status <- paste("sampling", n_seqs_actual_k, "travel context strains from", iso_code_i, "in", date_k)
+      status <- paste("sampling", n_seqs_actual_k, "travel context strains from", iso_country_i, "in", date_k)
       l <- l + 1
       if (l %% 10 == 0) {
         print(paste(round(l * 100 / n_country_months), 
@@ -562,7 +553,7 @@ get_travel_strains <- function(
 #' @return table with strains and corresponding priority
 run_nextstrain_priority <- function(
   focal_strains, nonfocal_strains, prefix, outdir, 
-  python_path, priorities_script, reference
+  python_path, priorities_script, reference, verbose = F
 ) {
   n_focal_strains <- length(focal_strains)
   n_nonfocal_strains <- length(nonfocal_strains)
@@ -600,6 +591,9 @@ run_nextstrain_priority <- function(
     "--reference", reference,
     "--outfile", outfile_priorities,
     "--automated")
+  if (verbose) {
+    print(priorities_command)
+  }
   system(command = priorities_command)
   
   priorities <- read.delim(
@@ -619,7 +613,7 @@ run_nextstrain_priority <- function(
 get_similarity_strains <- function(
   db_connection, qcd_gisaid_query, similarity_context_scale_factor, lineages,
   priorities_script = "database/python/priorities_from_database.py",
-  python_path, reference
+  python_path, reference, verbose = F
 ) {
   n_lineages <- nrow(lineages)
   for (i in 1:n_lineages) {
@@ -628,14 +622,14 @@ get_similarity_strains <- function(
     lineages_included <- strsplit(lineages_included_str, split = ", ")[[1]]
     
     focal_seqs <- qcd_gisaid_query %>%
-      filter(country == "Switzerland", 
+      filter(iso_country == "CHE", 
              pangolin_lineage %in% !! lineages_included) %>%
       select(strain) %>%
       collect()
     prospective_context_seqs <- qcd_gisaid_query %>%
-      filter(country != "Switzerland",
+      filter(iso_country != "CHE",
              pangolin_lineage %in% !! lineages_included) %>%
-      select(strain, gisaid_epi_isl, country, date_str, date) %>%
+      select(strain, gisaid_epi_isl, iso_country, date_str, date) %>%
       collect()
     
     if (nrow(focal_seqs) == 0 | nrow(prospective_context_seqs) == 0) {
@@ -652,7 +646,8 @@ get_similarity_strains <- function(
       outdir = outdir, 
       priorities_script = priorities_script,
       python_path = python_path, 
-      reference = reference)
+      reference = reference, 
+      verbose = verbose)
     
     n_similarity_seqs <- ceiling(length(focal_strains) * similarity_context_scale_factor)
     similarity_strains_i <- priorities %>%
@@ -689,7 +684,7 @@ write_out_alignments <- function(
     lineages_included <- strsplit(lineages_included_str, split = ", ")[[1]]
     
     focal_strains_i <- qcd_gisaid_query %>%
-      filter(country == "Switzerland", 
+      filter(iso_country == "CHE", 
              pangolin_lineage %in% !! lineages_included) %>%
       collect()
     
@@ -717,8 +712,8 @@ write_out_alignments <- function(
     
     metadata_i <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
       filter(gisaid_epi_isl %in% !! alignment_strains_i) %>%
-      select(gisaid_epi_isl, strain, date_str, date, region, country, division, 
-             country_exposure, nextstrain_clade, pangolin_lineage, 
+      select(gisaid_epi_isl, strain, date_str, date, region, iso_country, division, 
+             iso_country_exposure, nextstrain_clade, pangolin_lineage, 
              originating_lab, submitting_lab, authors) %>%
       collect() %>%
       mutate(

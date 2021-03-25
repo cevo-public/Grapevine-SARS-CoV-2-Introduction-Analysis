@@ -294,15 +294,15 @@ get_chain_data_by_tip <- function(chains, metadata = NULL) {
 #' criteria.
 get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query) {
   sequence_data_query <- qcd_gisaid_query %>%
-    filter(country == "Switzerland") %>%
+    filter(iso_country == "CHE") %>%
     mutate(
-      is_viollier = originating_lab == "Viollier AG",
+      is_viollier = originating_lab == "Viollier AG" & submitting_lab == "Department of Biosystems Science and Engineering, ETH Zürich",
       week = date_trunc('week', date)) %>%
     group_by(is_viollier, week) %>%
     summarize(n_seqs = n())
   
   case_data_query <- dplyr::tbl(db_connection, "ext_owid_global_cases") %>%
-    filter(iso_code == "CHE") %>%
+    filter(iso_country == "CHE") %>%
     mutate(week = date_trunc('week', date)) %>%
     group_by(week) %>%
     summarise(n_conf_cases = sum(new_cases, na.rm = T))

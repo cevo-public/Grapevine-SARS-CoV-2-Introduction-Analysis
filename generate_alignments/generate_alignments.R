@@ -8,9 +8,11 @@ require(dplyr)
 # min_length <- 27000
 # travel_context_scale_factor <- 0.5
 # similarity_context_scale_factor <- 0.5
+# max_samp_frac <- 0.01
 # outdir <- "~/Downloads"
 # python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
 # reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
+# n_trees <- -1
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
@@ -85,7 +87,7 @@ travel_cases <- get_travel_cases(
 
 # Get travel context set based on travel cases
 n_strains <- nrow(qcd_gisaid_query %>%
-  filter(country == "Switzerland") %>%
+  filter(iso_country == "CHE") %>%
   collect())
 travel_strains <- get_travel_strains(
   n_strains = n_strains,

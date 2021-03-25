@@ -1,34 +1,205 @@
 #' Get a color assignment for countries so that colors are standardized across
-#' plots. Assigns a color to top 30 countries from gisaid_sequence.
+#' plots. Assigns a color to all countries from database table gisaid_sequence.
+#' Inspired by stack overflow: https://stackoverflow.com/questions/15282580/how-to-generate-a-number-of-most-distinctive-colors-in-r
 #' @param db_connection
-#' @param name_type Country name convention to use for list names. One of 'english_name' or 'iso3'.
-#' @param n_unique_colors [Optional] Number of countries to get unique colors. Others get grey.
 get_country_colors <- function(
-  db_connection, name_type = "english_name", n_unique_colors = NULL
+  db_connection
 ) {
+  require(RColorBrewer)
   countries <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
-    group_by(country) %>%
+    group_by(iso_country) %>%
     summarize(n_seqs = n()) %>%
     arrange(desc(n_seqs)) %>%
     collect()
-  countries <- countries %>% 
-    mutate(iso3 = country_name_to_iso_code(country))
-  if (is.null(n_unique_colors)) {
-    n <- nrow(countries)
-    all_colors = grDevices::colors()[grep('gr(a|e)y', grDevices::colors(), invert = T)]
-    set.seed(seed = 10)
-    colors <- sample(all_colors, n)
-    colors <- c(colors, "grey")
-  } else {
-    colors <- colorRampPalette(RColorBrewer::brewer.pal(8, "Dark2"))(n_unique_colors)
-    colors <- c(colors, rep("grey", 1 + nrow(countries) - n_unique_colors))
-  }
-  if (name_type == "english_name") {
-    names(colors) <- c(countries$country, "other")
-  } else if (name_type == "iso3") {
-    names(colors) <- c(countries$iso3, "other")
-  }
+  
+  qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual', ]  # I like these colors the best, they get priority
+  all_colors = grDevices::colors()[grep(
+    '(gr(a|e)y)|(black)|(white)|(seashell4)|(mediumorchid)', 
+    grDevices::colors(), 
+    invert = T)]  # These are a zillion colors, but some are really obnoxious 
+  all_colors <- gplots::col2hex(all_colors)
+  excluded_colors <- c("#BEAED4", "#CAB2D6", "#B3B3B3", "#FFFF99")  # these are baddies - they look too similar to other colors
+  
+  set.seed(seed = 2500)
+  
+  initial_colors <- unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+  initial_colors <- initial_colors[!(initial_colors %in% excluded_colors)]
+  other_colors <- all_colors[!(all_colors %in% c(initial_colors, excluded_colors))]
+  remaining_colors <- sample(
+    other_colors, 
+    size = (nrow(countries) - length(initial_colors)))
+  
+  colors <- c(initial_colors, remaining_colors)
+  names(colors) <- countries$iso_country
+  colors[['XXX']] <- "grey"
+
   return(colors)
+}
+
+#' Load grapevine results: one row per sample, columns describe transmission 
+#' chain membership, transmission chain origin, transmission chain timeline.
+#' @param workdir Directory with grapevine output.
+#' @param min_chain_size Only return data for chains of >= min_chain_size.
+#' @param viollier_only Only return data for samples from Viollier.
+#' @return chains: dataframe with one row per chain; samples: dataframe with 
+#' one row per swiss sample; origins: dataframe with one row per node that
+#' is a foreign attachment point of a chain. 
+load_grapevine_results <- function(
+  workdir, min_chain_size = 1, viollier_only = F
+) {
+  print(paste("Loading transmission chain data from", workdir))
+  chains_with_asr <- rbind(
+    load_chain_asr_data(s = F, workdir = workdir) %>%  
+      filter(size >= min_chain_size) %>%
+      mutate(
+        chain_idx = 1:n(),
+        chains_assumption = "max",
+        tree = gsub(tree, pattern = "_s_F|_s_T", replacement = "")),
+    load_chain_asr_data(s = T, workdir = workdir) %>%  
+      filter(size >= min_chain_size) %>%
+      mutate(
+        chain_idx = 1:n(),
+        chains_assumption = "min",
+        tree = gsub(tree, pattern = "_s_F|_s_T", replacement = ""))
+  ) 
+  
+  print("Formatting transmission chain data into per-sample, per-chain, and per-node dataframes.")
+  # one row per chain
+  chains_data <- chains_with_asr %>% select(
+    tree, chains_assumption, chain_idx, 
+    foreign_mrca, foreign_tmrca, foreign_tmrca_CI, 
+    ch_mrca, ch_tmrca, ch_tmrca_CI,
+    size, tips, tip_nodes,
+    n_intl_subclades
+  )
+  
+  # one row per node that is a foreign_mrca of a swiss chain
+  origin_data <- chains_with_asr %>% 
+    group_by(tree, chains_assumption, foreign_mrca, foreign_tmrca, foreign_tmrca_CI) %>% 
+    mutate(n_chains_descending = n()) %>%
+    group_by(n_chains_descending, add = T) %>%
+    summarize_at(
+      .vars = vars(ends_with("_loc_weight")),
+      .funs = list(~head(., 1))) %>%   # if multiple chains have same foreign mrca, e.g. at a polytomy, the asr data is duplicated
+    ungroup()
+  
+  # one row per sample
+  sample_metadata <- load_sample_metadata(workdir = workdir)
+  samples_data <- pivot_chains_to_samples(
+    chains = chains_data, metadata = sample_metadata
+  ) %>% select(
+    sample, tree, chains_assumption, chain_idx, sample_idx, gisaid_epi_isl, 
+    strain, date_str, date, region, country, division, country_exposure, 
+    nextstrain_clade, pangolin_lineage, originating_lab, submitting_lab, authors
+  )
+  
+  if (viollier_only) {
+    # take only samples from Viollier and submitted by us
+    samples_data <- samples_data %>% filter(
+      originating_lab == "Viollier AG",
+      submitting_lab == "Department of Biosystems Science and Engineering, ETH Zürich")
+    # prune chains to only samples from Viollier and submitted by us
+    chains_data <- pivot_chains_to_samples(
+      chains = chains_data, metadata = sample_metadata
+    ) %>% filter(
+      originating_lab == "Viollier AG",
+      submitting_lab == "Department of Biosystems Science and Engineering, ETH Zürich"
+    ) %>% group_by(
+      tree, chains_assumption, chain_idx, 
+      foreign_mrca, foreign_tmrca, foreign_tmrca_CI, 
+      ch_mrca, ch_tmrca, ch_tmrca_CI
+    ) %>% summarize(
+      size = n(),
+      tips = paste0(sample, collapse = ", ")
+    )
+  }
+  
+  grapevine_results <- list(
+    chains = chains_data,
+    samples = samples_data,
+    origins = origin_data
+  )
+  return(grapevine_results)
+}
+
+
+#' Join ancestral state location estimate for foreign mrca to swiss chain data.
+#' @param s Boolean indicating whether swiss descendents of polytomies are the 
+#' same transmission chain.
+#' @return Dataframe with fields describing transmission chains and normalized 
+#' ancestral state location weights.
+load_chain_asr_data <- function(s, workdir) {
+  s_suffix <- paste("_s_", ifelse(test = s, yes = "T", no = "F"), sep = "")
+  chains_suffix <- paste(s_suffix, "_chains.txt$", sep = "")
+  print(paste("Looking for files ending in", chains_suffix, "within", paste(workdir, "tmp/chains", sep = "/")))
+  chains_files <- list.files(
+    path = paste(workdir, "tmp/chains", sep = "/"), pattern = chains_suffix)
+  prefixes <- gsub(x = chains_files, pattern = chains_suffix, replacement = "")
+  is_first <- T
+  for (i in 1:length(prefixes)) {
+    prefix <- prefixes[i]
+    chains_file <- paste(workdir, "tmp/chains", chains_files[i], sep = "/")
+    asr_filename <- paste(prefix, s_suffix, "_tree_data_with_asr.txt", sep = "")
+    asr_file <- paste(workdir, "tmp/asr", asr_filename, sep = "/")
+    asr <- read.delim(file = asr_file, stringsAsFactors = F, quote = "")
+    chains <- read.delim(file = chains_file, stringsAsFactors = F)
+    origins_tree <- merge(
+      x = chains, y = asr %>% select(node, ends_with("_loc_weight")),
+      all.x = T, by.x = "foreign_mrca", by.y = "node") %>%
+      mutate(tree = paste(prefix, s_suffix, sep = ""))
+    if (is_first) {
+      is_first <- F
+      origins <- origins_tree
+    } else {
+      origins <- merge(x = origins, y = origins_tree, all = T)
+    }
+  }
+  
+  # Apply manual correction: LSD returns '2021' for date of tips with date '2020-12-31'
+  origins[
+    origins$size == 1 & 
+      origins$ch_tmrca == "2021" & 
+      grepl(x = origins$tips, pattern = "2020-12-31"), "ch_tmrca"] <- "2020-12-31"
+  origins_with_imprecise_ch_mrca <- origins %>%
+    filter(is.na(as.Date(origins$ch_tmrca)))
+  if (nrow(origins_with_imprecise_ch_mrca) > 0) {
+    warning(paste(
+      "Some chains have imprecise ch_tmrca estimate.", 
+      "LSD mysteriously replaces dates for tips on 2020-12-31 with 2021,", 
+      "but this problem is already manually fixed in this function.", 
+      "What else could be wrong?"))
+    print(origins_with_imprecise_ch_mrca)
+  }
+  return(origins)
+}
+
+#' @param workdir Directory containing grapevine's results
+#' @return Dataframe with columns 'date', 'iso_code', 'ind_type' 
+#' (tourist_arrivals or commuter_permits), and 'n_infectious_inds' (estimated 
+#' number of infectious individuals of type ind_type arriving in Switzerland
+#' in month of date).
+load_origin_prior <- function(workdir) {
+  origin_estimates <- read.csv(
+    file = paste(
+      workdir, "tmp/alignments/estimated_travel_cases.csv", 
+      sep = "/"), 
+    header = T, stringsAsFactors = F)
+  
+  origin_estimates_long <- origin_estimates %>%
+    tidyr::pivot_longer(
+      cols = c("n_tourist_arrivals", "n_commuter_permits", "n_exposures"),
+      names_to = "ind_type",
+      names_prefix = "n_",
+      values_to = "n_inds") %>%
+    mutate(n_infectious_inds = case_when(
+      ind_type == "exposures" ~ 
+        n_inds,
+      ind_type %in% c("tourist_arrivals", "commuter_permits") ~ 
+        avg_daily_n_infectious_per_million * n_inds / 1E6),
+      iso_code = recode(iso_code, "XKX" = "KOS")) %>%
+    select(date, iso_code, ind_type, n_infectious_inds) %>%
+    filter(!is.na(n_infectious_inds), n_infectious_inds > 0)  # remove months and countries with no estimated infectious arrivals
+  return(origin_estimates_long)
 }
 
 #' Pivot chains dataframe to one row per sample with chain_idx information
@@ -74,6 +245,38 @@ load_sample_metadata <- function(workdir, pattern = "*_metadata.csv") {
   return(metadata)
 }
 
+#' Pivot ASR data from wide to long format, remove ASR assignments of Switzerland
+#' for chains descending from a polytomy which have a the polytomy node as both 
+#' ch_mrca and foreign_mrca, replace periods in country names with spaces.
+#' @param origins Dataframe with fileds describing normalized ancestral state 
+#' location weights at nodes from which swiss transmission chains descend. 
+#' @return Dataframe in long format with one column for chain origin and another 
+#' for asr_contribution (normalized ancestral state location weights).
+pivot_origins_longer <- function(origins) {
+  origins_long <- origins %>% tidyr::pivot_longer(
+    cols = ends_with("_loc_weight"),
+    names_to = "origin",
+    values_to = "asr_contribution") %>%
+    mutate(
+      origin = gsub(x = origin, pattern = "_loc_weight", replacement = "")) %>%
+    filter(origin != "Switzerland") %>%  # for s = T, a polytomy node can be both ch_mrca and foreign_mrca. Count these chains as unclassifiable.
+    mutate(origin = gsub(x = origin, pattern = "\\.", replacement = " "))
+  return(origins_long)
+}
+
+#' @return Dataframe with n most common origins by total asr 
+#' contribution across all chains for each chains assumption.
+get_most_common_origins <- function(origins_long, n = 8) {
+  most_common_origins <- origins_long %>%
+    group_by(origin, chains_assumption) %>% 
+    summarise(asr_contribution = sum(asr_contribution, na.rm = T)) %>%
+    ungroup() %>% group_by(chains_assumption) %>%
+    arrange(desc(asr_contribution)) %>%
+    mutate(contribution_idx = 1:n()) %>%
+    top_n(n, wt = -contribution_idx)
+  return(most_common_origins %>% select(origin, chains_assumption))
+}
+
 #' Plot samples by inferred transmission chain
 plot_chains <- function(
   workdir, outdir, country_colors, min_chain_size = 2, plot_height_in = 15
@@ -81,7 +284,7 @@ plot_chains <- function(
   foreign_mrca_color <- "grey"
   ch_mrca_color <- "black"
   
-  chains <- load_chains_asr(s = F, workdir = workdir) %>%  # load max chains, then group by polytomy in plot
+  chains <- load_chain_asr_data(s = F, workdir = workdir) %>%  # load max chains, then group by polytomy in plot
     filter(size > min_chain_size) %>%
     mutate(chain_idx = 1:n())
     
@@ -233,22 +436,93 @@ plot_chains <- function(
   #   facet_grid(foreign_mrca ~ ., scales = "free_y", space = "free_y")
 }
 
-plot_origin_prior <- function(
-  workdir, outdir, country_colors, n_origins_to_plot = 10
+#' @return Long-format dataframe with prior, and posterior under different 
+#' chains assumptions, estimates for transmission chain sources.
+get_origin_prior_vs_posterior_data <- function(
+  workdir, origins_representative, posterior_date = "foreign_tmrca"
 ) {
-  origin_estimates_long <- load_origin_estimates(workdir = workdir)
+  # Load data
+  origin_prior_long <- load_origin_prior(workdir = workdir) 
+  origins_posterior_long <- pivot_origins_longer(origins_representative) %>%
+    mutate(iso_code = country_name_to_iso_code(origin))
   
-  origin_summary <- origin_estimates_long %>%
+  # Define factors so that complete will complete data for all levels of country, etc. (necessary for area plot)
+  all_months <- sort(unique(c(
+    format(as.Date(origins_posterior_long[[posterior_date]]), "%Y-%m-01"),
+    origin_prior_long$date)))
+  prior_countries <- unique(origin_prior_long$iso_code)
+  origin_prior_long$date <- factor(
+    x = origin_prior_long$date,
+    levels = all_months)
+  origins_posterior_long_countries_not_in_prior <- origins_posterior_long %>%
+    filter(!(iso_code %in% prior_countries), asr_contribution > 0)
+  if (nrow(origins_posterior_long_countries_not_in_prior) > 0) {
+    stop("Some countries have asr_contribution even though they are not in the prior!")
+  }
+  origins_posterior_long <- origins_posterior_long %>% 
+    filter(iso_code %in% prior_countries) %>%  # location not in prior have 0 asr_contribution anyways
+    mutate(
+      date = format(as.Date(!!sym(posterior_date)), "%Y-%m-01"),
+      date = factor(x = date, levels = all_months),
+      iso_code = factor(x = iso_code, levels = prior_countries))
+  
+  # Merge data into long format
+  origin_prior_vs_posterior_data <- merge(
+    x = origin_prior_long %>%
+      ungroup() %>%
+      tidyr::complete(
+        date, ind_type, iso_code,
+        fill = list(n_infectious_inds = 0)
+      ) %>%
+      mutate(
+        date_type = "estimate_month",
+        est_type = "prior") %>%
+      rename(
+        "n_inds" = "n_infectious_inds",
+        "n_inds_type" = "ind_type"),
+    y = origins_posterior_long %>%
+      group_by(date, iso_code, chains_assumption) %>%
+      summarize(asr_contribution = sum(asr_contribution, na.rm = T)) %>%
+      ungroup() %>%
+      tidyr::complete(
+        date, iso_code, chains_assumption,
+        fill = list(asr_contribution = 0)
+      ) %>%
+      mutate(
+        date_type = paste(posterior_date, "month", sep = "_"),
+        n_inds_type = "sum_fractional_lineage_asr",
+        est_type = "posterior") %>%
+      rename(
+        "n_inds" = "asr_contribution") %>%
+      select(
+        chains_assumption, iso_code, date, date_type, n_inds, n_inds_type,
+        est_type),
+    all = T,
+    by = c("iso_code", "date", "date_type", "n_inds", "n_inds_type", "est_type")
+  )
+  return(origin_prior_vs_posterior_data %>% ungroup())
+}
+
+plot_origin_prior <- function(
+  workdir, outdir = NULL, country_colors, n_origins_to_plot = 10, return_plot = F
+) {
+  origin_prior_long <- load_origin_prior(workdir = workdir)
+  
+  origin_summary <- origin_prior_long %>%
     group_by(iso_code) %>% 
     summarise(prior_contribution = sum(n_infectious_inds, na.rm = T)) %>%
     arrange(desc(prior_contribution))  
   
-  origins_to_plot <- origin_estimates_long %>%
+  origins_to_plot <- origin_prior_long %>%
     mutate(
       origin_to_plot = case_when(
         iso_code %in% origin_summary$iso_code[1:n_origins_to_plot] ~ 
           iso_code_to_country_name(iso_code),
         T ~ "other")) %>%
+    group_by(origin_to_plot, ind_type, date) %>%
+    summarize(n_infectious_inds = sum(n_infectious_inds)) %>%
+    ungroup() %>%
+    tidyr::complete(origin_to_plot, ind_type, date, fill = list(n_infectious_inds = 0)) %>%
     tidyr::unite(col = "origin_to_plot_ind_type", origin_to_plot, ind_type, remove = F)
   origins_to_plot$ind_type <- factor(
     x = origins_to_plot$ind_type,
@@ -272,105 +546,88 @@ plot_origin_prior <- function(
     scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
     theme_bw()
   
-  ggsave(plot = plot, file = paste(outdir, "chain_origin_prior.png", sep = "/"))
+  if (!is.null(outdir)) {
+    ggsave(plot = plot, file = paste(outdir, "chain_origin_prior.png", sep = "/"))
+  } 
+  if (return_plot) {
+    return(plot)
+  }
 }
 
-#' @param workdir Directory containing grapevine's results
-#' @return Dataframe with columns 'date', 'iso_code', 'ind_type' 
-#' (tourist_arrivals or commuter_permits), and 'n_infectious_inds' (estimated 
-#' number of infectious individuals of type ind_type arriving in Switzerland
-#' in month of date).
-load_origin_estimates <- function(workdir) {
-  origin_estimates <- read.csv(
-    file = paste(
-      workdir, "tmp/alignments/estimated_travel_cases.csv", 
-      sep = "/"), 
-    header = T, stringsAsFactors = F)
+#' Plot estimated origins of swiss transmission lineages through time.
+#' @param origins_representative Data frame with fields describing representaive transmission chains origin nodes.
+#' @param country_colors Named list with color values for countries.
+#' @return plot
+plot_chain_origins <- function(
+  origins_representative, country_colors, n_origins_to_plot = 10, outdir = NULL,
+  return_plot = F
+) {
+  origins_long <- pivot_origins_longer(origins_representative)
+  most_common_origins <- get_most_common_origins(
+    origins_long = origins_long, n = n_origins_to_plot) %>%
+    mutate(origin_to_plot = origin)
+  origins_long <- merge(x = origins_long, y = most_common_origins, all = T)
   
-  origin_estimates_long <- origin_estimates %>%
-    tidyr::pivot_longer(
-      cols = c("n_tourist_arrivals", "n_commuter_permits", "n_exposures"),
-      names_to = "ind_type",
-      names_prefix = "n_",
-      values_to = "n_inds") %>%
-    mutate(n_infectious_inds = case_when(
-      ind_type == "exposures" ~ 
-        n_inds,
-      ind_type %in% c("tourist_arrivals", "commuter_permits") ~ 
-        avg_daily_n_infectious_per_million * n_inds / 1E6)) %>%
-   select(date, iso_code, ind_type, n_infectious_inds) %>%
-   filter(!is.na(n_infectious_inds), n_infectious_inds > 0)  # remove months and countries with no estimated infectious arrivals
-  return(origin_estimates_long)
-}
-
-#' Summarize all chains descending from each foreign mrca node. 
-#' This is equivalend to keeping only one representative chain for chains 
-#' descending from the same polytomy so that polytomy ASR's aren't overweighted 
-#' when s = F.
-#' @param chains_asr Dataframe with fields describing transmission chains and 
-#' normalized ancestral state location weights. Output of load_chains_asr.
-#' @return Dataframe with fields describing ancestral state location
-#' estimates (weights) and number of swiss transmission chains descending from
-#' each foriegn mrca in the tree.
-pick_origin_representative_chains <- function(chains_asr) {
-  chains_asr_representative <- chains_asr %>% 
-    group_by(tree, foreign_mrca, foreign_tmrca, foreign_tmrca_CI) %>%
-    mutate(n_descendent_swiss_chains = n()) %>%
-    summarize_at(
-      .vars = vars(ends_with("_loc_weight"), n_descendent_swiss_chains),
-      .funs  = ~head(., 1))  # the _loc_weight values are the same for all chains descending from the same foreign_mrca, so just take the first values
-  
-  return(chains_asr_representative)
-}
-
-#' Pivot ASR data from wide to long format, remove ASR assignments of Switzerland
-#' for chains descending from a polytomy which have a the polytomy node as both 
-#' ch_mrca and foreign_mrca, replace periods in country names with spaces.
-#' @param chains_asr Dataframe with fileds describing transmission chains and 
-#' normalized ancestral state location weights. 
-#' @return Dataframe in long format with one column for chain origin and another 
-#' for asr_contribution (normalized ancestral state location weights).
-pivot_chains_longer <- function(chains_asr) {
-  chains_asr_long <- chains_asr %>% tidyr::pivot_longer(
-    cols = ends_with("_loc_weight"),
-    names_to = "origin",
-    values_to = "asr_contribution") %>%
-    mutate(
-      origin = gsub(x = origin, pattern = "_loc_weight", replacement = "")) %>%
-    filter(origin != "Switzerland") %>%  # for s = T, a polytomy node can be both ch_mrca and foreign_mrca. Count these chains as unclassifiable.
-    mutate(origin = gsub(x = origin, pattern = "\\.", replacement = " "))
-  return(chains_asr_long)
-}
-  
-#' @return n most common origins by total asr contribution across all chains.
-get_most_common_origins <- function(chains_asr_long, n = 8) {
-  origin_summary <- chains_asr_long %>%
-    group_by(origin) %>% 
+  origins_to_plot <- origins_long %>%
+    mutate(foreign_mrca_month = format(as.Date(foreign_tmrca), "%Y-%m-01")) %>%
+    tidyr::replace_na(replace = list(origin_to_plot = "other")) %>%
+    group_by(origin_to_plot, foreign_mrca_month, chains_assumption) %>%
     summarise(asr_contribution = sum(asr_contribution, na.rm = T)) %>%
-    arrange(desc(asr_contribution)) %>%
-    mutate(iso_code = country_name_to_iso_code(country = origin))
-  most_common_origins <- origin_summary$iso_code[1:n]
-  return(most_common_origins)
+    ungroup() %>%
+    tidyr::complete(origin_to_plot, foreign_mrca_month, chains_assumption, 
+                    fill = list(asr_contribution = 0))
+  
+  n_nodes_data <- origins_representative %>% 
+    mutate(foreign_mrca_month = format(as.Date(foreign_tmrca), "%Y-%m-01")) %>%
+    group_by(foreign_mrca_month, chains_assumption) %>%
+    summarize(
+      n_foreign_mrcas = n(), 
+      n_foreign_mrcas_with_asr = sum(!is.na(Switzerland_loc_weight) & Switzerland_loc_weight != 1)) %>%  # Sum across nodes with NA for all locations, including Switzerland (no travel context sequences = no ASR) and nodes with Switzerland estimated as ASR (a polytomy where the same node is both ch_mrca and foreign_mrca).
+    mutate(label = paste(n_foreign_mrcas_with_asr, "(", n_foreign_mrcas, ")", sep = ""))
+  
+  plot <- ggplot(
+    data = origins_to_plot, 
+    aes(x = as.Date(foreign_mrca_month), y = asr_contribution)) + 
+    geom_area(
+      aes(group = origin_to_plot, fill = origin_to_plot),
+      position = "stack") +  # 'fill' means height corresponds to percentage of all classifiable foreign mrcas in month
+    geom_text(
+      data = n_nodes_data,
+      aes(y = 0, label = label),
+      vjust = 1) +  # annotate bars with total number of foreign mrcas in month, including those unclassifiable for reasons commented above
+    scale_fill_manual(values = country_colors) + 
+    labs(x = "Month of foreign attachment point", 
+         y = "Number of lineages") + 
+    scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
+    theme_bw() + 
+    facet_wrap(.~chains_assumption)
+  
+  if (!is.null(outdir)) {
+    filename <- "chain_origins.png"
+    ggsave(plot = plot, file = paste(outdir, filename, sep = "/"))
+  }
+  if (return_plot) {
+    return(plot)
+  }
 }
 
 #' Table prior vs. posterior transmission chain origins in different time periods.
-#' @param s Use transmission chains under assumption that transmission chains 
-#' descending from a polytomy should be grouped?
+#' @param origins One row per foreign mrca of swiss transmission chains, 
+#' with a column giving how many chains descend. 
 table_chain_origins <- function(
-  workdir, outdir, s, period_breaks = c("2020-05-01"), n_origins_to_table = 15
+  workdir, outdir = NULL, period_breaks = c("2020-05-01"), 
+  n_origins_to_table = 15, origins, return_table = F
 ) {
-  # Load prior and posterior 
-  origin_estimates_long <- load_origin_estimates(workdir = workdir)
-  
-  chains_asr <- load_chains_asr(s = s, workdir = workdir)
-  chains_asr_representative <- pick_origin_representative_chains(chains_asr)
-  chains_asr_long <- pivot_chains_longer(chains_asr_representative)
+  # Load prior 
+  prior_origins_long <- load_origin_prior(workdir = workdir)
+  # Load posterior
+  posterior_origins_long <- pivot_origins_longer(origins)
   
   # Summarize prior and posterior origin contributions by period
   complete_period_breaks <- c(
-    range(c(origin_estimates_long$date, chains_asr_long$foreign_tmrca)), 
+    range(c(origin_estimates_long$date, origins_long$foreign_tmrca)), 
     period_breaks)  # most extreme dates + specified intermediate breakpoints
-  posterior_by_period <- chains_asr_long %>%
+  posterior_by_period <- origins_long %>%
     mutate(
       period = cut.Date(x = as.Date(foreign_tmrca), 
                    breaks = as.Date(complete_period_breaks),
@@ -397,7 +654,7 @@ table_chain_origins <- function(
   
   # Format results table for top posterior origins, write out 
   most_common_origins <- get_most_common_origins(
-    chains_asr_long = chains_asr_long, n = n_origins_to_table)
+    origins_long = origins_long, n = n_origins_to_table)
   posterior_vs_prior_by_period_to_table <- posterior_vs_prior_by_period %>%
     filter(iso_code %in% most_common_origins) %>%
     select(period, frac_posterior_to_frac_prior_ratio, iso_code) %>%
@@ -410,123 +667,17 @@ table_chain_origins <- function(
       values_from = frac_posterior_to_frac_prior_ratio,
       names_prefix = "Period beginning ")
   
-  filename <- paste("posterior_vs_prior_origins_s_", 
-                    ifelse(test = s, yes = "T", no = "F"), ".csv", sep = "")
-  write.csv(
-    x = posterior_vs_prior_by_period_to_table,
-    file = paste(outdir, filename, sep = "/"),
-    row.names = F)
-}
-
-#' Convert iso codes to English language country names
-iso_code_to_country_name <- function(iso_code) {
-  return(countrycode::countrycode(
-    sourcevar = iso_code,
-    origin = "iso3c",
-    destination = "country.name",
-    custom_match = c("XKX" = "Kosovo")))
-}
-
-#' Convert English language country names to iso codes
-country_name_to_iso_code <- function(country) {
-  return(countrycode::countrycode(
-    sourcevar = country, 
-    origin = "country.name", 
-    destination = "iso3c",
-    custom_match = c("Kosovo" = "XKX")))
-}
-
-#' Plot estimated origins of swiss transmission lineages through time.
-plot_chain_origins <- function(s, workdir, outdir, country_colors) {
-  chains_asr <- load_chains_asr(s = s, workdir = workdir)
-  plot <- make_plot_chain_origins(chains_asr, country_colors)
-  filename <- paste("chain_origins_s_", 
-                    ifelse(test = s, yes = "T", no = "F"), ".png", 
-                    sep = "")
-  ggsave(plot = plot, file = paste(outdir, filename, sep = "/"))
-}
-
-#' Plot estimated origins of swiss transmission lineages through time.
-#' @param tree_data_with_asr Tree data in tidytree treedata format with extra 
-#' columns for ancestral state estimates.
-#' @param chains Data frame with fields describing transmission chains.
-#' @param country_colors Named list with color values for countries.
-#' @return plot
-#' TODO: fix that "other" shows up as transparent in plot
-make_plot_chain_origins <- function(
-  chains_asr, country_colors, n_origins_to_plot = 10
-) {
-  chains_asr_representative <- pick_origin_representative_chains(chains_asr) %>%
-    mutate(foreign_mrca_month = format(as.Date(foreign_tmrca), "%Y-%m-01"))
-  chains_asr_long <- pivot_chains_longer(chains_asr_representative)
-  
-  most_common_origins <- get_most_common_origins(
-    chains_asr_long = chains_asr_long, n = n_origins_to_plot)
-  chains_asr_to_plot <- chains_asr_long %>%
-    group_by(origin, foreign_mrca_month) %>%
-    summarise(asr_contribution = sum(asr_contribution, na.rm = T)) %>%
-    mutate(
-      origin_to_plot = case_when(
-        country_name_to_iso_code(origin) %in% most_common_origins ~ origin,
-        T ~ "other"))
-  
-  n_nodes_data <- chains_asr_representative %>% 
-    group_by(foreign_mrca_month) %>%
-    summarize(
-      n_foreign_mrcas = n(), 
-      n_foreign_mrcas_with_asr = sum(!is.na(Switzerland_loc_weight) & Switzerland_loc_weight != 1)) %>%  # Sum across nodes with NA for all locations, including Switzerland (no travel context sequences = no ASR) and nodes with Switzerland estimated as ASR (a polytomy where the same node is both ch_mrca and foreign_mrca).
-    mutate(label = paste(n_foreign_mrcas_with_asr, "(", n_foreign_mrcas, ")", sep = ""))
-  
-  plot <- ggplot(
-    data = chains_asr_to_plot, 
-    aes(x = as.Date(foreign_mrca_month), y = asr_contribution)) + 
-    geom_area(
-      aes(group = origin_to_plot, fill = origin_to_plot),
-      position = "stack") +  # 'fill' means height corresponds to percentage of all classifiable foreign mrcas in month
-    geom_text(
-      data = n_nodes_data,
-      aes(y = 0, label = label),
-      vjust = 1) +  # annotate bars with total number of foreign mrcas in month, including those unclassifiable for reasons commented above
-    scale_fill_manual(values = country_colors) + 
-    labs(x = "Month of foreign attachment point", 
-         y = "Number of lineages") + 
-    scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
-    theme_bw()
-
-  return(plot)
-}
-
-#' Join ancestral state location estimate for foreign mrca to swiss chain data.
-#' @param s Boolean indicating whether swiss descendents of polytomies are the 
-#' same transmission chain.
-#' @return Dataframe with fields describing transmission chains and normalized 
-#' ancestral state location weights.
-load_chains_asr <- function(s, workdir) {
-  s_suffix <- paste("_s_", ifelse(test = s, yes = "T", no = "F"), sep = "")
-  chains_suffix <- paste(s_suffix, "_chains.txt$", sep = "")
-  chains_files <- list.files(
-    path = paste(workdir, "tmp/chains", sep = "/"), pattern = chains_suffix)
-  prefixes <- gsub(x = chains_files, pattern = chains_suffix, replacement = "")
-  is_first <- T
-  for (i in 1:length(prefixes)) {
-    prefix <- prefixes[i]
-    chains_file <- paste(workdir, "tmp/chains", chains_files[i], sep = "/")
-    asr_filename <- paste(prefix, s_suffix, "_tree_data_with_asr.txt", sep = "")
-    asr_file <- paste(workdir, "tmp/asr", asr_filename, sep = "/")
-    asr <- read.delim(file = asr_file, stringsAsFactors = F)
-    chains <- read.delim(file = chains_file, stringsAsFactors = F)
-    chains_asr_tree <- merge(
-      x = chains, y = asr %>% select(node, ends_with("_loc_weight")),
-      all.x = T, by.x = "foreign_mrca", by.y = "node") %>%
-      mutate(tree = paste(prefix, s_suffix, sep = ""))
-    if (is_first) {
-      is_first <- F
-      chains_asr <- chains_asr_tree
-    } else {
-      chains_asr <- merge(x = chains_asr, y = chains_asr_tree, all = T)
-    }
+  if (!is.null(outdir)) {
+    filename <- paste("posterior_vs_prior_origins_s_", 
+                      ifelse(test = s, yes = "T", no = "F"), ".csv", sep = "")
+    write.csv(
+      x = posterior_vs_prior_by_period_to_table,
+      file = paste(outdir, filename, sep = "/"),
+      row.names = F)
   }
-  return(chains_asr)
+  if (return_table) {
+    return(posterior_vs_prior_by_period_to_table)
+  }
 }
 
 #' Plot a lineage annotated with BAG meldeformular data. This function is an unfinished TODO
@@ -633,21 +784,8 @@ plot_sampling_intensity <- function(db_connection, workdir, outdir, max_date) {
 plot_introductions_and_extinctions <- function(
   workdir, outdir, min_chain_size = 1, last_sample_to_extinction_delay = 14
 ) {
-  chains_max <- load_chains_asr(s = F, workdir = workdir) %>%  
-    filter(size > min_chain_size) %>%
-    mutate(chain_idx = 1:n())
-  chains_min <- load_chains_asr(s = T, workdir = workdir) %>%  
-    filter(size > min_chain_size) %>%
-    mutate(chain_idx = 1:n())
-  
-  sample_metadata <- load_sample_metadata(workdir = workdir)
-  samples <- rbind(
-    pivot_chains_to_samples(chains = chains_max, metadata = sample_metadata) %>%
-      mutate(chains_assumption = "max"),
-    pivot_chains_to_samples(chains = chains_min, metadata = sample_metadata) %>%
-      mutate(chains_assumption = "min")) %>%
-    filter(originating_lab == "Viollier AG")
-  
+  samples <- load_grapevine_results(
+    workdir = workdir, min_chain_size = min_chain_size, viollier_only = T)$samples
   week_to_week_start <- data.frame(
     day = seq.Date(
     from = min(samples$date), 
@@ -704,3 +842,183 @@ plot_introductions_and_extinctions <- function(
     plot = introductions_and_extinctions_plot)
 }
 
+#' @return Dataframe with columns date (at daily frequency), iso_code, 
+#' quarantine_order (boolean), and n_regions_quarantine (NA for non-neighboring 
+#' countries).
+get_travel_quarantine_by_country_day <- function(db_connection) {
+  foph_quarantine_list <- dplyr::tbl(
+    db_connection, "foph_travel_quarantine") %>%
+    collect()
+  
+  travel_quarantine_by_country_day <- foph_quarantine_list %>%
+    rename("date" = "date_effective") %>%
+    group_by(iso_code, date) %>%
+    summarize(n_regions = n()) %>%
+    ungroup() %>%
+    mutate(
+      n_regions_quarantine = case_when(
+        iso_code %in% c("AUT", "FRA", "ITA", "DEU") ~ n_regions),
+      quarantine_order = T,
+      date = as.Date(date)) %>%
+    select(iso_code, date, quarantine_order, n_regions_quarantine) %>%
+    tidyr::complete(
+      date, iso_code, 
+      fill = list("quarantine_order" = F, "n_regions_quarantine" = NA)) %>%
+    tidyr::complete(date = seq.Date(min(date), max(date), by = "day"), iso_code) %>%
+    group_by(iso_code) %>%
+    arrange(date) %>%
+    tidyr::fill(quarantine_order)
+  
+  return(travel_quarantine_by_country_day)
+}
+
+get_country_incidence <- function(db_connection, min_date, max_date) {
+  country_incidence <- dplyr::tbl(db_connection, "ext_owid_global_cases") %>%
+    select(iso_code, date, new_cases_per_million, new_cases) %>%
+    filter(date >= min_date, date <= max_date) %>%
+    collect() %>%
+    tidyr::complete(date = seq.Date(min_date, max_date, by = "day"), iso_code) %>%
+    mutate(
+      new_cases_per_million = case_when(
+        is.na(new_cases_per_million) ~ 0,  # assume days without data have 0 new cases
+        new_cases_per_million < 0 ~ 0,  # replace days with negative incidence with 0
+        T ~ new_cases_per_million),
+      new_cases = case_when(
+        is.na(new_cases) ~ 0,  # assume days without data have 0 new cases
+        new_cases < 0 ~ 0,  # replace days with negative prevalence with 0
+        T ~ as.numeric(new_cases)))  
+  return(country_incidence)
+}
+
+warn_missing_incidence_data <- function(
+  travel_quarantine_by_country_day, country_incidence
+) {
+  countries_missing_case_data <- unique(travel_quarantine_by_country_day$iso_code[!(
+    travel_quarantine_by_country_day$iso_code %in% country_incidence$iso_code)])
+  if (length(countries_missing_case_data) > 0) {
+    missing_countries <- data.frame(
+      iso_code = countries_missing_case_data,
+      country_name = iso_code_to_country_name(countries_missing_case_data))
+    warning("These countries are on the quarantine list but are missing from ",
+            "database table ext_owid_global_cases and will therefore be excluded ",
+            "from test travel quarantine effect analysis:\n",
+            paste(capture.output(print(missing_countries)), collapse = "\n"))
+  }
+}
+
+#' Get number of cases by exposure country and date of case confirmation from 
+#' BAG meldeformular.
+#' Null entries for 'exp_land' or entries of 'Schweiz' in BAG meldeformular are not reported.
+get_exposures_per_country_day <- function(db_connection, min_date, max_date) {
+  print("Getting number of cases by exposure country and date of case confirmation from BAG meldeformular.")
+  exposures_per_country_day <- dplyr::tbl(
+    db_connection, "bag_meldeformular") %>%
+    filter(!is.na(exp_land), exp_land != "Schweiz", 
+           fall_dt <= !! max_date, fall_dt >= !! min_date) %>%
+    select(exp_land, fall_dt) %>%
+    collect() %>%
+    rename("date" = "fall_dt") %>%
+    group_by(date, exp_land) %>%
+    summarise(n_exposures = n()) %>%
+    mutate(exp_land = recode(
+      exp_land, 
+      "Deutschland ohne nähere Angaben" = "Deutschland"))
+  country_translation <- dplyr::tbl(db_connection, "country") %>% 
+    collect() %>%
+    rename("exp_land" = "german_name")
+  exposures_per_country_day_2 <- left_join(
+    x = exposures_per_country_day, y = country_translation, 
+    na_matches = "never", by = "exp_land") %>%
+    rename("iso_code" = "iso3166_alpha3_code")
+  
+  to_remove <- exposures_per_country_day_2 %>%
+    filter(is.na(iso_code)) %>%
+    select(english_name, exp_land, n_exposures, date)
+  if (nrow(to_remove) > 0) {
+    warning("Removing these locations from exposure data because no iso code found.\n",
+            paste(capture.output(print(to_remove)), collapse = "\n"))
+  }
+  exposures_per_country_day_2 <- exposures_per_country_day_2 %>% 
+    filter(!is.na(iso_code)) %>%
+    select(-c(english_name, exp_land))
+  
+  return(exposures_per_country_day_2)
+}
+
+#' Get distance from each country to Switzerland
+#' @param non_focal_countries list of country codes to get distance from
+#' @param focal_countries countries to get distance to
+#' @param db_connection
+#' @return dataframe of distances from each non-focal country centroid to 
+#' the focal country centroids in km
+get_country_distances <- function(
+  non_focal_countries, focal_countries, db_connection
+) {
+  country_coordinates <- dplyr::tbl(db_connection, "ext_country_coordinates") %>%
+    filter(iso_code %in% !! c(non_focal_countries, focal_countries)) %>%
+    collect()
+  all_countries <- c(non_focal_countries, focal_countries)
+  missing_countries <- all_countries[!(all_countries %in% country_coordinates$iso_code)]
+  if (length(missing_countries) > 1) {
+    warning(paste("These countries are missing from geographic location dataset.", 
+                  "They will not be included in distance output.", 
+                  paste0(iso_code_to_country_name(missing_countries), collapse = ", ")))
+  }
+  non_focal_coordinates <- country_coordinates %>% 
+    filter(iso_code %in% non_focal_countries)
+  focal_coordinates <- country_coordinates %>% 
+    filter(iso_code %in% focal_countries)
+  distances_km <- as.data.frame(geodist::geodist(
+    x = non_focal_coordinates,
+    y = focal_coordinates,
+    measure = "geodesic") / 1000)
+  colnames(distances_km) <- paste("dist_to_", focal_coordinates$iso_code, sep = "")
+  distances_km$iso_code <- non_focal_coordinates$iso_code
+  return(distances_km)
+}
+
+#' Plot n_exposures or n_lineages by quarantine status. Used when testing for
+#' quarantine effects on imports.
+plot_dep_var_by_quarantine_status <- function(
+  model_data, outdir = NULL, dep_varname, return_plot = T, plot_height_cm = 11.4
+) {
+  if (is.numeric(model_data$quarantine_order)) {
+    model_data$quarantine_order <- model_data$quarantine_order >= 0.5
+  }
+  
+  dep_var_by_quarantine_status <- ggplot(
+    data = model_data,
+    mapping = aes(
+      x = date,
+      y = iso_code)) + 
+    geom_point(
+      aes(color = quarantine_order)) + 
+    geom_point(
+      aes(
+        size = ifelse(!!sym(dep_varname) == 0, NA, !!sym(dep_varname))),
+      shape = 1) +
+    scale_color_manual(
+      values = c(`FALSE` = "grey", `TRUE` = "red"),
+      name = "Country under FOPH quarantine order") +
+    scale_size_continuous(
+      name = dep_varname,
+      range = c(0, 6)) + 
+    theme_bw() + 
+    labs(x = element_blank(), y = "Origin country")
+  
+  if (dep_varname == "n_lineages") {
+    dep_var_by_quarantine_status <- dep_var_by_quarantine_status + 
+      facet_grid(. ~ chains_assumption)
+  }
+  
+  if (!is.null(outdir)) {
+    outfile <- paste(dep_varname, "_by_quarantine_status.png", sep = "")
+    ggsave(
+      filename = paste(outdir, outfile, sep = "/"),
+      plot = dep_var_by_quarantine_status,
+      height = plot_height_cm, units = "cm")
+  }
+  if (return_plot) {
+    return(dep_var_by_quarantine_status)
+  }
+}

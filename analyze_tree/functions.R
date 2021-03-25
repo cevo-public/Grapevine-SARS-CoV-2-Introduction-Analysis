@@ -56,14 +56,14 @@ get_cluster_from_node <- function(
   # Traverse tree recursively from node described by node_data, find and summarize swiss clusters
   node_data <- as.list(node_data)
   node <- node_data$node
-  country <- node_data$country
+  iso_country <- node_data$iso_country
   
   if (verbose) {
     print(paste("considering node", node))
   }
   
   # Base case 1: if tip is swiss return cluster of size 1
-  if (is_tip(node, n_tips) & !is.na(country) & country == "Switzerland") {
+  if (is_tip(node, n_tips) & !is.na(iso_country) & iso_country == "CHE") {
     swiss_cluster <- initiate_swiss_cluster(node_data, verbose = verbose)
     return(swiss_cluster)
     
@@ -473,10 +473,10 @@ plot_chains_on_tree <- function(chains, max_chains_to_plot = 4) {
 # tree_data <- merge(
 #   x = tree_data, y = metadata %>% select(-c(date)),
 #   by.x = "label", by.y = "tree_label", all.x = T)
-# tree_data[tree_data$node %in% c(27, 13, 14), "country"] <- "Switzerland"
+# tree_data[tree_data$node %in% c(27, 13, 14), "iso_country"] <- "CHE"
 # 
 # ggtree(tr = tree) %<+% tree_data + 
-#   geom_tippoint(aes(color = country == "Switzerland"))
+#   geom_tippoint(aes(color = iso_country == "CHE"))
 # 
 # source("utility_functions.R")
 # 
