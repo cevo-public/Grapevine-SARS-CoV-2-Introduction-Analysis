@@ -91,7 +91,7 @@ context_node_set <- unlist(tree_data %>%
 print(paste(tree_file, "has", length(context_node_set), "travel context sequences"))
 
 # Initialize tree data with ancestral state information and cluster status
-tree_data$asr_loc <- tree_data$country
+tree_data$asr_loc <- tree_data$iso_country
 tree_data[tree_data$node %in% chains$ch_mrca, "asr_loc"] <- "Switzerland"
 
 # Delete internal zero-length branches as they screw up parsimony ASR
@@ -276,7 +276,7 @@ get_asr_scores <- function(node, n_tips, loc_to_idx_mapping, verbose) {
 
 # Make treedata structure with locations, scores, and pointers to update during DP algorithm
 n_tips <- length(tree_ids)
-candidate_asr_locs <- c(unique(metadata$country), "dummy_loc")  # include dummy location to keep track of the max. # changes required from any node
+candidate_asr_locs <- c(unique(metadata$iso_country), "dummy_loc")  # include dummy location to keep track of the max. # changes required from any node
 loc_to_idx_mapping <- 1:length(candidate_asr_locs)
 names(loc_to_idx_mapping) <- candidate_asr_locs
 
@@ -426,8 +426,8 @@ if (plot_tree) {
       label = ifelse(
         test = is.na(node_annotation),
         yes = "",
-        no = paste(node, ": ", country, sep = "")),
-      color = country,
+        no = paste(node, ": ", iso_country, sep = "")),
+      color = iso_country,
       alpha = is_context),
       hjust = -0.01) +
     scale_alpha_manual(
