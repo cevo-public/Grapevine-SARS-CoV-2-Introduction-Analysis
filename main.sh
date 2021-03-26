@@ -5,12 +5,13 @@ set -euo pipefail
 # Settings
 
 # The user should set these settings prior to building the docker image
-MIN_DATE=2020-01-01
-MAX_DATE=2020-12-31
+MIN_DATE=2020-08-01 # 2020-08-01
+MAX_DATE=2020-10-01 # 2020-12-31
 MIN_LENGTH=27000
 MAX_SAMPLING_FRACTION=0.01
 TRAVEL_CONTEXT_SCALE_FACTOR=0.5
 SIMILARITY_CONTEXT_SCALE_FACTOR=0.5
+TRAVEL_DATA_WEIGHTS="5,1"
 
 # These settings should not generally be modified
 WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here 
@@ -85,6 +86,7 @@ echo "MIN_LENGTH: $MIN_LENGTH" >> ${OUTPUT_DIR}/main_settings.txt
 echo "MAX_SAMPLING_FRACTION: $MAX_SAMPLING_FRACTION" >> ${OUTPUT_DIR}/main_settings.txt
 echo "TRAVEL_CONTEXT_SCALE_FACTOR: $TRAVEL_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
 echo "SIMILARITY_CONTEXT_SCALE_FACTOR: $SIMILARITY_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
+echo "TRAVEL_DATA_WEIGHTS: $TRAVEL_DATA_WEIGHTS" >> ${OUTPUT_DIR}/main_settings.txt 
 
 # ------------------------------------------------------
 echo "--- Generate one alignment per pangolin lineage ---"
@@ -96,6 +98,7 @@ Rscript generate_alignments/generate_alignments.R \
     --maxsamplingfrac $MAX_SAMPLING_FRACTION \
     --travelcontextscalefactor $TRAVEL_CONTEXT_SCALE_FACTOR \
     --similaritycontextscalefactor $SIMILARITY_CONTEXT_SCALE_FACTOR \
+    --traveldataweights $TRAVEL_DATA_WEIGHTS \
     --outdir $TMP_ALIGNMENTS \
     --pythonpath $PYTHON \
     --reference $REFERENCE \

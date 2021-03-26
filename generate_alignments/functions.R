@@ -215,7 +215,9 @@ psum <- function(..., na.rm = T) {
 #' @return Dataframe with information on number of infected individuals arriving
 #' each month from each geographic origin. NA is only filled with zeros in col
 #' n_travel_cases, otherwise NA means no source data.
-get_travel_cases <- function(db_connection, min_date, max_date, outdir) {
+get_travel_cases <- function(
+  db_connection, min_date, max_date, outdir, travel_data_weights
+) {
   print("Pulling tourist accommodation and cross-border commuter stats from FSO into the database.")
   source("database/R/import_fso_travel_stats.R")
   import_fso_tourist_accommodation(db_connection = db_connection)
@@ -225,12 +227,25 @@ get_travel_cases <- function(db_connection, min_date, max_date, outdir) {
   infected_arrivals <- get_infected_arrivals_per_country_month(
     db_connection, min_date, max_date, outdir)
   exposures <- get_exposures_per_country_month(db_connection, min_date, max_date)
+
+  print(paste(
+    "Parsing travel context prior weights for exposures, estimated infected arrivals:", 
+    travel_data_weights))
+  travel_data_weights <- as.numeric(strsplit(travel_data_weights, split = ",")[[1]])
   
-  print("Merging arrival and exposure data.")
+  print("Merging arrival and exposure data, weighting estimates based on different data sources.")
   travel_cases <- merge(
     x = infected_arrivals, y = exposures, 
     all = T, by = c("date", "iso_country")) %>%
-    mutate(n_travel_cases = psum(n_exposures, n_infectious_arrivals, na.rm = T)) %>%
+    mutate(
+      n_unweighted_travel_cases = psum(
+        n_exposures, 
+        n_infectious_arrivals, 
+        na.rm = T),
+      n_travel_cases = psum(
+        n_exposures * travel_data_weights[1],
+        n_infectious_arrivals * travel_data_weights[2],
+        na.rm = T)) %>%
     arrange(date, desc(n_infectious_arrivals))
   
   to_remove <- travel_cases %>%
@@ -250,10 +265,15 @@ get_travel_cases <- function(db_connection, min_date, max_date, outdir) {
       iso_country) %>%  
     group_by(iso_country) %>%
     arrange(date) %>%
-    tidyr::replace_na(replace = list("n_travel_cases" = 0)) %>%  # fill in missing months with 0 value
-    mutate(n_travel_cases = case_when(
-      n_travel_cases < 0 ~ 0,
-      T ~ n_travel_cases))  # when negative (can happen due to corrections in case count data), assume zero travel cases
+    tidyr::replace_na(replace = list(
+      "n_travel_cases" = 0, "n_unweighted_travel_cases" = 0)) %>%  # fill in missing months with 0 value
+    mutate(
+      n_travel_cases = case_when(
+        n_travel_cases < 0 ~ 0,
+        T ~ n_travel_cases),
+      n_unweighted_travel_cases = case_when(
+        n_unweighted_travel_cases < 0 ~ 0,
+        T ~ n_unweighted_travel_cases))  # when negative (can happen due to corrections in case count data), assume zero travel cases
   
   print(paste("Writing out results to", outdir))
   write.csv(
@@ -449,7 +469,7 @@ report_travel_sampling <- function(travel_context, outdir) {
 #' Select number of travel context sequences based on estimated travel cases per 
 #' month and available sequences.
 get_travel_context <- function(
-  n_strains, travel_cases, db_connection, outdir, qcd_gisaid_query
+  n_strains, travel_cases, db_connection, outdir, qcd_gisaid_query 
 ) {
   # Get available sequences per country month
   context_strains <- qcd_gisaid_query %>%
@@ -469,7 +489,10 @@ get_travel_context <- function(
   
   # Get ideal number sequences per country month
   travel_context <- travel_context %>% mutate(
-    n_seqs_ideal = round((n_strains * n_travel_cases) / sum(n_travel_cases)))
+    n_seqs_ideal_raw = (n_strains * n_travel_cases) / sum(n_travel_cases),
+    n_seqs_ideal = quota_largest_remainder(
+      votes = travel_context$n_travel_cases, 
+      n_seats = n_strains))
   print(paste("Ideally selecting", sum(travel_context$n_seqs_ideal), "travel context sequences."))
   
   # When possible, take sequences from appropriate month
