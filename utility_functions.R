@@ -329,3 +329,25 @@ get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query) {
   return(weekly_case_and_seq_data)
 }
 
+#' Largest remainder method. 
+#' Will take random from among possiblilities with equal reminders.
+#' Also known as:  Hamilton, Hare-Niemeyer, Vinton method
+#' Adapted from: https://github.com/polettif/proporz/blob/master/R/quota.R
+#' @param votes Number of votes for each possibility
+#' @param n_seats Number of seats to allocate to the possibilities
+#' @return Number of seats allocated to each possibility
+quota_largest_remainder = function(
+  votes, n_seats
+) { 
+  quota = n_seats * votes / sum(votes)
+  seats_base = floor(quota)
+  
+  remainder = quota - seats_base
+  
+  n_seats_remaining = n_seats - sum(seats_base)
+  seats_rem <- rep(0, length(votes))
+  order_index = order(remainder, decreasing = TRUE)
+  seats_rem[order_index[1:n_seats_remaining]] <- 1
+  return(seats_base + seats_rem)
+}
+
