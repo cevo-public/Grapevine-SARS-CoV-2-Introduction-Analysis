@@ -639,6 +639,7 @@ get_similarity_strains <- function(
   python_path, reference, verbose = F
 ) {
   n_lineages <- nrow(lineages)
+  initiated_df <- F
   for (i in 1:n_lineages) {
     lineage <- lineages$pangolin_lineage[i]
     lineages_included_str <- lineages$lineages_aggregated[i]
@@ -681,8 +682,9 @@ get_similarity_strains <- function(
         mutate(pangolin_lineage = lineage) %>%
         left_join(prospective_context_seqs, by = "strain")
     
-    if (i == 1) {
+    if (!initiated_df) {
       similarity_strains <- similarity_strains_i
+      initiated_df <- T
     } else {
       similarity_strains <- rbind(similarity_strains, similarity_strains_i)
     }
@@ -701,6 +703,7 @@ write_out_alignments <- function(
 ) {
   alignments_generated <- c()
   n_lineages <- nrow(lineages)
+  initiated_df <- F
   for (i in 1:n_lineages) {
     lineage <- lineages$pangolin_lineage[i]
     lineages_included_str <- lineages$lineages_aggregated[i]
@@ -776,8 +779,9 @@ write_out_alignments <- function(
     
     alignment_info_i <- data.frame(
       lineage = lineage, n_seqs = length(alignment_strains_i))
-    if (i == 1) {
+    if (!initiated_df) {
       alignment_info <- alignment_info_i
+      initiated_df <- T
     } else {
       alignment_info <- rbind(alignment_info, alignment_info_i)
     }
