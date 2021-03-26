@@ -20,7 +20,8 @@ workdir
 │   ├─02- config.yml
 ```
 
-- The files (01) is the reference genome which can be downloaded from https://www.ncbi.nlm.nih.gov/nuccore/MN908947
+- The file (01) is the reference genome which can be downloaded from https://www.ncbi.nlm.nih.gov/nuccore/MN908947
+- The file (02) is a configuration file giving database connection info. See template in `example_workdir/input/config.yml`
 
 
 ### Required Programs
