@@ -3,17 +3,17 @@ source("utility_functions.R")
 source("generate_alignments/functions.R")
 require(dplyr)
 
-# min_date <- "2020-08-01"
-# max_date <- "2020-10-01"
+# min_date <- "2020-01-01"
+# max_date <- "2020-12-31"
 # min_length <- 27000
-# travel_context_scale_factor <- 0.5
+# travel_context_scale_factor <- 1
 # similarity_context_scale_factor <- 0.5
 # max_samp_frac <- 0.01
 # outdir <- "~/Downloads"
 # python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
 # reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
 # n_trees <- -1
-# travel_data_weights <- "5,1"
+# travel_data_weights <- "1,1"
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
@@ -100,7 +100,6 @@ travel_strains <- get_travel_strains(
   outdir = outdir,
   qcd_gisaid_query = qcd_gisaid_query
 )
-
 
 # Get similarity context set based on genetic proximity
 similarity_strains <- get_similarity_strains(

@@ -74,6 +74,7 @@ get_tourist_arrivals_per_country_month <- function(
     db_connection, "ext_fso_tourist_accommodation") %>%
     filter(date <= !! max_date, date >= !! min_date) %>%
     collect() %>%
+    ungroup() %>%
     tidyr::complete(
       date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
       iso_country) %>%  
@@ -94,6 +95,7 @@ get_commuter_permits_per_country_month <- function(db_connection, min_date, max_
     db_connection, "ext_fso_cross_border_commuters") %>%
     filter(date <= !! max_date, date >= !! min_date) %>%
     collect() %>%
+    ungroup() %>%
     tidyr::complete(
       date = seq.Date(from = as.Date(min_date), to = as.Date(max_date), by = "month"), 
       iso_country, wirtschaftsabteilung) %>% 
@@ -122,13 +124,14 @@ get_avg_infectious_per_country_month <- function(db_connection, min_date, max_da
     mutate(date = as.Date(format(date, "%Y-%m-01"))) %>%
     filter(!is.na(n_infectious_cases_per_million)) %>%  # filters out NAs at ends of lead date ranges
     group_by(date, iso_country) %>%
-    summarise(avg_daily_n_infectious_per_million = mean(n_infectious_cases_per_million)) %>%
+    summarise(avg_daily_n_infectious_per_million = mean(n_infectious_cases_per_million)) %>% 
+    ungroup() %>%
     tidyr::complete(
-      date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"),
-      iso_country,
-      avg_daily_n_infectious_per_million) %>% 
+      date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
+      iso_country) %>%  
+    group_by(iso_country) %>%
     arrange(date) %>%
-    tidyr::fill(avg_daily_n_infectious_per_million) # fill in months with previous monthly value
+    tidyr::fill(avg_daily_n_infectious_per_million)  # fill in months with previous monthly value
   return(avg_infectious_per_country_month)  
 }
 
@@ -137,7 +140,7 @@ get_avg_infectious_per_country_month <- function(db_connection, min_date, max_da
 #' @param db_connection
 #' @param max_date Character date, e.g. "2021-01-30" to extrapolate data to.
 get_infected_arrivals_per_country_month <- function(
-  db_connection, min_date, max_date, outdir = NULL
+  db_connection, min_date, max_date
 ) {
   print("Estimating number of infectious arrivals into Switzerland by origin country and month of arrival.")
   tourists <- get_tourist_arrivals_per_country_month(
@@ -157,9 +160,6 @@ get_infected_arrivals_per_country_month <- function(
   infectious_arrivals <- infectious_arrivals %>% 
     filter(!is.na(avg_daily_n_infectious_per_million)) %>%
     mutate(n_infectious_arrivals = avg_daily_n_infectious_per_million * n_arrivals / 1E6)
-  if (!is.null(outdir)) {
-    report_infectious_arrivals(infectious_arrivals, outdir)
-  }
   return(infectious_arrivals)
 }
 
@@ -176,30 +176,26 @@ warn_missing_infectious_arrivals <- function(infectious_arrivals) {
   }
 }
 
-report_infectious_arrivals <- function(infectious_arrivals, outdir) {
+plot_estimated_travel_cases <- function(travel_cases, outdir) {
   print("Plotting estimated infectious arrivals per country and month.")
   require(ggplot2)
-  write.table(
-    x = infectious_arrivals,
-    file = paste(outdir, "estimated_monthly_infectious_arrivals.txt", sep = "/"),
-    row.names = F, col.names = T, quote = F, sep = "\t")
-  top_10_countries <- infectious_arrivals %>%
+  top_10_countries <- travel_cases %>%
     group_by(iso_country) %>%
-    summarize(total_infectious_arrivals = sum(n_infectious_arrivals)) %>%
-    top_n(n = 8, wt = total_infectious_arrivals) %>%
+    summarize(total_travel_cases = sum(n_travel_cases)) %>%
+    top_n(n = 8, wt = total_travel_cases) %>%
     select(iso_country)
   p <- ggplot(
-    data = infectious_arrivals %>% 
+    data = travel_cases %>% 
       mutate(source_country = case_when(
         iso_country %in% top_10_countries$iso_country ~ iso_country,
         T ~ "Other")),
-    aes(x = format(date, "%Y-%m"), y = n_infectious_arrivals)) +
+    aes(x = format(date, "%Y-%m"), y = n_travel_cases)) +
     geom_col(aes(fill = source_country)) + 
     theme_bw() + 
     labs(x = element_blank(), y = "No. individuals") + 
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
   ggsave(
-    filename = paste(outdir, "estimated_monthly_infectious_arrivals.png", sep = "/"), 
+    filename = paste(outdir, "estimated_travel_cases.png", sep = "/"), 
     plot = p)
 }
 
@@ -225,7 +221,7 @@ get_travel_cases <- function(
   
   print("Querying tourist and exposure information from database.")
   infected_arrivals <- get_infected_arrivals_per_country_month(
-    db_connection, min_date, max_date, outdir)
+    db_connection, min_date, max_date)
   exposures <- get_exposures_per_country_month(db_connection, min_date, max_date)
 
   print(paste(
@@ -260,6 +256,7 @@ get_travel_cases <- function(
   print("Completing travel case data with zero values for months with no travel cases.")
   travel_cases <- travel_cases %>%
     select(-c(country, n_arrivals)) %>%
+    ungroup() %>%
     tidyr::complete(
       date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
       iso_country) %>%  
@@ -274,6 +271,10 @@ get_travel_cases <- function(
       n_unweighted_travel_cases = case_when(
         n_unweighted_travel_cases < 0 ~ 0,
         T ~ n_unweighted_travel_cases))  # when negative (can happen due to corrections in case count data), assume zero travel cases
+  
+  plot_estimated_travel_cases(
+    travel_cases = travel_cases,
+    outdir = outdir)
   
   print(paste("Writing out results to", outdir))
   write.csv(
