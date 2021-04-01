@@ -35,17 +35,19 @@ require(dplyr)
 require(treeio)
 require(ggplot2)
 require(ggtree)
+require(argparse)
+require(magrittr)
 
-# tree_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/grapevine_for_testing_scripts/tmp/lsd/B.1.1.74.timetree.nex"
-# metadata_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/grapevine_for_testing_scripts/tmp/alignments/B.1.1.74_metadata.csv"
-# chains_file <- "/Users/nadeaus/Repos/grapevine/dont_commit/grapevine_for_testing_scripts/tmp/chains_new_def/B.1.1.74_m_3_p_1_s_F_chains.txt"
+# tree_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/lsd/B.1.timetree.nex"
+# metadata_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/alignments/B.1_metadata.csv"
+# chains_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/chains/B.1_m_3_p_1_s_F_chains.txt"
 # s <- F
 # outdir <- "~/Downloads"
 # verbose <- T
 # plot_tree <- T
 # write_scores <- F
 # prefix <- paste("test_s_", s, sep = "")
-
+# 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--tree", type="character")
 parser$add_argument("--metadata", type="character")
@@ -53,7 +55,9 @@ parser$add_argument("--contextmetadata", type = "character")
 parser$add_argument("--chains", type="character")
 parser$add_argument("--outdir", type="character")
 parser$add_argument("--prefix", type="character")
-parser$add_argument("--utilityfunctions", type="character")
+parser$add_argument("--plottree", action="store_true")
+parser$add_argument("--verbose", action="store_true")
+parser$add_argument("--writescores", action="store_true")
 
 args <- parser$parse_args()
 
@@ -62,10 +66,9 @@ metadata_file <- args$metadata
 chains_file <- args$chains
 outdir <- args$outdir
 prefix <- args$prefix
-
-verbose <- F
-plot_tree <- F
-write_scores <- F
+verbose <- args$verbose
+plot_tree <- args$plottree
+write_scores <- args$writescores
 
 source("utility_functions.R")
 system(command = paste("mkdir -p", outdir))
@@ -89,10 +92,14 @@ context_node_set <- unlist(tree_data %>%
   filter(travel_context) %>%
   select(node))
 print(paste(tree_file, "has", length(context_node_set), "travel context sequences"))
+swiss_node_set <- unlist(tree_data %>%
+  filter(focal_sequence) %>%
+  select(node))
+print(paste(tree_file, "has", length(swiss_node_set), "focal Swiss sequences"))
 
 # Initialize tree data with ancestral state information and cluster status
 tree_data$asr_loc <- tree_data$iso_country
-tree_data[tree_data$node %in% chains$ch_mrca, "asr_loc"] <- "Switzerland"
+tree_data[tree_data$node %in% chains$ch_mrca, "asr_loc"] <- "CHE"
 
 # Delete internal zero-length branches as they screw up parsimony ASR
 n_tips <- length(tree_ids)
@@ -104,7 +111,7 @@ set_tip_score <- function(node, loc_to_idx_mapping, verbose) {
   # Otherwise initialize score for all tips to be 0 (no information provided); 
   # Mark node as visited
   node_data <- tree_data[tree_data$node == node, ]
-  if (node %in% context_node_set) {
+  if (node %in% c(context_node_set, swiss_node_set)) {
     if (verbose) {
       print(paste("visiting context tip node", node))
     }
@@ -137,7 +144,7 @@ is_ch_mrca <- function(node, n_tips) {
   if (is.na(tree_data[tree_data$node == node, "asr_loc"]) | is_tip(node = node, n_tips = n_tips)) {
     return(F)
   }
-  return(tree_data[tree_data$node == node, "asr_loc"] == "Switzerland")
+  return(tree_data[tree_data$node == node, "asr_loc"] == "CHE")
 }
 
 visit_children <- function(node, verbose) {
@@ -178,7 +185,7 @@ visit_nonswiss_node <- function(node, candidate_asr_locs, child_node_data, verbo
       # update minimum, considering every possible state at the child node
       for (j in 1:length(candidate_asr_locs)) {
         c_ij <- ifelse(test = i == j, yes = 0, no = 1)  # cost for any transition is 1
-        if (i == loc_to_idx_mapping["Switzerland"]) {
+        if (i == loc_to_idx_mapping["CHE"]) {
           c_ij <- Inf  # cost for transition from Switzerland is prohibitily large (CH not allowed as location at non-swiss nodes)
         }
         S_c_j <- child_data_c$candidate_asr_scores[[1]][j]
@@ -212,7 +219,7 @@ assign_node_as_swiss <- function(node, cluster_tips, loc_to_idx_mapping, verbose
   if (verbose) {
     print(paste("node", node, "is to be assigned as swiss. Checking whether its children contain any of", paste0(cluster_tips, collapse = ", ")))
   }
-  tree_data[tree_data$node == node, "asr_loc"] <<- "Switzerland"
+  tree_data[tree_data$node == node, "asr_loc"] <<- "CHE"
   child_node_data <- get_child_node_data(node = node, tree_data = tree_data)
   for (i in 1:nrow(child_node_data)) {
     child_node <- child_node_data[i, "node"]
@@ -280,9 +287,9 @@ candidate_asr_locs <- c(unique(metadata$iso_country), "dummy_loc")  # include du
 loc_to_idx_mapping <- 1:length(candidate_asr_locs)
 names(loc_to_idx_mapping) <- candidate_asr_locs
 
-if (!("Switzerland" %in% names(loc_to_idx_mapping))) {  # if no swiss tips in tree, add Switzerland to candidate locations anyways so code doesn't break
-  candidate_asr_locs <- c(candidate_asr_locs, "Switzerland")
-  loc_to_idx_mapping[["Switzerland"]] <- length(loc_to_idx_mapping) + 1
+if (!("CHE" %in% names(loc_to_idx_mapping))) {  # if no swiss tips in tree, add Switzerland to candidate locations anyways so code doesn't break
+  candidate_asr_locs <- c(candidate_asr_locs, "CHE")
+  loc_to_idx_mapping[["CHE"]] <- length(loc_to_idx_mapping) + 1
 }
 
 tree_data$candidate_asr_locs <- I(list(candidate_asr_locs))
@@ -426,10 +433,11 @@ if (plot_tree) {
       label = ifelse(
         test = is.na(node_annotation),
         yes = "",
-        no = paste(node, ": ", iso_country, sep = "")),
+        no = paste(strain, ": ", iso_country, sep = "")),
       color = iso_country,
       alpha = is_context),
-      hjust = -0.01) +
+      hjust = -0.01,
+      size = 1) +
     scale_alpha_manual(
       values = c("Priority" = 0.5, "Context" = 1),
       name = "Sample type",
@@ -444,8 +452,9 @@ if (plot_tree) {
       hjust = 0.01)
   
   ggsave(
-    file = paste(outdir, paste(prefix, "tree_with_asr.png", sep = "_"), sep = "/"), 
-    plot = p
+    file = paste(outdir, paste(prefix, "tree_with_asr.pdf", sep = "_"), sep = "/"), 
+    plot = p,
+    dpi = 400
     )
 }
 
