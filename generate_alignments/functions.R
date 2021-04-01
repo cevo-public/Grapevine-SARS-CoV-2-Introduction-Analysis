@@ -135,8 +135,8 @@ get_avg_infectious_per_country_month <- function(db_connection, min_date, max_da
   return(avg_infectious_per_country_month)  
 }
 
-#' Estimate number of infectious arrivals into Switzerland by origin country and
-#' month of arrival.
+#' Get data to estimate number of infectious arrivals into Switzerland by origin 
+#' country and month of arrival.
 #' @param db_connection
 #' @param max_date Character date, e.g. "2021-01-30" to extrapolate data to.
 get_infected_arrivals_per_country_month <- function(
@@ -152,14 +152,12 @@ get_infected_arrivals_per_country_month <- function(
   arrivals <- merge(x = tourists, y = commuters, all = T, 
                     by = c("date", "iso_country")) %>%
     tidyr::replace_na(replace = list("n_tourist_arrivals" = 0, 
-                                     "n_commuter_permits" = 0)) %>%
-    mutate(n_arrivals = n_tourist_arrivals + n_commuter_permits)
+                                     "n_commuter_permits" = 0))
   infectious_arrivals <- merge(x = arrivals, y = infectious, 
                                by = c("date", "iso_country"), all.x = T)
   warn_missing_infectious_arrivals(infectious_arrivals)
   infectious_arrivals <- infectious_arrivals %>% 
-    filter(!is.na(avg_daily_n_infectious_per_million)) %>%
-    mutate(n_infectious_arrivals = avg_daily_n_infectious_per_million * n_arrivals / 1E6)
+    filter(!is.na(avg_daily_n_infectious_per_million)) 
   return(infectious_arrivals)
 }
 
@@ -208,11 +206,14 @@ psum <- function(..., na.rm = T) {
 #' in absolute numbers, so sum for total number infectious inidiviuals arriving
 #' in Switzerland from each country.
 #' @param db_connection
+#' @param travel_data_weights character with comma-delimited factors to scale
+#' number of BAG-recorded exposures, tourist arrivals, and commuter permits by, 
+#' respectively. Ex: '1,1,1'
 #' @return Dataframe with information on number of infected individuals arriving
 #' each month from each geographic origin. NA is only filled with zeros in col
 #' n_travel_cases, otherwise NA means no source data.
 get_travel_cases <- function(
-  db_connection, min_date, max_date, outdir, travel_data_weights
+  db_connection, min_date, max_date, outdir = NULL, travel_data_weights
 ) {
   print("Pulling tourist accommodation and cross-border commuter stats from FSO into the database.")
   source("database/R/import_fso_travel_stats.R")
@@ -221,7 +222,7 @@ get_travel_cases <- function(
   
   print("Querying tourist and exposure information from database.")
   infected_arrivals <- get_infected_arrivals_per_country_month(
-    db_connection, min_date, max_date)
+    db_connection, min_date, max_date) 
   exposures <- get_exposures_per_country_month(db_connection, min_date, max_date)
 
   print(paste(
@@ -234,13 +235,14 @@ get_travel_cases <- function(
     x = infected_arrivals, y = exposures, 
     all = T, by = c("date", "iso_country")) %>%
     mutate(
-      n_unweighted_travel_cases = psum(
-        n_exposures, 
-        n_infectious_arrivals, 
-        na.rm = T),
+      n_unweighted_arrivals = psum(n_tourist_arrivals, n_commuter_permits),
+      n_arrivals = psum(
+        n_tourist_arrivals * travel_data_weights[2],
+        n_commuter_permits * travel_data_weights[3]),
+      n_infectious_arrivals = avg_daily_n_infectious_per_million * n_arrivals / 1E6,
       n_travel_cases = psum(
         n_exposures * travel_data_weights[1],
-        n_infectious_arrivals * travel_data_weights[2],
+        n_infectious_arrivals,
         na.rm = T)) %>%
     arrange(date, desc(n_infectious_arrivals))
   
@@ -263,25 +265,24 @@ get_travel_cases <- function(
     group_by(iso_country) %>%
     arrange(date) %>%
     tidyr::replace_na(replace = list(
-      "n_travel_cases" = 0, "n_unweighted_travel_cases" = 0)) %>%  # fill in missing months with 0 value
+      "n_travel_cases" = 0)) %>%  # fill in missing months with 0 value
     mutate(
       n_travel_cases = case_when(
         n_travel_cases < 0 ~ 0,
-        T ~ n_travel_cases),
-      n_unweighted_travel_cases = case_when(
-        n_unweighted_travel_cases < 0 ~ 0,
-        T ~ n_unweighted_travel_cases))  # when negative (can happen due to corrections in case count data), assume zero travel cases
+        T ~ n_travel_cases))  # when negative (can happen due to corrections in case count data), assume zero travel cases
   
-  plot_estimated_travel_cases(
-    travel_cases = travel_cases,
-    outdir = outdir)
-  
-  print(paste("Writing out results to", outdir))
-  write.csv(
-    x = travel_cases, 
-    file = paste(outdir, "estimated_travel_cases.csv", sep = "/"), 
-    row.names = F)
-  
+  if (!is.null(outdir)) {
+    plot_estimated_travel_cases(
+      travel_cases = travel_cases,
+      outdir = outdir)
+    
+    print(paste("Writing out results to", outdir))
+    write.csv(
+      x = travel_cases, 
+      file = paste(outdir, "estimated_travel_cases.csv", sep = "/"), 
+      row.names = F)
+  }
+
   return(travel_cases)
 }
 
