@@ -13,7 +13,7 @@ require(dplyr)
 # python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
 # reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
 # n_trees <- -1
-# travel_data_weights <- "1,1"
+# travel_data_weights <- "1,1,1"
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
@@ -26,7 +26,7 @@ parser$add_argument("--outdir", type="character")
 parser$add_argument("--pythonpath", type="character", help="Path to python3 with required packages installed.")
 parser$add_argument("--reference", type="character", help="Reference sequence.")
 parser$add_argument("--ntrees", default = -1, type="integer", help="For testing, one can specify a number of alignments to output. Default -1 results in all alignments being generated.")
-parser$add_argument("--traveldataweights", default = "1,1", help="Number of times each exposure, estimated infected arrival are counted in setting up the travel context set.")
+parser$add_argument("--traveldataweights", default = "1,1,1", help="Number of times each exposure, tourist, and commuter permit are counted in setting up the travel context set.")
 
 args <- parser$parse_args()
 
