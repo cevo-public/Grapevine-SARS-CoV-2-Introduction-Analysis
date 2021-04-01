@@ -817,11 +817,19 @@ plot_sampling_intensity <- function(db_connection, workdir, outdir, max_date) {
     labs(x = element_blank(), y = "Weekly number of cases")
 
   weekly_samples_vs_cases <- ggplot(
-    data = weekly_case_and_seq_data,
-    aes(x = n_conf_cases, y = n_seqs_total)) + 
-    geom_point(aes(color = week)) +
-    labs(x = "Weekly number confirmed cases", y = "Weekly number sequences analyzed") + 
-    shared_theme
+    data = weekly_case_and_seq_data, 
+    aes(x = as.Date(week), y = n_seqs_total / n_conf_cases)) + 
+    geom_col() + 
+    geom_hline(yintercept = 0.01, color = "red", linetype = "dashed") + 
+    geom_text(
+      aes(
+        y = (n_seqs_total / n_conf_cases) + 0.0001,
+        label = paste(n_seqs_total, "/", n_conf_cases)),
+      angle = 90, vjust = 0.5, hjust = 0) + 
+    labs(x = "Week", y = "Empirical sampling fraction") +
+    scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") + 
+    shared_theme + 
+    lims(y = c(0, 0.015))
 
   shared_scale_fill <- scale_fill_manual(
       values = RColorBrewer::brewer.pal(n = 3, name = "Dark2"),
