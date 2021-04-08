@@ -2,7 +2,7 @@
 #' @param max_sampling_frac Take no more than this fraction of confirmed cases each week.
 #' @param favor_exposures If true, first take sequences with recorded foreign exposures 
 #' (for origin estimation validation purposes).
-#' @return qcd_gisaid_query Query expanded to include only selected swiss samples
+#' @return qcd_gisaid_query Query filtered to include foreign samples & only selected swiss samples
 downsample_swiss_sequences <- function (
   qcd_gisaid_query, db_connection, max_sampling_frac, favor_exposures = F
 ) {
@@ -13,7 +13,8 @@ downsample_swiss_sequences <- function (
       n_seqs_other = tidyr::replace_na(n_seqs_other, replace = 0),
       n_seqs = n_seqs_viollier + n_seqs_other,
       max_seqs = floor(n_conf_cases * max_sampling_frac),
-      n_to_sample = pmin(n_seqs, max_seqs))
+      n_to_sample = pmin(n_seqs, max_seqs)) %>%
+    arrange(week)
   
   qcd_gisaid_query_temp <- qcd_gisaid_query %>%
     filter(iso_country == "CHE") %>%
@@ -57,10 +58,10 @@ downsample_swiss_sequences <- function (
     sampled_strains <- c(sampled_strains, sampled_strains_i)
   }
 
-  qcd_gisaid_query_swiss_downsampled <- qcd_gisaid_query %>%
-    filter(strain %in% !! sampled_strains)
+  qcd_gisaid_query <- qcd_gisaid_query %>%
+    filter(iso_country != 'CHE' | strain %in% !! sampled_strains)
   
-  return(qcd_gisaid_query_swiss_downsampled)
+  return(qcd_gisaid_query)
 }
 
 #' Get GISAID_EPI_ISL and exposure country for sequences with BAG-recoreded foreign
@@ -154,10 +155,10 @@ get_avg_infectious_per_country_month <- function(db_connection, min_date, max_da
     db_connection, "ext_owid_global_cases") %>%
     filter(date <= !! max_date, date >= !! min_date) %>%
     select(iso_country, date, new_cases_per_million) %>%
+    collect() %>%
     group_by(iso_country) %>%
     arrange(date) %>%
     mutate(cumul_cases_per_million = cumsum(new_cases_per_million)) %>%
-    collect() %>%
     mutate(n_infectious_cases_per_million = lead(cumul_cases_per_million, n = 10) - cumul_cases_per_million) %>%
     mutate(date = as.Date(format(date, "%Y-%m-01"))) %>%
     filter(!is.na(n_infectious_cases_per_million)) %>%  # filters out NAs at ends of lead date ranges
@@ -559,6 +560,9 @@ get_travel_strains <- function(
     db_connection = db_connection,
     outdir = outdir,
     qcd_gisaid_query = qcd_gisaid_query)
+  if (sum(travel_context$n_seqs_actual) == 0) {
+    stop("No travel context sequences selected. Either increase timeframe or travel context scale factor.")
+  }
   
   print("Getting available sequences per country month from database table gisaid_sequence.")
   context_strains <- qcd_gisaid_query %>%
