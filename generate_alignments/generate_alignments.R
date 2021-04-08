@@ -27,6 +27,7 @@ parser$add_argument("--pythonpath", type="character", help="Path to python3 with
 parser$add_argument("--reference", type="character", help="Reference sequence.")
 parser$add_argument("--ntrees", default = -1, type="integer", help="For testing, one can specify a number of alignments to output. Default -1 results in all alignments being generated.")
 parser$add_argument("--traveldataweights", default = "1,1,1", help="Number of times each exposure, tourist, and commuter permit are counted in setting up the travel context set.")
+parser$add_argument("--favorexposures", action="store_true")
 
 args <- parser$parse_args()
 
@@ -41,6 +42,7 @@ python_path <- args$pythonpath
 reference <- args$reference
 n_trees <- args$ntrees
 travel_data_weights <- args$traveldataweights
+favor_exposures <- args$favorexposures
 
 # Hardcoded parameters
 outgroup_gisaid_epi_isls = c("EPI_ISL_406798", "EPI_ISL_402125")  # The nextstrain global tree is rooted between these two sequences (Wuhan/WH01/2019 & Wuhan/Hu-1/2019), which you can see by filtering the tree to Chinese sequences (to make it reasonably small), downloading the newick tree, and plotting it.
@@ -70,6 +72,7 @@ lineages <- get_pangolin_lineages(
 qcd_gisaid_query <- downsample_swiss_sequences(
   qcd_gisaid_query = qcd_gisaid_query,
   max_sampling_frac = max_samp_frac,
+  favor_exposures = favor_exposures,
   db_connection = db_connection
 )
 
