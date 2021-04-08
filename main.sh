@@ -8,10 +8,11 @@ set -euo pipefail
 MIN_DATE=2020-01-01
 MAX_DATE=2020-12-31
 MIN_LENGTH=27000
-MAX_SAMPLING_FRACTION=0.01
-TRAVEL_CONTEXT_SCALE_FACTOR=1
-SIMILARITY_CONTEXT_SCALE_FACTOR=0.5
-TRAVEL_DATA_WEIGHTS="5,1"
+MAX_SAMPLING_FRACTION=0.005
+TRAVEL_CONTEXT_SCALE_FACTOR=0.5
+SIMILARITY_CONTEXT_SCALE_FACTOR=1
+TRAVEL_DATA_WEIGHTS="1,1,0"  # exposures, tourists, commuters
+FAVOR_FOREIGN_EXP_SEQS=false  # true to preferentially include Swiss sequences with GISAID- or BAG-recoreded foreign exposure; false to choose swiss sequences without regard to exposure location
 
 # These settings should not generally be modified
 WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here 
@@ -87,22 +88,41 @@ echo "MAX_SAMPLING_FRACTION: $MAX_SAMPLING_FRACTION" >> ${OUTPUT_DIR}/main_setti
 echo "TRAVEL_CONTEXT_SCALE_FACTOR: $TRAVEL_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
 echo "SIMILARITY_CONTEXT_SCALE_FACTOR: $SIMILARITY_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
 echo "TRAVEL_DATA_WEIGHTS: $TRAVEL_DATA_WEIGHTS" >> ${OUTPUT_DIR}/main_settings.txt 
+echo "FAVOR_FOREIGN_EXP_SEQS: $FAVOR_FOREIGN_EXP_SEQS" >> ${OUTPUT_DIR}/main_settings.txt
 
 # ------------------------------------------------------
 echo "--- Generate one alignment per pangolin lineage ---"
 
-Rscript generate_alignments/generate_alignments.R \
-    --mindate $MIN_DATE \
-    --maxdate $MAX_DATE \
-    --minlength $MIN_LENGTH \
-    --maxsamplingfrac $MAX_SAMPLING_FRACTION \
-    --travelcontextscalefactor $TRAVEL_CONTEXT_SCALE_FACTOR \
-    --similaritycontextscalefactor $SIMILARITY_CONTEXT_SCALE_FACTOR \
-    --traveldataweights $TRAVEL_DATA_WEIGHTS \
-    --outdir $TMP_ALIGNMENTS \
-    --pythonpath $PYTHON \
-    --reference $REFERENCE \
-    --ntrees $N_TREES
+if [ "$FAVOR_FOREIGN_EXP_SEQS" = "true" ]
+then
+    echo "Favoring Swiss sequences with foreign exposure."
+    Rscript generate_alignments/generate_alignments.R \
+        --mindate $MIN_DATE \
+        --maxdate $MAX_DATE \
+        --minlength $MIN_LENGTH \
+        --maxsamplingfrac $MAX_SAMPLING_FRACTION \
+        --travelcontextscalefactor $TRAVEL_CONTEXT_SCALE_FACTOR \
+        --similaritycontextscalefactor $SIMILARITY_CONTEXT_SCALE_FACTOR \
+        --traveldataweights $TRAVEL_DATA_WEIGHTS \
+        --outdir $TMP_ALIGNMENTS \
+        --pythonpath $PYTHON \
+        --reference $REFERENCE \
+        --ntrees $N_TREES \
+        --favorexposures
+else 
+    Rscript generate_alignments/generate_alignments.R \
+        --mindate $MIN_DATE \
+        --maxdate $MAX_DATE \
+        --minlength $MIN_LENGTH \
+        --maxsamplingfrac $MAX_SAMPLING_FRACTION \
+        --travelcontextscalefactor $TRAVEL_CONTEXT_SCALE_FACTOR \
+        --similaritycontextscalefactor $SIMILARITY_CONTEXT_SCALE_FACTOR \
+        --traveldataweights $TRAVEL_DATA_WEIGHTS \
+        --outdir $TMP_ALIGNMENTS \
+        --pythonpath $PYTHON \
+        --reference $REFERENCE \
+        --ntrees $N_TREES
+fi
 
 # ------------------------------------------------------
 echo "--- Build ML trees using same 'fast' settings as Nextstrain augur ---"

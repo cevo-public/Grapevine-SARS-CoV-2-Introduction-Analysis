@@ -1,7 +1,10 @@
-#' @param qcd_gisaid_query Query of database table gisaid_sequence with QC filters
+#' @param qcd_gisaid_query Query of database table gisaid_sequence with QC filters.
+#' @param max_sampling_frac Take no more than this fraction of confirmed cases each week.
+#' @param favor_exposures If true, first take sequences with recorded foreign exposures 
+#' (for origin estimation validation purposes).
 #' @return qcd_gisaid_query Query expanded to include only selected swiss samples
 downsample_swiss_sequences <- function (
-  qcd_gisaid_query, db_connection, max_sampling_frac
+  qcd_gisaid_query, db_connection, max_sampling_frac, favor_exposures = F
 ) {
   sampling_data <- get_weekly_case_and_seq_data(
     db_connection = db_connection, qcd_gisaid_query = qcd_gisaid_query) %>%
@@ -15,30 +18,65 @@ downsample_swiss_sequences <- function (
   qcd_gisaid_query_temp <- qcd_gisaid_query %>%
     filter(iso_country == "CHE") %>%
     mutate(week = date_trunc('week', date))
+  bag_exposures <- get_bag_exposures(db_connection)
   
   sampled_strains <- c()
   for (i in 1:nrow(sampling_data)) {
     week_i <- sampling_data[[i, "week"]]
     n_samples_i <- as.numeric(sampling_data[[i, "n_to_sample"]])
-    n_actual_samples <- nrow(qcd_gisaid_query_temp %>%
-                               filter(week == week_i) %>%
-                               select(strain) %>%
-                               collect())
-    print(paste("sampling", n_samples_i, "Swiss samples from", n_actual_samples, "in week", week_i))
-    
-    sampled_strains_i <- unname(unlist(qcd_gisaid_query_temp %>%
+    all_samples_i <- qcd_gisaid_query_temp %>%
       filter(week == week_i) %>%
-      select(strain) %>%
-      collect() %>%
-      sample_n(size = n_samples_i, replace = F)))
+      select(strain, gisaid_epi_isl, iso_country_exposure) %>%
+      collect()
+
+    print(paste(
+      "sampling", n_samples_i, "Swiss samples from", nrow(all_samples_i), 
+      "in week", week_i))
     
+    if (favor_exposures) {
+      # add bag meldeformular exposure data (not on GISAID) if there is any for samples from the week
+      all_samples_i <- merge(
+        x = bag_exposures, y = all_samples_i,
+        by = "gisaid_epi_isl", 
+        all.y = T) %>%
+        mutate(iso_country_exposure = dplyr::coalesce(iso_country_exposure.x, iso_country_exposure.y)) 
+      # shuffle samples but put foreign exposure samples first
+      exp_samples_i <- all_samples_i %>%
+        filter(!is.na(iso_country_exposure) & iso_country_exposure != "CHE")
+      other_samples_i <- all_samples_i %>% 
+        filter(is.na(iso_country_exposure) | iso_country_exposure == "CHE")
+      shuffled_samples_i <- rbind(
+        exp_samples_i[sample(nrow(exp_samples_i), replace = F), ],
+        other_samples_i[sample(nrow(other_samples_i), replace = F), ]
+      )
+    } else {
+      # shuffle samples
+      shuffled_samples_i <- all_samples_i[sample(nrow(all_samples_i), replace = F), ]
+    }
+    sampled_strains_i <- shuffled_samples_i$strain[1:n_samples_i]
     sampled_strains <- c(sampled_strains, sampled_strains_i)
   }
 
   qcd_gisaid_query_swiss_downsampled <- qcd_gisaid_query %>%
-    filter(!(iso_country == 'CHE' & !(strain %in% !! sampled_strains)))
+    filter(strain %in% !! sampled_strains)
   
   return(qcd_gisaid_query_swiss_downsampled)
+}
+
+#' Get GISAID_EPI_ISL and exposure country for sequences with BAG-recoreded foreign
+#' exposures. To be merged into GISAID data.
+get_bag_exposures <- function(db_connection) {
+  exposure_sql <- "select gisaid_epi_isl, iso_country_exp
+      from gisaid_sequence gs
+  join sequence_identifier si on si.gisaid_id = gs.gisaid_epi_isl
+  left join viollier_test vt on si.ethid = vt.ethid
+  left join bag_meldeformular bm on vt.sample_number = bm.sample_number
+  where iso_country_exp is not null and
+  iso_country_exp not in ('CHE', 'XXX');"
+  res <- DBI::dbSendQuery(conn = db_connection, statement = exposure_sql)
+  bag_exposures <- DBI::dbFetch(res = res)
+  DBI::dbClearResult(res = res)
+  return(bag_exposures %>% rename(iso_country_exposure = iso_country_exp))
 }
 
 # ------------------------------------------------------------------------------
