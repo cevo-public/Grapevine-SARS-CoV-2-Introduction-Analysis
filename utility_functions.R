@@ -286,29 +286,35 @@ get_chain_data_by_tip <- function(chains, metadata = NULL) {
   return(chain_data_by_tip)
 }
 
-#' Get number of sequences compared to unsequenced confirmed cases per week.
+#' Get number of sequences compared to confirmed cases per week.
 #' @param qc_gisaid_query A database query providing sequence filtering criteria 
 #' for seq data in table gisaid_sequence.
+#' @param by_canton If True, returns results stratified by canton with additional column 'canton_code'.
 #' @return Dataframe with one row per week and columns giving the number of 
 #' sequences in the gisaid_sequence table from Switzerland passing the filter
 #' criteria.
-get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query) {
+get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query, by_canton = F) {
   sequence_data_query <- qcd_gisaid_query %>%
     filter(iso_country == "CHE") %>%
     mutate(
       is_viollier = originating_lab == "Viollier AG" & submitting_lab == "Department of Biosystems Science and Engineering, ETH Zürich",
       week = date_trunc('week', date)) %>%
-    group_by(is_viollier, week) %>%
-    summarize(n_seqs = n())
+    group_by(is_viollier, week, division) %>%
+    summarize(n_seqs = n()) %>%
+    ungroup() %>%
+    left_join(
+      y = dplyr::tbl(db_connection, "swiss_canton") %>% 
+        select(gisaid_division, canton_code),
+      by = c("division" = "gisaid_division"))
   
-  case_data_query <- dplyr::tbl(db_connection, "ext_owid_global_cases") %>%
-    filter(iso_country == "CHE") %>%
+  case_data_query <- dplyr::tbl(db_connection, "bag_test_numbers") %>%
     mutate(week = date_trunc('week', date)) %>%
-    group_by(week) %>%
-    summarise(n_conf_cases = sum(new_cases, na.rm = T))
+    group_by(week, canton) %>%
+    summarise(n_conf_cases = sum(positive_tests, na.rm = T))
   
   weekly_case_and_seq_data <- dplyr::full_join(
-    x = sequence_data_query, y = case_data_query, by = "week") %>% 
+    x = sequence_data_query, y = case_data_query, 
+    by = c("week" = "week", "canton_code" = "canton")) %>% 
     collect() %>%
     tidyr::replace_na(replace = list(is_viollier = F)) %>%  # weeks with 0 seqs have all 0 seqs coming from other labs, dummy val
     tidyr::pivot_wider(
@@ -326,6 +332,13 @@ get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query) {
     tidyr::replace_na(replace = list(n_conf_cases = 0, 
                                      n_seqs_total = 0,
                                      n_seqs_other = 0))
+  if (!by_canton) {
+    weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
+      select(-c(canton_code, division)) %>%
+      group_by(week) %>%
+      summarise_all(sum) %>%
+      mutate(canton_code = NA, division = NA)
+  }
   return(weekly_case_and_seq_data)
 }
 
@@ -337,17 +350,37 @@ get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query) {
 #' @param n_seats Number of seats to allocate to the possibilities
 #' @return Number of seats allocated to each possibility
 quota_largest_remainder = function(
-  votes, n_seats
+  votes, n_seats, verbose = F
 ) { 
-  quota = n_seats * votes / sum(votes)
-  seats_base = floor(quota)
-  
-  remainder = quota - seats_base
-  
+  if (sum(votes) == 0) {  # avoid undefined in quota when there are zero votes for any option
+    seats_base = rep(0, length(votes))
+    remainder = rep(0, length(votes))
+    if (n_seats == 0) {
+      return(rep(0, length(votes)))
+    }
+  } else {
+    quota = n_seats * votes / sum(votes)
+    seats_base = floor(quota)
+    remainder = quota - seats_base
+    if (all(remainder == 0)) {  # avoid 1:0 in calculating seats_rem evaluating to 1 and adding a spurious seat
+      return(seats_base)
+    }
+  }
   n_seats_remaining = n_seats - sum(seats_base)
   seats_rem <- rep(0, length(votes))
   order_index = order(remainder, decreasing = TRUE)
   seats_rem[order_index[1:n_seats_remaining]] <- 1
+  if (verbose) {
+    print(paste("votes:", paste0(votes, collapse = ",")))
+    print(paste("seats:", n_seats))
+    print(paste("allocations:", paste0(seats_base + seats_rem, collapse = ",")))
+  }
   return(seats_base + seats_rem)
+}
+
+#' Get symmetric limits for a plot
+symmetric_limits <- function (x) {
+  max <- max(abs(x))
+  c(-max, max)
 }
 
