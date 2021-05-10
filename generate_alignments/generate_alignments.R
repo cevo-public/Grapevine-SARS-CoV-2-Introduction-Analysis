@@ -14,6 +14,7 @@ require(dplyr)
 # reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
 # n_trees <- -1
 # travel_data_weights <- "1,1,1"
+# favor_exposures <- F
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
@@ -73,7 +74,8 @@ qcd_gisaid_query <- downsample_swiss_sequences(
   qcd_gisaid_query = qcd_gisaid_query,
   max_sampling_frac = max_samp_frac,
   favor_exposures = favor_exposures,
-  db_connection = db_connection
+  db_connection = db_connection,
+  outdir = outdir
 )
 
 if (n_trees > 0) {

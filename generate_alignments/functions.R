@@ -1,67 +1,158 @@
+#' Downsample Swiss sequences on GISAID proportionally to weekly confirmed cases.
+#' Optionally downsample proportionally to weekly confirmed cases in each canton.
+#' If there aren't enough sequences in a week from the region, all sequences are taken.
+#' When confirmed cases are not attributed to a region, the proportional number of sequences are taken without regard to region.
+#' Optionally favor samples with recorded foreign exposure information per BAG meldeformular or GISAID metadata before filling up the week's sequence quota with non-exposed/unknown samples.
 #' @param qcd_gisaid_query Query of database table gisaid_sequence with QC filters.
 #' @param max_sampling_frac Take no more than this fraction of confirmed cases each week.
-#' @param favor_exposures If true, first take sequences with recorded foreign exposures 
-#' (for origin estimation validation purposes).
+#' @param favor_exposures If true, first take sequences with recorded foreign exposures.
+#' @param subsample_by_canton If true, take sequences proportional to confirmed cases per canton.
+#' @param output_summary_table If true, output table summarizing sampled sequences per region per week compare to confirmed cases 
 #' @return qcd_gisaid_query Query filtered to include foreign samples & only selected swiss samples
 downsample_swiss_sequences <- function (
-  qcd_gisaid_query, db_connection, max_sampling_frac, favor_exposures = F
+  qcd_gisaid_query, db_connection, max_sampling_frac, favor_exposures = F, 
+  verbose = T, subsample_by_canton = T, outdir = NULL
 ) {
-  sampling_data <- get_weekly_case_and_seq_data(
-    db_connection = db_connection, qcd_gisaid_query = qcd_gisaid_query) %>%
-    mutate(
-      n_seqs_viollier = tidyr::replace_na(n_seqs_viollier, replace = 0),
-      n_seqs_other = tidyr::replace_na(n_seqs_other, replace = 0),
-      n_seqs = n_seqs_viollier + n_seqs_other,
-      max_seqs = floor(n_conf_cases * max_sampling_frac),
-      n_to_sample = pmin(n_seqs, max_seqs)) %>%
-    arrange(week)
-  
+  # get available sequences and bag exposure data
   qcd_gisaid_query_temp <- qcd_gisaid_query %>%
     filter(iso_country == "CHE") %>%
     mutate(week = date_trunc('week', date))
   bag_exposures <- get_bag_exposures(db_connection)
   
+  # Get available seqs and cases numbers per week, possibly stratified by canton
+  sampling_data_raw <- get_weekly_case_and_seq_data(
+    db_connection = db_connection, 
+    qcd_gisaid_query = qcd_gisaid_query, 
+    by_canton = subsample_by_canton) 
+  
+  # restrict case data range to first and last week of available samples 
+  # (this takes into account the analysis date range specified in qcd_gisaid_query)
+  min_week <- qcd_gisaid_query_temp %>%
+    summarize(min(week, na.rm = T)) %>%
+    collect()
+  max_week <- qcd_gisaid_query_temp %>%
+    summarize(max(week, na.rm = T)) %>%
+    collect()
+    
+  # Calculate # seqs per week
+  # and divide proportionally amongst cantons if data stratified by canton
+  sampling_data <- sampling_data_raw %>%
+    mutate(week = as.character(week)) %>%
+    filter(
+      week <= max_week[[1]], week >= min_week[[1]], 
+      (is.na(canton_code) | canton_code != "FL")) %>%  # don't count samples from FL, do count samples not associated with a canton
+    group_by(week) %>%
+    mutate(
+      max_seqs_from_week = floor(sum(n_conf_cases) * max_sampling_frac),
+      n_ideal_sample = quota_largest_remainder(
+        votes = n_conf_cases, 
+        n_seats = max_seqs_from_week[1]),
+      n_to_sample = case_when(
+        is.na(canton_code) ~ n_ideal_sample,  # hope that there are always enough Swiss-wide sequences to fill up the quota when the confirmed cases aren't attributed to a specific canton. If not, code will just sample all available sequences.
+        T ~ pmin(n_ideal_sample, n_seqs_total))) %>%
+    arrange(week, canton_code)
+  
+  # sample sequences 
+  all_samples <- qcd_gisaid_query_temp %>%
+    select(strain, week, division, gisaid_epi_isl, iso_country_exposure) %>%
+    collect()
   sampled_strains <- c()
   for (i in 1:nrow(sampling_data)) {
     week_i <- sampling_data[[i, "week"]]
+    division_i <- sampling_data[[i, "division"]]
+    canton_code_i <- sampling_data[[i, "canton_code"]]
     n_samples_i <- as.numeric(sampling_data[[i, "n_to_sample"]])
-    all_samples_i <- qcd_gisaid_query_temp %>%
-      filter(week == week_i) %>%
-      select(strain, gisaid_epi_isl, iso_country_exposure) %>%
-      collect()
-
-    print(paste(
-      "sampling", n_samples_i, "Swiss samples from", nrow(all_samples_i), 
-      "in week", week_i))
     
-    if (favor_exposures) {
-      # add bag meldeformular exposure data (not on GISAID) if there is any for samples from the week
-      all_samples_i <- merge(
-        x = bag_exposures, y = all_samples_i,
-        by = "gisaid_epi_isl", 
-        all.y = T) %>%
-        mutate(iso_country_exposure = dplyr::coalesce(iso_country_exposure.x, iso_country_exposure.y)) 
-      # shuffle samples but put foreign exposure samples first
-      exp_samples_i <- all_samples_i %>%
-        filter(!is.na(iso_country_exposure) & iso_country_exposure != "CHE")
-      other_samples_i <- all_samples_i %>% 
-        filter(is.na(iso_country_exposure) | iso_country_exposure == "CHE")
-      shuffled_samples_i <- rbind(
-        exp_samples_i[sample(nrow(exp_samples_i), replace = F), ],
-        other_samples_i[sample(nrow(other_samples_i), replace = F), ]
-      )
-    } else {
-      # shuffle samples
-      shuffled_samples_i <- all_samples_i[sample(nrow(all_samples_i), replace = F), ]
+    if (n_samples_i == 0) {  # if no samples desired, continue
+      next
     }
-    sampled_strains_i <- shuffled_samples_i$strain[1:n_samples_i]
+    
+    if (is.na(canton_code_i)) {  # if not stratifying by canton, or the canton is not known, take randomly from all Switzerland
+      all_samples_i <- all_samples %>%
+        filter(week == week_i, !(strain %in% sampled_strains))
+    } else if (is.na(division_i)) {  # if no sequences available, continue
+      if (verbose) {
+        print(paste(
+          "sampling", n_samples_i, 
+          "samples out of 0", 
+          "available from", case_when(is.na(canton_code_i) ~ "all Switzerland", T ~ canton_code_i),
+          "in week", format(as.Date(week_i), "%Y-%m-%d")))
+      }
+      next
+    } else {  # else take from the right canton
+      all_samples_i <- all_samples %>%
+        filter(week == week_i, division == division_i, !(strain %in% sampled_strains))
+    }
+    if (verbose) {
+      print(paste(
+        "sampling", n_samples_i, 
+        "samples out of", nrow(all_samples_i), 
+        "available from", ifelse(test = is.na(canton_code_i), yes = "all Switzerland", no = canton_code_i),
+        "in week", format(as.Date(week_i), "%Y-%m-%d")))
+    }
+    n_samples_i <- min(n_samples_i, nrow(all_samples_i))  # correct for case when samples not attributed to a canton and there aren't enough sequences
+    sampled_strains_i <- sample_strains(bag_exposures, all_samples_i, favor_exposures, n_samples_i)
     sampled_strains <- c(sampled_strains, sampled_strains_i)
   }
 
+  # output downsampling data table and figure
+  if (!(is.null(outdir))) {
+    report_downsampling(sampling_data, outdir, max_sampling_frac)
+  }
+  
+  # update master seq query to exclude non-sampled swiss strains
   qcd_gisaid_query <- qcd_gisaid_query %>%
     filter(iso_country != 'CHE' | strain %in% !! sampled_strains)
-  
   return(qcd_gisaid_query)
+}
+
+sample_strains <- function(bag_exposures, all_samples_i, favor_exposures, n_samples_i) {
+  if (favor_exposures) {
+    # add bag meldeformular exposure data (not on GISAID) if there is any for samples from the week
+    all_samples_i <- merge(
+      x = bag_exposures, y = all_samples_i,
+      by = "gisaid_epi_isl", 
+      all.y = T) %>%
+      mutate(iso_country_exposure = dplyr::coalesce(iso_country_exposure.x, iso_country_exposure.y)) 
+    # shuffle samples but put foreign exposure samples first
+    exp_samples_i <- all_samples_i %>%
+      filter(!is.na(iso_country_exposure) & iso_country_exposure != "CHE")
+    other_samples_i <- all_samples_i %>% 
+      filter(is.na(iso_country_exposure) | iso_country_exposure == "CHE")
+    shuffled_samples_i <- rbind(
+      exp_samples_i[sample(nrow(exp_samples_i), replace = F), ],
+      other_samples_i[sample(nrow(other_samples_i), replace = F), ]
+    )
+  } else {
+    # shuffle samples
+    shuffled_samples_i <- all_samples_i[sample(nrow(all_samples_i), replace = F), ]
+  }
+  sampled_strains_i <- shuffled_samples_i$strain[1:n_samples_i]
+  return(sampled_strains_i)
+}
+
+report_downsampling <- function(sampling_data, outdir, max_sampling_frac) {
+  write.csv(
+    x = sampling_data, 
+    file = paste(outdir, "swiss_downsampling_data.csv", sep = "/"),
+    row.names = F)
+  sampling_plot <- ggplot(
+    data = sampling_data,
+    aes(x = as.Date(week))) + 
+    geom_col(aes(y = n_to_sample, fill = "Number of sequences analyzed")) + 
+    geom_col(aes(y = -n_conf_cases * max_sampling_frac, 
+                 fill = paste(max_sampling_frac * 100, "% of confirmed cases", sep = ""))) + 
+    facet_wrap(canton_code ~ ., scales = "free_y") +
+    scale_x_date(date_breaks = "1 month", date_labels = "%b. %y") + 
+    scale_y_continuous(limits = symmetric_limits) + 
+    theme_bw() + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "bottom",
+          legend.title = element_blank()) + 
+    labs(x = element_blank(), y = "Count")
+  ggsave(
+    filename = paste(outdir, "swiss_downsampling.png", sep = "/"),
+    plot = sampling_plot)
 }
 
 #' Get GISAID_EPI_ISL and exposure country for sequences with BAG-recoreded foreign
