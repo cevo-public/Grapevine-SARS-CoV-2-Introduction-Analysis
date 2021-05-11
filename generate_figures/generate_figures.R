@@ -6,20 +6,20 @@ require(ggplot2)
 require(ggtree)
 require(argparse)
 
-max_date <- "2020-12-31"
-workdir <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/jan-dec_-01_max_sampling_1_travel_-5_sim_context-sf_1_exp-wt"
-min_chain_size <- 1
+# max_date <- "2020-12-31"
+# workdir <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_main" 
+# min_chain_size <- 1
 
-# parser <- argparse::ArgumentParser()
-# parser$add_argument("--maxdate", type="character")
-# parser$add_argument("--workdir", type="character")
-# parser$add_argument("--minchainsizeforplot", type="integer", default = 1)
-# 
-# args <- parser$parse_args()
-# 
-# max_date <- args$maxdate
-# workdir <- args$workdir
-# min_chain_size <- args$minchainsizeforplot
+parser <- argparse::ArgumentParser()
+parser$add_argument("--maxdate", type="character")
+parser$add_argument("--workdir", type="character")
+parser$add_argument("--minchainsizeforplot", type="integer", default = 1)
+
+args <- parser$parse_args()
+
+max_date <- args$maxdate
+workdir <- args$workdir
+min_chain_size <- args$minchainsizeforplot
 
 db_connection = open_database_connection()
 outdir <- paste(workdir, "output", sep = "/")
@@ -36,7 +36,7 @@ sampling_intensity_data <- plot_sampling_intensity(
 )
 
 grapevine_results <- load_grapevine_results(
-  workdir = workdir, 
+  workdir = workdir,
   min_chain_size = 1,
   viollier_only = F)
 
