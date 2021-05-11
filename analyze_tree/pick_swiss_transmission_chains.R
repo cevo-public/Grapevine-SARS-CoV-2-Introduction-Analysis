@@ -38,6 +38,7 @@ parser$add_argument("--maxtotalsubclades", type="double")
 parser$add_argument("--maxconsecutivesubclades", type="double")
 parser$add_argument("--prefix", type="character")
 parser$add_argument("--polytomiesareswiss", action = "store_true")
+parser$add_argument("--dontplot", action = "store_true")
 
 args <- parser$parse_args()
 
@@ -48,6 +49,7 @@ m <- args$maxtotalsubclades
 p <- args$maxconsecutivesubclades
 prefix <- args$prefix
 s <- args$polytomiesareswiss
+dont_plot_tree <- args$dontplot
 verbose <- F
 
 system(command = paste("mkdir -p", outdir))
@@ -76,16 +78,18 @@ chains <- clean_chains(
   chains = chains
 )
 
-# Plot transmission chains on tree
-tree_plot <- plot_chains_on_tree(
-  chains = chains
-)
-
 # Write out chain data 
 write.table(
   x = chains,
   file = paste(outdir, paste(prefix, "_chains.txt", sep = ""), sep = "/"),
   quote = F, row.names = F, col.names = T, sep = "\t")
-ggsave(
-  file = paste(outdir, paste(prefix, "_chains.png", sep = ""), sep = "/"),
-  plot = tree_plot)
+
+# Plot transmission chains on tree
+if (!dont_plot_tree) {
+  tree_plot <- plot_chains_on_tree(
+    chains = chains
+  )
+  ggsave(
+    file = paste(outdir, paste(prefix, "_chains.png", sep = ""), sep = "/"),
+    plot = tree_plot)
+}
