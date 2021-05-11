@@ -18,9 +18,9 @@ get_country_colors <- function(
     grDevices::colors(), 
     invert = T)]  # These are a zillion colors, but some are really obnoxious 
   all_colors <- gplots::col2hex(all_colors)
-  excluded_colors <- c("#BEAED4", "#CAB2D6", "#B3B3B3", "#FFFF99")  # these are baddies - they look too similar to other colors
+  excluded_colors <- c("#BEAED4", "#CAB2D6", "#B3B3B3", "#FFFF99", "#E7298A")  # these are baddies - they look too similar to other colors
   
-  set.seed(seed = 2500)
+  set.seed(seed = 2600)
   
   initial_colors <- unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
   initial_colors <- initial_colors[!(initial_colors %in% excluded_colors)]
@@ -88,8 +88,15 @@ load_grapevine_results <- function(
   # one row per sample
   sample_metadata <- load_sample_metadata(workdir = workdir)
   samples_data <- pivot_chains_to_samples(
-    chains = chains_data, metadata = sample_metadata
-  ) %>% select(
+    chains = chains_data, metadata = sample_metadata) 
+  if(!("iso_country" %in% colnames(samples_data))) {
+    samples_data <- samples_data %>%
+      mutate(
+        iso_country = country_name_to_iso_code(country),
+        iso_country_exposure = country_name_to_iso_code(country_exposure)
+      )
+  }
+  samples_data <- samples_data %>% select(
     sample, tree, chains_assumption, chain_idx, sample_idx, gisaid_epi_isl, 
     strain, date_str, date, region, iso_country, division, iso_country_exposure, 
     nextstrain_clade, pangolin_lineage, originating_lab, submitting_lab, authors
@@ -128,51 +135,62 @@ load_grapevine_results <- function(
 #' Join ancestral state location estimate for foreign mrca to swiss chain data.
 #' @param s Boolean indicating whether swiss descendents of polytomies are the 
 #' same transmission chain.
+#' @param chains_only If true, only returns chains data, without ASR.
+#' @param chains_dirname Use to specify directory containing chains data per lineage.
 #' @return Dataframe with fields describing transmission chains and normalized 
 #' ancestral state location weights.
-load_chain_asr_data <- function(s, workdir) {
+load_chain_asr_data <- function(
+  s, workdir, chains_only = F, chains_dirname = "chains"
+) {
   s_suffix <- paste("_s_", ifelse(test = s, yes = "T", no = "F"), sep = "")
   chains_suffix <- paste(s_suffix, "_chains.txt$", sep = "")
-  print(paste("Looking for files ending in", chains_suffix, "within", paste(workdir, "tmp/chains", sep = "/")))
+  print(paste("Looking for files ending in", chains_suffix, "within", paste(workdir, "tmp", chains_dirname, sep = "/")))
   chains_files <- list.files(
-    path = paste(workdir, "tmp/chains", sep = "/"), pattern = chains_suffix)
+    path = paste(workdir, "tmp", chains_dirname, sep = "/"), pattern = chains_suffix)
   prefixes <- gsub(x = chains_files, pattern = chains_suffix, replacement = "")
   is_first <- T
   for (i in 1:length(prefixes)) {
     prefix <- prefixes[i]
-    chains_file <- paste(workdir, "tmp/chains", chains_files[i], sep = "/")
-    asr_filename <- paste(prefix, s_suffix, "_tree_data_with_asr.txt", sep = "")
-    asr_file <- paste(workdir, "tmp/asr", asr_filename, sep = "/")
-    asr <- read.delim(file = asr_file, stringsAsFactors = F, quote = "")
+    chains_file <- paste(workdir, "tmp", chains_dirname, chains_files[i], sep = "/")
     chains <- read.delim(file = chains_file, stringsAsFactors = F)
-    origins_tree <- merge(
-      x = chains, y = asr %>% select(node, ends_with("_loc_weight")),
-      all.x = T, by.x = "foreign_mrca", by.y = "node") %>%
-      mutate(tree = paste(prefix, s_suffix, sep = ""))
+    
+    if (!chains_only) {
+      asr_filename <- paste(prefix, s_suffix, "_tree_data_with_asr.txt", sep = "")
+      asr_file <- paste(workdir, "tmp/asr", asr_filename, sep = "/")
+      asr <- read.delim(file = asr_file, stringsAsFactors = F, quote = "")
+      chains_with_asr <- merge(
+        x = chains, y = asr %>% select(node, ends_with("_loc_weight")),
+        all.x = T, by.x = "foreign_mrca", by.y = "node") %>%
+        mutate(tree = paste(prefix, s_suffix, sep = ""))
+    } else {
+      chains_with_asr <- chains %>%
+        mutate(tree = paste(prefix, s_suffix, sep = ""))
+    }
+    
     if (is_first) {
       is_first <- F
-      origins <- origins_tree
+      chains_all <- chains_with_asr
     } else {
-      origins <- merge(x = origins, y = origins_tree, all = T)
+      chains_all <- merge(x = chains_all, y = chains_with_asr, all = T)
     }
   }
   
   # Apply manual correction: LSD returns '2021' for date of tips with date '2020-12-31'
-  origins[
-    origins$size == 1 & 
-      origins$ch_tmrca == "2021" & 
-      grepl(x = origins$tips, pattern = "2020-12-31"), "ch_tmrca"] <- "2020-12-31"
-  origins_with_imprecise_ch_mrca <- origins %>%
-    filter(is.na(as.Date(origins$ch_tmrca)))
-  if (nrow(origins_with_imprecise_ch_mrca) > 0) {
+  chains_all[
+    chains_all$size == 1 & 
+      chains_all$ch_tmrca == "2021" & 
+      grepl(x = chains_all$tips, pattern = "2020-12-31"), "ch_tmrca"] <- "2020-12-31"
+  chains_with_imprecise_ch_mrca <- chains_all %>%
+    filter(is.na(as.Date(chains_all$ch_tmrca)))
+  if (nrow(chains_with_imprecise_ch_mrca) > 0) {
     warning(paste(
       "Some chains have imprecise ch_tmrca estimate.", 
       "LSD mysteriously replaces dates for tips on 2020-12-31 with 2021,", 
       "but this problem is already manually fixed in this function.", 
       "What else could be wrong?"))
-    print(origins_with_imprecise_ch_mrca)
+    print(chains_with_imprecise_ch_mrca)
   }
-  return(origins)
+  return(chains_all)
 }
 
 #' @param workdir Directory containing grapevine's results
@@ -459,7 +477,7 @@ plot_chains <- function(
 #' @param grapevine_results Pre-loaded results of grapevine pipeline.
 #' @param country_colors Named list with color values for countries.
 plot_chain_origins <- function(
-  workdir, grapevine_results, outdir = NULL, country_colors
+  workdir, grapevine_results, outdir = NULL, country_colors, origins_to_color = NULL
 ) {
   # Count each origin once per unique foreign MRCA
   origins_data <- get_origin_prior_vs_posterior_data(
@@ -482,23 +500,30 @@ plot_chain_origins <- function(
     origins_representative = origins_per_chain,
     posterior_date = "ch_tmrca")
   
-  most_common_origins <- get_most_common_origins_to_plot(
-    origins_data = origins_data)
-  most_common_origins_per_chain <- get_most_common_origins_to_plot(
-    origins_data = origins_data_per_chain)
+  if (is.null(origins_to_color)) {
+    most_common_origins <- get_most_common_origins_to_plot(
+      origins_data = origins_data)
+    most_common_origins_per_chain <- get_most_common_origins_to_plot(
+      origins_data = origins_data_per_chain)
+    origins_to_color = most_common_origins$iso_country
+    origins_per_chain_to_color = most_common_origins_per_chain$iso_country
+  } else {
+    origins_to_color <- origins_to_color
+    origins_per_chain_to_color <- origins_to_color
+  }
   
   origins_plot <- make_origins_plot(
     country_colors = country_colors, 
     origins_data = origins_data, 
-    most_common_origins = most_common_origins)
+    origins_to_color = origins_to_color)
   origins_per_chain_plot <- make_origins_plot(
     country_colors = country_colors, 
     origins_data = origins_data_per_chain, 
-    most_common_origins = most_common_origins_per_chain)
+    origins_to_color = origins_per_chain_to_color)
   origins_per_chain_ch_tmrca_plot <- make_origins_plot(
     country_colors = country_colors, 
     origins_data = origins_data_per_chain_ch_mrca, 
-    most_common_origins = most_common_origins_per_chain)
+    origins_to_color = origins_per_chain_to_color)
   
   if (!is.null(outdir)) {
     save_origins_plot(
@@ -660,11 +685,11 @@ get_most_common_origins_to_plot <- function(
   return(most_common_origins)
 }
 
-make_origins_plot <- function(origins_data, country_colors, most_common_origins) {
+make_origins_plot <- function(origins_data, country_colors, origins_to_color) {
   origins_data_to_plot <- origins_data %>%
     mutate(
       origin_to_plot = case_when(
-        iso_country %in% most_common_origins$iso_country ~ iso_country,
+        iso_country %in% origins_to_color ~ iso_country,
         T ~ "OTHER"
       )
     ) %>%
@@ -758,14 +783,16 @@ table_chain_origins <- function(
   n_origins_to_table = 15, origins, return_table = F
 ) {
   # Load prior 
-  prior_origins_long <- load_origin_prior(workdir = workdir)
+  prior_origins_long <- load_travel_context(workdir = workdir)
   # Load posterior
   posterior_origins_long <- pivot_origins_longer(origins)
   
   # Summarize prior and posterior origin contributions by period
-  complete_period_breaks <- c(
-    range(c(prior_origins_long$date, posterior_origins_long$foreign_tmrca)), 
-    period_breaks)  # most extreme dates + specified intermediate breakpoints
+  dates_range <- range(c(prior_origins_long$date, posterior_origins_long$foreign_tmrca))
+  complete_period_breaks <- unique(c(
+    min(dates_range, period_breaks),
+    max(dates_range, period_breaks),
+    period_breaks))  # most extreme dates + specified intermediate breakpoints
   posterior_by_period <- posterior_origins_long %>%
     mutate(
       period = cut.Date(x = as.Date(foreign_tmrca), 
@@ -774,33 +801,32 @@ table_chain_origins <- function(
     group_by(period, origin) %>%
     summarise(asr_contribution = sum(asr_contribution, na.rm = T)) %>%
     group_by(period) %>%
-    mutate(frac_posterior = asr_contribution / sum(asr_contribution),
-           iso_code = country_name_to_iso_code(country = origin)) %>%
-    select(-c(origin))
+    mutate(frac_posterior = asr_contribution / sum(asr_contribution)) %>%
+    rename(iso_country = origin)
   prior_by_period <- prior_origins_long %>%
     mutate(
       period = cut.Date(x = as.Date(date), 
                         breaks = as.Date(complete_period_breaks),
                         include.lowest = T)) %>%
-    group_by(period, iso_code) %>%
-    summarise(n_infectious_inds = sum(n_infectious_inds, na.rm = T)) %>%
+    group_by(period, iso_country) %>%
+    summarise(n_inds = sum(n_inds, na.rm = T)) %>%
     group_by(period) %>%
-    mutate(frac_prior = n_infectious_inds / sum(n_infectious_inds))
+    mutate(frac_prior = n_inds / sum(n_inds))
   posterior_vs_prior_by_period <- merge(
-    x = posterior_by_period, y = prior_by_period, by = c("period", "iso_code"),
+    x = posterior_by_period, y = prior_by_period, by = c("period", "iso_country"),
     all = T) %>%
     mutate(frac_posterior_to_frac_prior_ratio = frac_posterior / frac_prior)
   
   # Format results table for top posterior origins, write out 
   most_common_origins <- get_most_common_origins(
-    origins_long = origins_long, n = n_origins_to_table)
+    origins_long = posterior_origins_long, n = n_origins_to_table)
   posterior_vs_prior_by_period_to_table <- posterior_vs_prior_by_period %>%
-    filter(iso_code %in% most_common_origins) %>%
-    select(period, frac_posterior_to_frac_prior_ratio, iso_code) %>%
+    filter(iso_country %in% most_common_origins$origin) %>%
+    select(period, frac_posterior_to_frac_prior_ratio, iso_country) %>%
     mutate(
       frac_posterior_to_frac_prior_ratio = signif(
         frac_posterior_to_frac_prior_ratio, digits = 2),
-      country = iso_code_to_country_name(iso_code = iso_code)) %>%
+      country = iso_code_to_country_name(iso_code = iso_country)) %>%
     tidyr::pivot_wider(
       names_from = period,
       values_from = frac_posterior_to_frac_prior_ratio,
@@ -987,6 +1013,7 @@ plot_introductions_and_extinctions <- function(
   ggsave(
     file = paste(outdir, "introductions_and_extinctions.png", sep = "/"), 
     plot = introductions_and_extinctions_plot)
+  return(introductions_and_extinctions_plot)
 }
 
 #' @return Dataframe with columns date (at daily frequency), iso_code, 
@@ -1019,12 +1046,20 @@ get_travel_quarantine_by_country_day <- function(db_connection) {
   return(travel_quarantine_by_country_day)
 }
 
-get_country_incidence <- function(db_connection, min_date, max_date) {
-  country_incidence <- dplyr::tbl(db_connection, "ext_owid_global_cases") %>%
-    select(iso_code, date, new_cases_per_million, new_cases) %>%
+#' @param iso_country List of country codes; if NULL (default) returns all.
+get_country_incidence <- function(db_connection, min_date, max_date, iso_countries = NULL) {
+  country_incidence_unfiltered <- dplyr::tbl(db_connection, "ext_owid_global_cases") %>%
+    select(iso_country, date, new_cases_per_million, new_cases) %>%
     filter(date >= min_date, date <= max_date) %>%
-    collect() %>%
-    tidyr::complete(date = seq.Date(min_date, max_date, by = "day"), iso_code) %>%
+    collect()
+  if (is.null(iso_countries)) {
+    country_incidence_filtered <- country_incidence_unfiltered
+  } else {
+    country_incidence_filtered <- country_incidence_unfiltered %>%
+      filter(iso_country %in% !! iso_countries)
+  }
+  country_incidence <- country_incidence_filtered %>%
+    tidyr::complete(date = seq.Date(min_date, max_date, by = "day"), iso_country) %>%
     mutate(
       new_cases_per_million = case_when(
         is.na(new_cases_per_million) ~ 0,  # assume days without data have 0 new cases
@@ -1055,41 +1090,20 @@ warn_missing_incidence_data <- function(
 
 #' Get number of cases by exposure country and date of case confirmation from 
 #' BAG meldeformular.
-#' Null entries for 'exp_land' or entries of 'Schweiz' in BAG meldeformular are not reported.
+#' Null/unknown entries for 'iso_exp_land' or entries of 'CHE' in BAG meldeformular are not reported.
 get_exposures_per_country_day <- function(db_connection, min_date, max_date) {
   print("Getting number of cases by exposure country and date of case confirmation from BAG meldeformular.")
   exposures_per_country_day <- dplyr::tbl(
     db_connection, "bag_meldeformular") %>%
-    filter(!is.na(exp_land), exp_land != "Schweiz", 
+    filter(!is.na(iso_country_exp), iso_country_exp != "CHE", iso_country_exp != "XXX", 
            fall_dt <= !! max_date, fall_dt >= !! min_date) %>%
-    select(exp_land, fall_dt) %>%
+    select(iso_country_exp, fall_dt) %>%
     collect() %>%
     rename("date" = "fall_dt") %>%
-    group_by(date, exp_land) %>%
-    summarise(n_exposures = n()) %>%
-    mutate(exp_land = recode(
-      exp_land, 
-      "Deutschland ohne nähere Angaben" = "Deutschland"))
-  country_translation <- dplyr::tbl(db_connection, "country") %>% 
-    collect() %>%
-    rename("exp_land" = "german_name")
-  exposures_per_country_day_2 <- left_join(
-    x = exposures_per_country_day, y = country_translation, 
-    na_matches = "never", by = "exp_land") %>%
-    rename("iso_code" = "iso3166_alpha3_code")
+    group_by(date, iso_country_exp) %>%
+    summarise(n_exposures = n())
   
-  to_remove <- exposures_per_country_day_2 %>%
-    filter(is.na(iso_code)) %>%
-    select(english_name, exp_land, n_exposures, date)
-  if (nrow(to_remove) > 0) {
-    warning("Removing these locations from exposure data because no iso code found.\n",
-            paste(capture.output(print(to_remove)), collapse = "\n"))
-  }
-  exposures_per_country_day_2 <- exposures_per_country_day_2 %>% 
-    filter(!is.na(iso_code)) %>%
-    select(-c(english_name, exp_land))
-  
-  return(exposures_per_country_day_2)
+  return(exposures_per_country_day)
 }
 
 #' Get distance from each country to Switzerland
@@ -1186,18 +1200,21 @@ plot_tree <- function(
   
   tree_data_to_plot <- tree_data_with_asr %>% 
     mutate(
-      node_annotation = case_when(
-        node %in% chains$ch_mrca ~ "Swiss MRCA",
-        T ~ ""),
-      tip_type  = case_when(
-        travel_context ~ "travel context",
-        similarity_context ~ "genetic context",
-        focal_sequence ~ "",
-        T ~ "root"))
+      node_annotation = "",
+      tip_type = "")
+      # node_annotation = case_when(
+      #   node %in% chains$ch_mrca ~ "Swiss MRCA",
+      #   T ~ ""),
+      # tip_type  = case_when(
+      #   travel_context ~ "travel context",
+      #   similarity_context ~ "genetic context",
+      #   focal_sequence ~ "",
+      #   T ~ "root"))
   
   # Apply manual correction: LSD returns '2021' for date of tips with date '2020-12-31'
   tree_data_to_plot$date <- as.character(tree_data_to_plot$date)
   tree_data_to_plot[tree_data_to_plot$date == "2021" & !is.na(tree_data_to_plot$label) & grepl(x = tree_data_to_plot$label, pattern = "2020-12-31"), "date"] <- "2020-12-31"
+  tree_data_to_plot <- tree_data_to_plot %>% filter(node > 0)
   
   tree_to_plot <- full_join(tree, tree_data_to_plot)
   
@@ -1213,15 +1230,16 @@ plot_tree <- function(
     tr = tree_to_plot,
     mrsd = max(as.Date(tree_data_to_plot$date)), 
     as.Date = T) +
-    geom_inset(insets = node_location_pies_colored) +
+    # geom_inset(insets = node_location_pies_colored) +
     geom_nodelab(aes(
       label = node_annotation)) +
     geom_tiplab(aes(
-      label = case_when(
-        tip_type != "" ~ paste(iso_code_to_country_name(iso_country), tip_type, sep = ": "),
-        T ~ iso_code_to_country_name(iso_country)),
+      label = iso_code_to_country_name(iso_country),
+      # label = case_when(
+      #   tip_type != "" ~ paste(iso_code_to_country_name(iso_country), tip_type, sep = ": "),
+      #   T ~ iso_code_to_country_name(iso_country)),
       color = iso_country),
-      hjust = -0.1) +
+      hjust = -0.1, size = 2) +
     scale_color_manual(values = country_colors) +
     scale_x_date(
       date_labels = "%b. %Y",
