@@ -2,6 +2,7 @@ source("database/R/utility.R")
 source("utility_functions.R")
 source("generate_alignments/functions.R")
 require(dplyr)
+require(ggplot2)
 
 # min_date <- "2020-01-01"
 # max_date <- "2020-12-31"
@@ -55,11 +56,11 @@ system(command = paste("mkdir -p", outdir))
 qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
   filter(
     date <= !! max_date,
-    date >= !! min_date, 
+    date >= !! min_date,
     length >= min_length,
-    host == 'Human', 
-    nextclade_qc_snp_clusters_status == 'good', 
-    nextclade_qc_private_mutations_status == 'good', 
+    host == 'Human',
+    nextclade_qc_snp_clusters_status == 'good',
+    nextclade_qc_private_mutations_status == 'good',
     nextclade_qc_overall_status != 'bad')
 
 # Get pangolin lineages to write out alignments for

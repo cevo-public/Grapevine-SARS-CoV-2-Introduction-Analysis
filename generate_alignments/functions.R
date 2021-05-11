@@ -652,7 +652,17 @@ get_travel_strains <- function(
     outdir = outdir,
     qcd_gisaid_query = qcd_gisaid_query)
   if (sum(travel_context$n_seqs_actual) == 0) {
-    stop("No travel context sequences selected. Either increase timeframe or travel context scale factor.")
+    warning("No travel context sequences selected. If this is not desired, either increase timeframe or travel context scale factor.")
+    travel_strains <- data.frame(
+      gisaid_epi_isl = NA,
+      iso_country = NA,
+      date = NA,
+      date_str = NA,
+      pangolin_lineage = NA)
+    write.csv(x = travel_strains,
+            file = paste(outdir, "travel_strains.txt", sep = "/"),
+            row.names = F)
+    return(travel_strains)
   }
   
   print("Getting available sequences per country month from database table gisaid_sequence.")
