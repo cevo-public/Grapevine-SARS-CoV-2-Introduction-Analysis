@@ -20,10 +20,10 @@ system(command = paste("mkdir -p", outdir))
 
 print("Loading sample metadata and inferred transmission chain data.")
 sample_metadata <- load_sample_metadata(workdir = workdir)
-chains_max <- load_chains_asr(s = F, workdir = workdir) %>%
+chains_max <- load_chain_asr_data(s = F, workdir = workdir) %>%
   mutate(chain_idx = 1:n(),
          chains_assumption = "max")
-chains_min <- load_chains_asr(s = T, workdir = workdir) %>%
+chains_min <- load_chain_asr_data(s = T, workdir = workdir) %>%
   mutate(chain_idx = 1:n(),
          chains_assumption = "min")
 
