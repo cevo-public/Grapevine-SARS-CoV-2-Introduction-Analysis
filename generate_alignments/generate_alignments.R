@@ -17,6 +17,7 @@ require(ggplot2)
 # travel_data_weights <- "1,1,1"
 # favor_exposures <- F
 # subsample_by_canton <- T
+# which_trees <- "all"
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
@@ -29,6 +30,7 @@ parser$add_argument("--outdir", type="character")
 parser$add_argument("--pythonpath", type="character", help="Path to python3 with required packages installed.")
 parser$add_argument("--reference", type="character", help="Reference sequence.")
 parser$add_argument("--ntrees", default = -1, type="integer", help="For testing, one can specify a number of alignments to output. Default -1 results in all alignments being generated.")
+parser$add_argument("--whichtrees", default = '.*', type="character", help="R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'")
 parser$add_argument("--traveldataweights", default = "1,1,1", help="Number of times each exposure, tourist, and commuter permit are counted in setting up the travel context set.")
 parser$add_argument("--favorexposures", action="store_true")
 parser$add_argument("--subsamplebycanton", action="store_true")
@@ -45,6 +47,7 @@ outdir <- args$outdir
 python_path <- args$pythonpath
 reference <- args$reference
 n_trees <- args$ntrees
+which_trees <- args$whichtrees
 travel_data_weights <- args$traveldataweights
 favor_exposures <- args$favorexposures
 subsample_by_canton <- args$subsamplebycanton
@@ -56,15 +59,33 @@ db_connection = open_database_connection()
 system(command = paste("mkdir -p", outdir))
 
 # QC GISAID sequences
-qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
+if (which_trees == '.*') {
+  qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
   filter(
     date <= !! max_date,
-    date >= !! min_date, 
+    date >= !! min_date,
     length >= min_length,
-    host == 'Human', 
-    nextclade_qc_snp_clusters_status == 'good', 
-    nextclade_qc_private_mutations_status == 'good', 
+    host == 'Human',
+    nextclade_qc_snp_clusters_status == 'good',
+    nextclade_qc_private_mutations_status == 'good',
     nextclade_qc_overall_status != 'bad')
+} else {
+  qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
+  filter(
+    date <= !! max_date,
+    date >= !! min_date,
+    length >= min_length,
+    host == 'Human',
+    grepl(x = pangolin_lineage, pattern = which_trees))
+  unique_lineages <- qcd_gisaid_query %>%
+    distinct(pangolin_lineage) %>%
+    collect()
+  cat(paste(
+    "Specified which_trees = '", which_trees, "' ",
+    "so not including nextclade qc filters and", 
+    " only including sequences from these lineages:\n", 
+    paste0(unique_lineages$pangolin_lineage, collapse = "\n"), sep = ""))
+}
 
 # Get pangolin lineages to write out alignments for
 lineages <- get_pangolin_lineages(
