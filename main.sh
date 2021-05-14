@@ -8,14 +8,14 @@ set -euo pipefail
 MIN_DATE=2020-01-01
 MAX_DATE=2020-12-31
 MIN_LENGTH=27000
-MAX_SAMPLING_FRACTION=0.005
-TRAVEL_CONTEXT_SCALE_FACTOR=0.5
+MAX_SAMPLING_FRACTION=0.01
+TRAVEL_CONTEXT_SCALE_FACTOR=0
 SIMILARITY_CONTEXT_SCALE_FACTOR=1
-TRAVEL_DATA_WEIGHTS="1,1,0"  # exposures, tourists, commuters
-FAVOR_FOREIGN_EXP_SEQS=false  # true to preferentially include Swiss sequences with GISAID- or BAG-recoreded foreign exposure; false to choose swiss sequences without regard to exposure location
+TRAVEL_DATA_WEIGHTS="1,1,1"  # exposures, tourists, commuters
+SUBSAMPLE_BY_CANTON=true  # true to subsample within switzerland proportional to confirmed cases at the cantonal level
 
 # These settings should not generally be modified
-WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here 
+WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here
 REFERENCE=$WORKDIR/input/reference.fasta
 IQTREE=/app/iqtree-2.0.6-Linux/bin/iqtree2
 PYTHON=python3
@@ -87,15 +87,15 @@ echo "MIN_LENGTH: $MIN_LENGTH" >> ${OUTPUT_DIR}/main_settings.txt
 echo "MAX_SAMPLING_FRACTION: $MAX_SAMPLING_FRACTION" >> ${OUTPUT_DIR}/main_settings.txt
 echo "TRAVEL_CONTEXT_SCALE_FACTOR: $TRAVEL_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
 echo "SIMILARITY_CONTEXT_SCALE_FACTOR: $SIMILARITY_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
-echo "TRAVEL_DATA_WEIGHTS: $TRAVEL_DATA_WEIGHTS" >> ${OUTPUT_DIR}/main_settings.txt 
-echo "FAVOR_FOREIGN_EXP_SEQS: $FAVOR_FOREIGN_EXP_SEQS" >> ${OUTPUT_DIR}/main_settings.txt
+echo "TRAVEL_DATA_WEIGHTS: $TRAVEL_DATA_WEIGHTS" >> ${OUTPUT_DIR}/main_settings.txt
+echo "SUBSAMPLE_BY_CANTON: $SUBSAMPLE_BY_CANTON" >> ${OUTPUT_DIR}/main_settings.txt
 
 # ------------------------------------------------------
 echo "--- Generate one alignment per pangolin lineage ---"
 
-if [ "$FAVOR_FOREIGN_EXP_SEQS" = "true" ]
+if [ "$SUBSAMPLE_BY_CANTON" = "true" ]
 then
-    echo "Favoring Swiss sequences with foreign exposure."
+    echo "Subsampling by canton chosen."
     Rscript generate_alignments/generate_alignments.R \
         --mindate $MIN_DATE \
         --maxdate $MAX_DATE \
@@ -108,8 +108,9 @@ then
         --pythonpath $PYTHON \
         --reference $REFERENCE \
         --ntrees $N_TREES \
-        --favorexposures
+        --subsamplebycanton
 else 
+    echo "Subsampling at all-Switzerland level chosen."
     Rscript generate_alignments/generate_alignments.R \
         --mindate $MIN_DATE \
         --maxdate $MAX_DATE \
@@ -137,6 +138,9 @@ for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
         -n 2 \
         -me 0.05
 done
+# ninit = number initial trees (1 parsimony, 1 BIONJ) which are then optimized with NNI moves
+# n = number of iterations until stop
+# me = log-likelihood epsilon
 
 # ------------------------------------------------------
 echo "--- Date rooted trees with LSD implemented in IQTREE: root defined by outgroup EPI_ISL_406798|2019-12-26 ---"
@@ -160,7 +164,14 @@ for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
         --clock-sd 0.4 \
         --date-options "-a b(2019.872,2019.98) -u 0 -t 0.0008" \
         -pre $TMP_LSD/$PREFIX
+        # by default, -l is 0.5/seq_length and gives the threshold over which branches are forced to be greater than the minimum branch length
+        # so by default, only branches longer than 0.5 substitutions must be greater than 0 length
 done
+
+# date-ci = number of replicates to compute confidence interval
+# date-outlier = # z-score cutoff to exclude outlier nodes
+# clock-sd = std-dev for lognormal relaxed clock (for uncertainty estimation)
+# -a gives root date contstraints, -u gives minimum branch length, -t gives lower bound for mutation rate
 
 # ------------------------------------------------------
 echo "--- Pick swiss transmission chains off the tree ---"
@@ -176,8 +187,9 @@ for TREEFILE in $TMP_LSD/*.nex; do
         --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
         --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
         --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T \
-        --polytomiesareswiss
-done 
+        --polytomiesareswiss \
+        --dontplot
+done
 
 MAX_NONFOCAL_SUBCLADES=3
 MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=1
@@ -189,7 +201,8 @@ for TREEFILE in $TMP_LSD/*.nex; do
         --outdir $TMP_CHAINS \
         --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
         --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
-        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F
+        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F \
+        --dontplot
 done
 
 # ------------------------------------------------------
@@ -205,10 +218,10 @@ for TREEFILE in $TMP_LSD/*.nex ; do
         --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
         --chains $TMP_CHAINS/${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T_chains.txt \
         --outdir $TMP_ASR \
-        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T 
+        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T
 done
 
-for TREEFILE in $TMP_LSD/*.nex ; do 
+for TREEFILE in $TMP_LSD/*.nex ; do
     PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
     Rscript analyze_tree/reconstruct_ancestral_locations_weighted_parsimony.R \
         --tree $TREEFILE \
@@ -219,8 +232,74 @@ for TREEFILE in $TMP_LSD/*.nex ; do
 done
 
 # ------------------------------------------------------
-# echo "--- Generating figures ---"
-# TODO
+echo "--- Picking chains under different chain assumptions ---"
+for MAX_NONFOCAL_SUBCLADES in 1 2 3 4; do
+    for MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES in $(seq -s' ' 1 $MAX_NONFOCAL_SUBCLADES); do
+
+      TMP_CHAINS=$WORKDIR/tmp/chains_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
+      TMP_ASR=$WORKDIR/tmp/asr_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
+      mkdir -p $TMP_CHAINS
+      mkdir -p $TMP_ASR
+
+      # Pick chains
+      for TREEFILE in $TMP_LSD/*.nex; do
+          PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
+          Rscript analyze_tree/pick_swiss_transmission_chains.R \
+              --tree $TREEFILE \
+              --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+              --outdir $TMP_CHAINS \
+              --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
+              --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
+              --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T \
+              --polytomiesareswiss \
+              --dontplot
+      done
+
+      for TREEFILE in $TMP_LSD/*.nex; do
+          PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
+          Rscript analyze_tree/pick_swiss_transmission_chains.R \
+              --tree $TREEFILE \
+              --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+              --outdir $TMP_CHAINS \
+              --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
+              --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
+              --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F \
+              --dontplot
+      done
+    done
+done
+
+MAX_NONFOCAL_SUBCLADES=0
+MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=0
+TMP_CHAINS=$WORKDIR/tmp/chains_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
+TMP_ASR=$WORKDIR/tmp/asr_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
+mkdir -p $TMP_CHAINS
+mkdir -p $TMP_ASR
+
+for TREEFILE in $TMP_LSD/*.nex; do
+    PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
+    Rscript analyze_tree/pick_swiss_transmission_chains.R \
+        --tree $TREEFILE \
+        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+        --outdir $TMP_CHAINS \
+        --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
+        --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
+        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T \
+        --polytomiesareswiss \
+        --dontplot
+done
+
+for TREEFILE in $TMP_LSD/*.nex; do
+    PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
+    Rscript analyze_tree/pick_swiss_transmission_chains.R \
+        --tree $TREEFILE \
+        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+        --outdir $TMP_CHAINS \
+        --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
+        --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
+        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F \
+        --dontplot
+done
 
 # ------------------------------------------------------
 echo "--- Finished successfully ---"

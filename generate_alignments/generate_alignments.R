@@ -9,13 +9,14 @@ require(ggplot2)
 # min_length <- 27000
 # travel_context_scale_factor <- 1
 # similarity_context_scale_factor <- 0.5
-# max_samp_frac <- 0.01
+# max_sampling_frac <- 0.01
 # outdir <- "~/Downloads"
 # python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
 # reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
 # n_trees <- -1
 # travel_data_weights <- "1,1,1"
 # favor_exposures <- F
+# subsample_by_canton <- T
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
@@ -30,13 +31,14 @@ parser$add_argument("--reference", type="character", help="Reference sequence.")
 parser$add_argument("--ntrees", default = -1, type="integer", help="For testing, one can specify a number of alignments to output. Default -1 results in all alignments being generated.")
 parser$add_argument("--traveldataweights", default = "1,1,1", help="Number of times each exposure, tourist, and commuter permit are counted in setting up the travel context set.")
 parser$add_argument("--favorexposures", action="store_true")
+parser$add_argument("--subsamplebycanton", action="store_true")
 
 args <- parser$parse_args()
 
 min_date <- args$mindate
 max_date <- args$maxdate
 min_length <- args$minlength
-max_samp_frac <- args$maxsamplingfrac
+max_sampling_frac <- args$maxsamplingfrac
 travel_context_scale_factor <- args$travelcontextscalefactor
 similarity_context_scale_factor <- args$similaritycontextscalefactor
 outdir <- args$outdir
@@ -45,6 +47,7 @@ reference <- args$reference
 n_trees <- args$ntrees
 travel_data_weights <- args$traveldataweights
 favor_exposures <- args$favorexposures
+subsample_by_canton <- args$subsamplebycanton
 
 # Hardcoded parameters
 outgroup_gisaid_epi_isls = c("EPI_ISL_406798", "EPI_ISL_402125")  # The nextstrain global tree is rooted between these two sequences (Wuhan/WH01/2019 & Wuhan/Hu-1/2019), which you can see by filtering the tree to Chinese sequences (to make it reasonably small), downloading the newick tree, and plotting it.
@@ -56,11 +59,11 @@ system(command = paste("mkdir -p", outdir))
 qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
   filter(
     date <= !! max_date,
-    date >= !! min_date,
+    date >= !! min_date, 
     length >= min_length,
-    host == 'Human',
-    nextclade_qc_snp_clusters_status == 'good',
-    nextclade_qc_private_mutations_status == 'good',
+    host == 'Human', 
+    nextclade_qc_snp_clusters_status == 'good', 
+    nextclade_qc_private_mutations_status == 'good', 
     nextclade_qc_overall_status != 'bad')
 
 # Get pangolin lineages to write out alignments for
@@ -73,10 +76,11 @@ lineages <- get_pangolin_lineages(
 # Downsample Swiss sequences
 qcd_gisaid_query <- downsample_swiss_sequences(
   qcd_gisaid_query = qcd_gisaid_query,
-  max_sampling_frac = max_samp_frac,
+  max_sampling_frac = max_sampling_frac,
   favor_exposures = favor_exposures,
   db_connection = db_connection,
-  outdir = outdir
+  outdir = outdir,
+  subsample_by_canton = subsample_by_canton
 )
 
 if (n_trees > 0) {
