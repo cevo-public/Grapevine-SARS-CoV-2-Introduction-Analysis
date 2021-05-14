@@ -298,19 +298,18 @@ get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query, by_can
     filter(iso_country == "CHE") %>%
     mutate(
       is_viollier = originating_lab == "Viollier AG" & submitting_lab == "Department of Biosystems Science and Engineering, ETH Zürich",
-      week = date_trunc('week', date)) %>%
+      week = as.Date(date_trunc('week', date))) %>%
     group_by(is_viollier, week, division) %>%
-    summarize(n_seqs = n()) %>%
-    ungroup() %>%
+    summarize(n_seqs = n(), .groups = "drop") %>%
     left_join(
       y = dplyr::tbl(db_connection, "swiss_canton") %>% 
         select(gisaid_division, canton_code),
       by = c("division" = "gisaid_division"))
   
   case_data_query <- dplyr::tbl(db_connection, "bag_test_numbers") %>%
-    mutate(week = date_trunc('week', date)) %>%
+    mutate(week = as.Date(date_trunc('week', date))) %>%
     group_by(week, canton) %>%
-    summarise(n_conf_cases = sum(positive_tests, na.rm = T))
+    summarise(n_conf_cases = sum(positive_tests, na.rm = T), .groups = "drop")
   
   weekly_case_and_seq_data <- dplyr::full_join(
     x = sequence_data_query, y = case_data_query, 

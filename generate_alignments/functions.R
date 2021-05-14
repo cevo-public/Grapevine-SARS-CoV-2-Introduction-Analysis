@@ -16,7 +16,7 @@ downsample_swiss_sequences <- function (
   # get available sequences and bag exposure data
   qcd_gisaid_query_temp <- qcd_gisaid_query %>%
     filter(iso_country == "CHE") %>%
-    mutate(week = date_trunc('week', date))
+    mutate(week = as.Date(date_trunc('week', date)))
   bag_exposures <- get_bag_exposures(db_connection)
   
   # Get available seqs and cases numbers per week, possibly stratified by canton
@@ -56,6 +56,7 @@ downsample_swiss_sequences <- function (
   all_samples <- qcd_gisaid_query_temp %>%
     select(strain, week, division, gisaid_epi_isl, iso_country_exposure) %>%
     collect()
+  print(paste("There are a total of", nrow(all_samples), "samples passing the qcd_gisaid_query"))
   sampled_strains <- c()
   for (i in 1:nrow(sampling_data)) {
     week_i <- sampling_data[[i, "week"]]
@@ -68,9 +69,13 @@ downsample_swiss_sequences <- function (
     }
     
     if (is.na(canton_code_i)) {  # if not stratifying by canton, or the canton is not known, take randomly from all Switzerland
+      print("Sampling from all Switzerland")
       all_samples_i <- all_samples %>%
-        filter(week == week_i, !(strain %in% sampled_strains))
+        filter(week == week_i)
+      all_samples_i <- all_samples %>%
+        filter(week == week_i, !(strain %in% !! sampled_strains))
     } else if (is.na(division_i)) {  # if no sequences available, continue
+      print("Trying to sample from a canton, but division is NA, interpreting as no samples available")
       if (verbose) {
         print(paste(
           "sampling", n_samples_i, 
@@ -81,7 +86,7 @@ downsample_swiss_sequences <- function (
       next
     } else {  # else take from the right canton
       all_samples_i <- all_samples %>%
-        filter(week == week_i, division == division_i, !(strain %in% sampled_strains))
+        filter(week == week_i, division == division_i, !(strain %in% !! sampled_strains))
     }
     if (verbose) {
       print(paste(
@@ -143,7 +148,7 @@ report_downsampling <- function(sampling_data, outdir, max_sampling_frac) {
     geom_col(aes(y = -n_conf_cases * max_sampling_frac, 
                  fill = paste(max_sampling_frac * 100, "% of confirmed cases", sep = ""))) + 
     facet_wrap(canton_code ~ ., scales = "free_y") +
-    scale_x_date(date_breaks = "1 month", date_labels = "%b. %y") + 
+    scale_x_date(date_breaks = "2 months", date_labels = "%b. %y") +
     scale_y_continuous(limits = symmetric_limits) + 
     theme_bw() + 
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
