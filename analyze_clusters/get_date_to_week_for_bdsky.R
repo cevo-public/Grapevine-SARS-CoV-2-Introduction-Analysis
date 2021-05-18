@@ -3,15 +3,25 @@
 
 source("database/R/utility.R")
 source("utility_functions.R")
+require(dplyr)
 
-outdir <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/jan-dec_-01_max_sampling_1_travel_1_sim_context-sf_111_travel-wt/output/transmission_chain_alignments"
+# outdir <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/jan-dec_-01_max_sampling_1_travel_1_sim_context-sf_111_travel-wt/output/transmission_chain_alignments"
+
+parser <- argparse::ArgumentParser()
+parser$add_argument("--outdir", type = "character")
+parser$add_argument("--maxdate", type = "character")
+parser$add_argument("--mindate", type = "character", default = "2020-01-01")
+
+args <- parser$parse_args()
+
+outdir <- args$outdir
+max_date <- as.Date(args$maxdate)
+min_date <- as.Date(args$mindate)
 
 # Connect to local version of database
 db_connection <- open_database_connection("local")
 
 # Generate date data
-min_date <- as.Date("2020-01-01")
-max_date <- as.Date("2020-12-31")
 dates <- data.frame(date = seq.Date(from = min_date, to = max_date, by = "day"))
 
 # Create temporary table for date mapping

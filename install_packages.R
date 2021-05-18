@@ -8,7 +8,10 @@ install.packages(c(
   "config",
   "DBI",
   "countrycode",
-  "RColorBrewer"
+  "RColorBrewer",
+  "RPostgres",
+  "gplots",
+  "ggpubr"
 ))
 
 if (!requireNamespace("BiocManager", quietly = TRUE))
