@@ -35,7 +35,6 @@ viollier_samples <- rbind(
          submitting_lab == "Department of Biosystems Science and Engineering, ETH Zürich",  # because some samples sequenced by University Hospital Basel, Clinical Bacteriology also come from Viollier
          focal_sequence) %>%  
   tidyr::unite(col = "header", strain, sample, chain_idx, sep = "|", remove = F) %>%  # headers form: <strain with "\" & " " --> "_">|<gisaid_epi_isl>|<yyyy-mm-dd date>|<cluster_idx>
-  mutate(after_may_1 = date >= as.Date("2020-05-01")) %>%
   filter(date <= max_date)
   
 max_chain_header_mapping <- unlist(
@@ -53,23 +52,6 @@ min_chain_header_mapping <- unlist(
 names(min_chain_header_mapping) <- unlist(
   viollier_samples %>%
     filter(chains_assumption == "min") %>%
-    select(gisaid_epi_isl))
-
-max_chain_after_may_1_header_mapping <- unlist(
-  viollier_samples %>%
-    filter(chains_assumption == "max", after_may_1) %>%
-    select(header))
-names(max_chain_after_may_1_header_mapping) <- unlist(
-  viollier_samples %>%
-    filter(chains_assumption == "max", after_may_1) %>%
-    select(gisaid_epi_isl))
-min_chain_after_may_1_header_mapping <- unlist(
-  viollier_samples %>%
-    filter(chains_assumption == "min", after_may_1) %>%
-    select(header))
-names(min_chain_after_may_1_header_mapping) <- unlist(
-  viollier_samples %>%
-    filter(chains_assumption == "min", after_may_1) %>%
     select(gisaid_epi_isl))
 
 print("Writing out alignments.")
@@ -90,24 +72,6 @@ export_seqs_as_fasta(
   header_mapping = min_chain_header_mapping,
   seq_col = "aligned_seq")
 
-# Repeat analysis with only samples beginning May 1
-export_seqs_as_fasta(
-  db_connection = db_connection,
-  sample_names = names(max_chain_after_may_1_header_mapping),
-  seq_outfile = paste(outdir, "max_chains_after_may_1.fasta", sep = "/"),
-  table = "gisaid_sequence",
-  sample_name_col = "gisaid_epi_isl",
-  header_mapping = max_chain_after_may_1_header_mapping,
-  seq_col = "aligned_seq")
-export_seqs_as_fasta(
-  db_connection = db_connection,
-  sample_names = names(min_chain_after_may_1_header_mapping),
-  seq_outfile = paste(outdir, "min_chains_after_may_1.fasta", sep = "/"),
-  table = "gisaid_sequence",
-  sample_name_col = "gisaid_epi_isl",
-  header_mapping = min_chain_after_may_1_header_mapping,
-  seq_col = "aligned_seq")
-
 print("Writing out summary information for bdsky setup.")
 alignment_summary <- viollier_samples %>% 
   group_by(chains_assumption) %>%
@@ -117,28 +81,8 @@ chain_summary <- rbind(chains_max, chains_min) %>%
   group_by(chains_assumption) %>%
   summarise(n_singleton_chains = sum(size == 1),
             n_seqs_in_biggest_chain = max(size))
-summary <- merge(alignment_summary, chain_summary)  %>%
-  mutate(timespan = "after jan 1")
+summary <- merge(alignment_summary, chain_summary)
 
-alignment_after_may_1_summary <- viollier_samples %>% 
-  filter(after_may_1) %>%
-  group_by(chains_assumption) %>%
-  summarise(n_seqs_in_alignment = n(),
-            n_unique_chains = length(unique(chain_idx)))
-chain_after_may_1_summary <- viollier_samples %>%
-  filter(after_may_1) %>%
-  group_by(chain_idx, chains_assumption) %>%
-  summarise(size = n()) %>%
-  ungroup() %>%
-  group_by(chains_assumption) %>%
-  summarise(n_singleton_chains = sum(size == 1),
-            n_seqs_in_biggest_chain = max(size))
-
-summary_after_may_1 <- merge(alignment_after_may_1_summary, chain_after_may_1_summary) %>%
-  mutate(timespan = "after may 1")
-
-summary_to_print <- rbind(x = summary, y = summary_after_may_1)
-
-write.csv(x = summary_to_print,
+write.csv(x = summary,
           file = paste(outdir, "chains_summary.csv", sep = "/"),
           row.names = F)
