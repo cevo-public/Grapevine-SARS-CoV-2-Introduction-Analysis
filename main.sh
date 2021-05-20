@@ -14,6 +14,7 @@ SIMILARITY_CONTEXT_SCALE_FACTOR=3
 TRAVEL_DATA_WEIGHTS="1,1,1"  # exposures, tourists, commuters
 SUBSAMPLE_BY_CANTON=true  # true to subsample within switzerland proportional to confirmed cases at the cantonal level
 WHICH_TREES="B\\.1\\.617(\\.|).*"  # R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. '.*' for all lineages, or for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'"
+PICK_CHAINS_UNDER_OTHER_CRITERIA=false
 
 # These settings should not generally be modified
 WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here
@@ -234,74 +235,78 @@ for TREEFILE in $TMP_LSD/*.nex ; do
 done
 
 # ------------------------------------------------------
-#echo "--- Picking chains under different chain assumptions ---"
-#for MAX_NONFOCAL_SUBCLADES in 1 2 3 4; do
-#    for MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES in $(seq -s' ' 1 $MAX_NONFOCAL_SUBCLADES); do
-#
-#      TMP_CHAINS=$WORKDIR/tmp/chains_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
-#      TMP_ASR=$WORKDIR/tmp/asr_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
-#      mkdir -p $TMP_CHAINS
-#      mkdir -p $TMP_ASR
-#
-#      # Pick chains
-#      for TREEFILE in $TMP_LSD/*.nex; do
-#          PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
-#          Rscript analyze_tree/pick_swiss_transmission_chains.R \
-#              --tree $TREEFILE \
-#              --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
-#              --outdir $TMP_CHAINS \
-#              --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
-#              --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
-#              --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T \
-#              --polytomiesareswiss \
-#              --dontplot
-#      done
-#
-#      for TREEFILE in $TMP_LSD/*.nex; do
-#          PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
-#          Rscript analyze_tree/pick_swiss_transmission_chains.R \
-#              --tree $TREEFILE \
-#              --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
-#              --outdir $TMP_CHAINS \
-#              --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
-#              --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
-#              --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F \
-#              --dontplot
-#      done
-#    done
-#done
-#
-#MAX_NONFOCAL_SUBCLADES=0
-#MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=0
-#TMP_CHAINS=$WORKDIR/tmp/chains_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
-#TMP_ASR=$WORKDIR/tmp/asr_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
-#mkdir -p $TMP_CHAINS
-#mkdir -p $TMP_ASR
-#
-#for TREEFILE in $TMP_LSD/*.nex; do
-#    PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
-#    Rscript analyze_tree/pick_swiss_transmission_chains.R \
-#        --tree $TREEFILE \
-#        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
-#        --outdir $TMP_CHAINS \
-#        --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
-#        --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
-#        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T \
-#        --polytomiesareswiss \
-#        --dontplot
-#done
-#
-#for TREEFILE in $TMP_LSD/*.nex; do
-#    PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
-#    Rscript analyze_tree/pick_swiss_transmission_chains.R \
-#        --tree $TREEFILE \
-#        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
-#        --outdir $TMP_CHAINS \
-#        --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
-#        --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
-#        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F \
-#        --dontplot
-#done
+
+if [ "$PICK_CHAINS_UNDER_OTHER_CRITERIA" = "true" ]
+then
+    echo "--- Picking chains under different chain assumptions ---"
+    for MAX_NONFOCAL_SUBCLADES in 1 2 3 4; do
+        for MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES in $(seq -s' ' 1 $MAX_NONFOCAL_SUBCLADES); do
+
+          TMP_CHAINS=$WORKDIR/tmp/chains_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
+          TMP_ASR=$WORKDIR/tmp/asr_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
+          mkdir -p $TMP_CHAINS
+          mkdir -p $TMP_ASR
+
+          # Pick chains
+          for TREEFILE in $TMP_LSD/*.nex; do
+              PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
+              Rscript analyze_tree/pick_swiss_transmission_chains.R \
+                  --tree $TREEFILE \
+                  --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+                  --outdir $TMP_CHAINS \
+                  --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
+                  --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
+                  --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T \
+                  --polytomiesareswiss \
+                  --dontplot
+          done
+
+          for TREEFILE in $TMP_LSD/*.nex; do
+              PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
+              Rscript analyze_tree/pick_swiss_transmission_chains.R \
+                  --tree $TREEFILE \
+                  --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+                  --outdir $TMP_CHAINS \
+                  --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
+                  --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
+                  --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F \
+                  --dontplot
+          done
+        done
+    done
+
+    MAX_NONFOCAL_SUBCLADES=0
+    MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=0
+    TMP_CHAINS=$WORKDIR/tmp/chains_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
+    TMP_ASR=$WORKDIR/tmp/asr_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}
+    mkdir -p $TMP_CHAINS
+    mkdir -p $TMP_ASR
+
+    for TREEFILE in $TMP_LSD/*.nex; do
+        PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
+        Rscript analyze_tree/pick_swiss_transmission_chains.R \
+            --tree $TREEFILE \
+            --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+            --outdir $TMP_CHAINS \
+            --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
+            --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
+            --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T \
+            --polytomiesareswiss \
+            --dontplot
+    done
+
+    for TREEFILE in $TMP_LSD/*.nex; do
+        PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
+        Rscript analyze_tree/pick_swiss_transmission_chains.R \
+            --tree $TREEFILE \
+            --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+            --outdir $TMP_CHAINS \
+            --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
+            --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
+            --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F \
+            --dontplot
+    done
+fi
 
 # ------------------------------------------------------
 echo "--- Finished successfully ---"
