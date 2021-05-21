@@ -3,6 +3,7 @@ source("utility_functions.R")
 source("generate_alignments/functions.R")
 require(dplyr)
 require(ggplot2)
+require(argparse)
 
 # min_date <- "2020-01-01"
 # max_date <- "2020-12-31"
@@ -30,7 +31,7 @@ parser$add_argument("--outdir", type="character")
 parser$add_argument("--pythonpath", type="character", help="Path to python3 with required packages installed.")
 parser$add_argument("--reference", type="character", help="Reference sequence.")
 parser$add_argument("--ntrees", default = -1, type="integer", help="For testing, one can specify a number of alignments to output. Default -1 results in all alignments being generated.")
-parser$add_argument("--whichtrees", default = '.*', type="character", help="R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'")
+parser$add_argument("--whichtrees", default = "\\.*", type="character", help="R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'")
 parser$add_argument("--traveldataweights", default = "1,1,1", help="Number of times each exposure, tourist, and commuter permit are counted in setting up the travel context set.")
 parser$add_argument("--favorexposures", action="store_true")
 parser$add_argument("--subsamplebycanton", action="store_true")
@@ -59,7 +60,7 @@ db_connection = open_database_connection()
 system(command = paste("mkdir -p", outdir))
 
 # QC GISAID sequences
-if (which_trees == '.*') {
+if (which_trees == '\\.*') {
   qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
   filter(
     date <= !! max_date,
@@ -94,8 +95,8 @@ lineages <- get_pangolin_lineages(
   qcd_gisaid_query = qcd_gisaid_query
 )
 
-# Downsample Swiss sequences
-qcd_gisaid_query <- downsample_swiss_sequences(
+# Select focal sequences
+qcd_gisaid_query <- select_sequences(
   qcd_gisaid_query = qcd_gisaid_query,
   max_sampling_frac = max_sampling_frac,
   favor_exposures = favor_exposures,
@@ -106,33 +107,45 @@ qcd_gisaid_query <- downsample_swiss_sequences(
 
 if (n_trees > 0) {
   n_lineages <- min(n_trees, nrow(lineages))
-  warning(paste("Only generating", n_lineages, "even though there are", nrow(lineages), "total."))
+  warning(paste("Only generating", n_lineages, "trees even though there are", nrow(lineages), "total lineages."))
   lineages <- lineages %>% arrange(is_swiss_TRUE)
   lineages <- lineages[1:n_lineages, ]
 }
 
-# Estimate travel cases by source country and month
-travel_cases <- get_travel_cases(
-  db_connection = db_connection,
-  min_date = min_date,
-  max_date = max_date,
-  travel_data_weights = travel_data_weights,
-  outdir = outdir
-)
+# Select location context sequences
+if (travel_context_scale_factor > 0) {
+  # Estimate travel cases by source country and month
+  travel_cases <- get_travel_cases(
+    db_connection = db_connection,
+    min_date = min_date,
+    max_date = max_date,
+    travel_data_weights = travel_data_weights,
+    outdir = outdir
+  )
 
-# Get travel context set based on travel cases
-n_strains <- nrow(qcd_gisaid_query %>%
-  filter(iso_country == "CHE") %>%
-  collect())
-travel_strains <- get_travel_strains(
-  n_strains = ceiling(n_strains * travel_context_scale_factor),
-  travel_cases = travel_cases,
-  db_connection = db_connection,
-  outdir = outdir,
-  qcd_gisaid_query = qcd_gisaid_query
-)
+  # Get travel context set based on travel cases
+  n_strains <- nrow(qcd_gisaid_query %>%
+    filter(iso_country == "CHE") %>%
+    collect())
+  travel_strains <- get_travel_strains(
+    n_strains = ceiling(n_strains * travel_context_scale_factor),
+    travel_cases = travel_cases,
+    db_connection = db_connection,
+    outdir = outdir,
+    qcd_gisaid_query = qcd_gisaid_query
+  )
+} else {
+  # Return dummy travel strains
+  travel_strains <- data.frame(
+      gisaid_epi_isl = NA,
+      iso_country = NA,
+      date = NA,
+      date_str = NA,
+      pangolin_lineage = NA)
+}
 
-# Get similarity context set based on genetic proximity
+
+# Select genetic proximity context sequences
 similarity_strains <- get_similarity_strains(
   similarity_context_scale_factor = similarity_context_scale_factor,
   lineages = lineages,

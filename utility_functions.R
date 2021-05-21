@@ -294,6 +294,7 @@ get_chain_data_by_tip <- function(chains, metadata = NULL) {
 #' sequences in the gisaid_sequence table from Switzerland passing the filter
 #' criteria.
 get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query, by_canton = F) {
+  print("Getting weekly case and sequence data")
   sequence_data_query <- qcd_gisaid_query %>%
     filter(iso_country == "CHE") %>%
     mutate(
@@ -320,17 +321,23 @@ get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query, by_can
       names_from = "is_viollier", 
       values_from = "n_seqs", 
       names_prefix = "is_viollier_",
-      values_fill = list(n_seqs = 0)) %>%
-    rename("n_seqs_viollier" = "is_viollier_TRUE",
-           "n_seqs_other" = "is_viollier_FALSE") %>%
-    mutate(n_seqs_total = n_seqs_viollier + n_seqs_other,
-           n_seqs_viollier = as.numeric(n_seqs_viollier),
-           n_seqs_other = as.numeric(n_seqs_other),
-           n_seqs_total = as.numeric(n_seqs_total),
-           n_conf_cases = as.numeric(n_conf_cases)) %>%
-    tidyr::replace_na(replace = list(n_conf_cases = 0, 
-                                     n_seqs_total = 0,
-                                     n_seqs_other = 0))
+      values_fill = list(n_seqs = 0))
+    if (!("is_viollier_TRUE" %in% colnames(weekly_case_and_seq_data))) {
+      warning("There are no viollier sequences found in the Swiss dataset.")
+      weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
+        mutate(is_viollier_TRUE = 0)
+    }
+    weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
+      rename("n_seqs_viollier" = "is_viollier_TRUE",
+             "n_seqs_other" = "is_viollier_FALSE") %>%
+      mutate(n_seqs_total = n_seqs_viollier + n_seqs_other,
+             n_seqs_viollier = as.numeric(n_seqs_viollier),
+             n_seqs_other = as.numeric(n_seqs_other),
+             n_seqs_total = as.numeric(n_seqs_total),
+             n_conf_cases = as.numeric(n_conf_cases)) %>%
+      tidyr::replace_na(replace = list(n_conf_cases = 0,
+                                       n_seqs_total = 0,
+                                       n_seqs_other = 0))
   if (!by_canton) {
     weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
       select(-c(canton_code, division)) %>%
