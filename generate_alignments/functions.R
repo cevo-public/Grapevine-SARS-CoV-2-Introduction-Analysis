@@ -1,3 +1,30 @@
+#' Direct sample selection to appropriate function.
+#' @param focal_country ISO code for focal country.
+select_sequences <- function(
+  qcd_gisaid_query, db_connection, max_sampling_frac, focal_country = 'CHE', favor_exposures = F, verbose = T,
+  subsample_by_canton = T, outdir = NULL) {
+    all_samples <- qcd_gisaid_query %>%
+        filter(iso_country == !! focal_country) %>%
+        mutate(week = as.Date(date_trunc('week', date))) %>%
+        select(strain, week, division, gisaid_epi_isl, iso_country_exposure) %>%
+        collect()
+    print(paste("There are a total of", nrow(all_samples), "focal samples passing the qcd_gisaid_query"))
+    if (focal_country == 'CHE' & max_sampling_frac > 0 & max_sampling_frac <= 1) {
+        return(downsample_swiss_sequences(
+            qcd_gisaid_query, all_samples, db_connection, max_sampling_frac, favor_exposures, verbose,
+            subsample_by_canton, outdir))
+    } else if (max_sampling_frac == -1) {
+        print("Not downsampling sequences.")
+        return(qcd_gisaid_query)
+    } else if (max_sampling_frac < 0 | max_sampling_frac > 1) {
+        stop("Error in selecting sequences: max_sampling_frac outside of range 0-1 or -1 for all samples.")
+    } else if (focal_country != 'CHE' & max_sampling_frac != -1) {
+        stop("Error in selecting sequences: downsampling by confirmed cases only implemented for CHE.")
+    } else {
+        stop("Error in selecting sequences: unspecified input error.")
+    }
+}
+
 #' Downsample Swiss sequences on GISAID proportionally to weekly confirmed cases.
 #' Optionally downsample proportionally to weekly confirmed cases in each canton.
 #' If there aren't enough sequences in a week from the region, all sequences are taken.
@@ -7,56 +34,50 @@
 #' @param max_sampling_frac Take no more than this fraction of confirmed cases each week.
 #' @param favor_exposures If true, first take sequences with recorded foreign exposures.
 #' @param subsample_by_canton If true, take sequences proportional to confirmed cases per canton.
-#' @param output_summary_table If true, output table summarizing sampled sequences per region per week compare to confirmed cases 
+#' @param output_summary_table If true, output table summarizing sampled sequences per region per week compare to confirmed cases
 #' @return qcd_gisaid_query Query filtered to include foreign samples & only selected swiss samples
 downsample_swiss_sequences <- function (
-  qcd_gisaid_query, db_connection, max_sampling_frac, favor_exposures = F, 
+  qcd_gisaid_query, all_samples, db_connection, max_sampling_frac, favor_exposures = F,
   verbose = T, subsample_by_canton = T, outdir = NULL
 ) {
-  # get available sequences and bag exposure data
-  qcd_gisaid_query_temp <- qcd_gisaid_query %>%
-    filter(iso_country == "CHE") %>%
-    mutate(week = as.Date(date_trunc('week', date)))
+  print("Downsampling Swiss sequences")
+  # get bag exposure data
   bag_exposures <- get_bag_exposures(db_connection)
-  
+
   # Get available seqs and cases numbers per week, possibly stratified by canton
   sampling_data_raw <- get_weekly_case_and_seq_data(
-    db_connection = db_connection, 
-    qcd_gisaid_query = qcd_gisaid_query, 
-    by_canton = subsample_by_canton) 
-  
-  # restrict case data range to first and last week of available samples 
+    db_connection = db_connection,
+    qcd_gisaid_query = qcd_gisaid_query,
+    by_canton = subsample_by_canton)
+
+  # restrict case data range to first and last week of available samples
   # (this takes into account the analysis date range specified in qcd_gisaid_query)
-  min_week <- qcd_gisaid_query_temp %>%
+  min_week <- all_samples %>%
     summarize(min(week, na.rm = T)) %>%
     collect()
-  max_week <- qcd_gisaid_query_temp %>%
+  max_week <- all_samples %>%
     summarize(max(week, na.rm = T)) %>%
     collect()
-    
+
   # Calculate # seqs per week
   # and divide proportionally amongst cantons if data stratified by canton
   sampling_data <- sampling_data_raw %>%
     mutate(week = as.character(week)) %>%
     filter(
-      week <= max_week[[1]], week >= min_week[[1]], 
+      week <= max_week[[1]], week >= min_week[[1]],
       (is.na(canton_code) | canton_code != "FL")) %>%  # don't count samples from FL, do count samples not associated with a canton
     group_by(week) %>%
     mutate(
       max_seqs_from_week = floor(sum(n_conf_cases) * max_sampling_frac),
       n_ideal_sample = quota_largest_remainder(
-        votes = n_conf_cases, 
+        votes = n_conf_cases,
         n_seats = max_seqs_from_week[1]),
       n_to_sample = case_when(
         is.na(canton_code) ~ n_ideal_sample,  # hope that there are always enough Swiss-wide sequences to fill up the quota when the confirmed cases aren't attributed to a specific canton. If not, code will just sample all available sequences.
         T ~ pmin(n_ideal_sample, n_seqs_total))) %>%
     arrange(week, canton_code)
-  
-  # sample sequences 
-  all_samples <- qcd_gisaid_query_temp %>%
-    select(strain, week, division, gisaid_epi_isl, iso_country_exposure) %>%
-    collect()
-  print(paste("There are a total of", nrow(all_samples), "samples passing the qcd_gisaid_query"))
+
+  # sample sequences
   sampled_strains <- c()
   for (i in 1:nrow(sampling_data)) {
     week_i <- sampling_data[[i, "week"]]
@@ -778,7 +799,7 @@ run_nextstrain_priority <- function(
   
   system(command = paste("rm", outfile_focal_strains))
   system(command = paste("rm", outfile_context_strains))
-  system(command = paste("rm", outfile_priorities))
+  # system(command = paste("rm", outfile_priorities))
   
   return(priorities)
 }
