@@ -4,60 +4,39 @@ source("generate_alignments/functions.R")
 require(dplyr)
 require(ggplot2)
 require(argparse)
+require(yaml)
 
-# min_date <- "2020-01-01"
-# max_date <- "2020-12-31"
-# min_length <- 27000
-# travel_context_scale_factor <- 1
-# similarity_context_scale_factor <- 0.5
-# max_sampling_frac <- 0.01
+# config <- "/Users/nadeaus/Repos/grapevine/example_workdir/input/grapevine_config.yaml"
 # outdir <- "~/Downloads"
 # python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
 # reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
-# n_trees <- -1
-# travel_data_weights <- "1,1,1"
-# favor_exposures <- F
-# subsample_by_canton <- T
-# which_trees <- "all"
-# unique_context_only <- T
 
 parser <- argparse::ArgumentParser()
-parser$add_argument("--mindate", type="character")
-parser$add_argument("--maxdate", type="character")
-parser$add_argument("--minlength", type="integer")
-parser$add_argument("--maxsamplingfrac", type="double", help="Maximum sampling fraction to take for Swiss sequences, e.g. 0.005 takes at most X = (0.005 * confirmed cases) Swiss sequences from each week")
-parser$add_argument("--travelcontextscalefactor", type="double", help="Multiplicative factor, how many times the # swiss sequences should we select for the travel context set?")
-parser$add_argument("--similaritycontextscalefactor", type="double", help="Multiplicative factor, how many times the # swiss sequences should we select for the genetic similarity context set?")
+parser$add_argument("--config", type="character", help = "path to grapevine_config.yaml file.")
 parser$add_argument("--outdir", type="character")
 parser$add_argument("--pythonpath", type="character", help="Path to python3 with required packages installed.")
 parser$add_argument("--reference", type="character", help="Reference sequence.")
-parser$add_argument("--ntrees", default = -1, type="integer", help="For testing, one can specify a number of alignments to output. Default -1 results in all alignments being generated.")
-parser$add_argument("--whichtrees", default = "\\.*", type="character", help="R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'")
-parser$add_argument("--traveldataweights", default = "1,1,1", help="Number of times each exposure, tourist, and commuter permit are counted in setting up the travel context set.")
-parser$add_argument("--favorexposures", action="store_true")
-parser$add_argument("--subsamplebycanton", action="store_true")
-parser$add_argument("--uniquecontextonly", action="store_true")
 
 args <- parser$parse_args()
 
-min_date <- args$mindate
-max_date <- args$maxdate
-min_length <- args$minlength
-max_sampling_frac <- args$maxsamplingfrac
-travel_context_scale_factor <- args$travelcontextscalefactor
-similarity_context_scale_factor <- args$similaritycontextscalefactor
+config <- args$config
 outdir <- args$outdir
 python_path <- args$pythonpath
 reference <- args$reference
-n_trees <- args$ntrees
-which_trees <- args$whichtrees
-travel_data_weights <- args$traveldataweights
-favor_exposures <- args$favorexposures
-subsample_by_canton <- args$subsamplebycanton
-unique_context_only <- args$uniquecontextonly
 
-# Hardcoded parameters
-outgroup_gisaid_epi_isls = c("EPI_ISL_406798", "EPI_ISL_402125")  # The nextstrain global tree is rooted between these two sequences (Wuhan/WH01/2019 & Wuhan/Hu-1/2019), which you can see by filtering the tree to Chinese sequences (to make it reasonably small), downloading the newick tree, and plotting it.
+config_values <- yaml::read_yaml(file = config)
+max_date <- config_values$max_date
+min_date <- config_values$min_date
+min_length <- config_values$min_length
+max_sampling_frac <- config_values$max_sampling_fraction
+subsample_by_canton <- config_values$subsample_by_canton
+travel_context_scale_factor <- config_values$travel_context_scale_factor
+similarity_context_scale_factor <- config_values$similarity_context_scale_factor
+travel_data_weights <- config_values$travel_data_weights
+which_trees <- config_values$which_trees
+n_trees <- config_values$n_trees
+outgroup_gisaid_epi_isls <- strsplit(config_values$outgroup_gisaid_epi_isls, split = " ")[[1]]
+unique_context_only <- config_values$unique_context_only
 
 db_connection = open_database_connection()
 system(command = paste("mkdir -p", outdir))
@@ -88,7 +67,8 @@ if (which_trees == '\\.*') {
     "Specified which_trees = '", which_trees, "' ",
     "so not including nextclade qc filters and", 
     " only including sequences from these lineages:\n", 
-    paste0(unique_lineages$pangolin_lineage, collapse = "\n"), sep = ""))
+    paste0(unique_lineages$pangolin_lineage, collapse = "\n"), 
+    "\n", sep = ""))
 }
 
 # Get pangolin lineages to write out alignments for
