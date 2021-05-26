@@ -5,16 +5,16 @@ set -euo pipefail
 # Settings
 
 # The user should set these settings prior to building the docker image
-MIN_DATE=2021-02-01
-MAX_DATE=2021-05-14
+MIN_DATE=2021-03-01
+MAX_DATE=2021-05-20
 MIN_LENGTH=20000
-MAX_SAMPLING_FRACTION=1
+MAX_SAMPLING_FRACTION=-1  # Proportion of confirmed cases to sub-sample to. -1 will include all sequences, regardless of confirmed case numbers
+SUBSAMPLE_BY_CANTON=false  # If sub-sampling enabled, 'true' will subsample within switzerland proportional to confirmed cases at the cantonal level
 TRAVEL_CONTEXT_SCALE_FACTOR=0
-SIMILARITY_CONTEXT_SCALE_FACTOR=3
-TRAVEL_DATA_WEIGHTS="1,1,1"  # exposures, tourists, commuters
-SUBSAMPLE_BY_CANTON=true  # true to subsample within switzerland proportional to confirmed cases at the cantonal level
-WHICH_TREES="B\\.1\\.617(\\.|).*"  # R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. '.*' for all lineages, or for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'"
-PICK_CHAINS_UNDER_OTHER_CRITERIA=false
+SIMILARITY_CONTEXT_SCALE_FACTOR=1
+TRAVEL_DATA_WEIGHTS="1,1,1"  # Exposures, tourists, commuters
+WHICH_TREES='\\.*'  # R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. '\\.*' for all lineages, or for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'"
+PICK_CHAINS_UNDER_OTHER_CRITERIA=false  # If true, will also report transmission chains under different maximum total exports, maximum consecutive exports criteria.
 
 # These settings should not generally be modified
 WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here
@@ -192,7 +192,8 @@ for TREEFILE in $TMP_LSD/*.nex; do
         --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
         --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
         --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T \
-        --polytomiesareswiss
+        --polytomiesareswiss \
+        --dontplot
 done
 
 MAX_NONFOCAL_SUBCLADES=3
@@ -205,7 +206,8 @@ for TREEFILE in $TMP_LSD/*.nex; do
         --outdir $TMP_CHAINS \
         --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
         --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
-        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F
+        --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F \
+        --dontplot
 done
 
 # ------------------------------------------------------
