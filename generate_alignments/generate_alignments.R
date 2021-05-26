@@ -144,7 +144,6 @@ if (travel_context_scale_factor > 0) {
       pangolin_lineage = NA)
 }
 
-
 # Select genetic proximity context sequences
 similarity_strains <- get_similarity_strains(
   similarity_context_scale_factor = similarity_context_scale_factor,
