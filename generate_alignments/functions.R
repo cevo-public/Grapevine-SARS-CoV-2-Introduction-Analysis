@@ -874,6 +874,7 @@ get_prospective_context_seqs <- function(
       collect()
 
   if (unique_context_only) {
+    print("Retaining only earliest of prospective context strains with identical amino acid mutations.")
     # Generate string of prospective context strains suitable for query
     quoted_strains = lapply(prospective_context_seqs$strain, function(elt) {
         DBI::dbQuoteString(conn = db_connection, elt)
