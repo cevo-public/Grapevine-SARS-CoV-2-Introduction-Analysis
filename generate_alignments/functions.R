@@ -758,7 +758,7 @@ run_nextstrain_priority <- function(
   } else if (n_nonfocal_strains == 0) {
     warning(paste("No context sequences found for", prefix))
     return(NA)
-  } else if (n_nonfocal_strains > 1000000) {
+  } else if (n_nonfocal_strains > 400000) {
     stop(paste("Too many sequences for priorities.py:", 
                n_nonfocal_strains, "non-focal sequences."))
   }
@@ -807,7 +807,7 @@ run_nextstrain_priority <- function(
 get_similarity_strains <- function(
   db_connection, qcd_gisaid_query, similarity_context_scale_factor, lineages,
   priorities_script = "database/python/priorities_from_database.py",
-  python_path, reference, verbose = F
+  python_path, reference, verbose = F, unique_context_only
 ) {
   n_lineages <- nrow(lineages)
   initiated_df <- F
@@ -821,11 +821,11 @@ get_similarity_strains <- function(
              pangolin_lineage %in% !! lineages_included) %>%
       select(strain) %>%
       collect()
-    prospective_context_seqs <- qcd_gisaid_query %>%
-      filter(iso_country != "CHE",
-             pangolin_lineage %in% !! lineages_included) %>%
-      select(strain, gisaid_epi_isl, iso_country, date_str, date) %>%
-      collect()
+    prospective_context_seqs <- get_prospective_context_seqs(
+      qcd_gisaid_query = qcd_gisaid_query,
+      db_connection = db_connection,
+      unique_context_only = unique_context_only,
+      lineages_included = lineages_included)
     
     if (nrow(focal_seqs) == 0 | nrow(prospective_context_seqs) == 0) {
       print(paste("No focal sequences from lineage", lineage))
@@ -861,6 +861,53 @@ get_similarity_strains <- function(
     }
   }
   return(similarity_strains)
+}
+
+#' Filter context set to the earliest sequences with unique AA mutations.
+get_prospective_context_seqs <- function(
+  qcd_gisaid_query, db_connection, unique_context_only, lineages_included
+) {
+  prospective_context_seqs <- qcd_gisaid_query %>%
+      filter(iso_country != "CHE",
+             pangolin_lineage %in% !! lineages_included) %>%
+      select(strain, gisaid_epi_isl, iso_country, date_str, date) %>%
+      collect()
+
+  if (unique_context_only) {
+    # Generate string of prospective context strains suitable for query
+    quoted_strains = lapply(prospective_context_seqs$strain, function(elt) {
+        DBI::dbQuoteString(conn = db_connection, elt)
+    })
+    strains_sql = paste0('(', do.call(paste, c(quoted_strains, sep = ',')), ')')
+    
+    # Select earliest of strains with unique amino acid mutations
+    prospective_context_seqs_sql <- paste("select",
+        "min(strain order by date) as strain,",
+        "min(gisaid_epi_isl order by date) as gisaid_epi_isl,",
+        "min(iso_country order by date) as iso_country,",
+        "min(date_str order by date) as date_str,",
+        "min(date) as date,",
+        "count(*) as n_other_seqs_w_same_aa_mutations",
+      "from (",
+        "select",
+          "gs.strain,",
+          "gs.gisaid_epi_isl,",
+          "gs.iso_country,",
+          "gs.date_str,",
+          "string_agg(aa_mutation, ',' order by aa_mutation) as aa_mutations,",
+          "gs.date",
+        "from",
+          "gisaid_sequence gs",
+          "left join gisaid_sequence_nextclade_mutation_aa gsnma on gs.strain = gsnma.strain",
+        "where",
+          "gs.strain in", strains_sql,
+        "group by gs.strain ) seqs_w_aa_mutations",
+      "group by aa_mutations;")
+    
+   prospective_context_seqs <- DBI::dbGetQuery(
+      conn = db_connection, statement = prospective_context_seqs_sql)
+  }
+  return(prospective_context_seqs)
 }
 
 # ------------------------------------------------------------------------------

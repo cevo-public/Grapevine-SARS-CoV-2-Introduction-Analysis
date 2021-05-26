@@ -19,6 +19,7 @@ require(argparse)
 # favor_exposures <- F
 # subsample_by_canton <- T
 # which_trees <- "all"
+# unique_context_only <- T
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--mindate", type="character")
@@ -35,6 +36,7 @@ parser$add_argument("--whichtrees", default = "\\.*", type="character", help="R 
 parser$add_argument("--traveldataweights", default = "1,1,1", help="Number of times each exposure, tourist, and commuter permit are counted in setting up the travel context set.")
 parser$add_argument("--favorexposures", action="store_true")
 parser$add_argument("--subsamplebycanton", action="store_true")
+parser$add_argument("--uniquecontextonly", action="store_true")
 
 args <- parser$parse_args()
 
@@ -52,6 +54,7 @@ which_trees <- args$whichtrees
 travel_data_weights <- args$traveldataweights
 favor_exposures <- args$favorexposures
 subsample_by_canton <- args$subsamplebycanton
+unique_context_only <- args$uniquecontextonly
 
 # Hardcoded parameters
 outgroup_gisaid_epi_isls = c("EPI_ISL_406798", "EPI_ISL_402125")  # The nextstrain global tree is rooted between these two sequences (Wuhan/WH01/2019 & Wuhan/Hu-1/2019), which you can see by filtering the tree to Chinese sequences (to make it reasonably small), downloading the newick tree, and plotting it.
@@ -147,6 +150,7 @@ if (travel_context_scale_factor > 0) {
 # Select genetic proximity context sequences
 similarity_strains <- get_similarity_strains(
   similarity_context_scale_factor = similarity_context_scale_factor,
+  unique_context_only = unique_context_only,
   lineages = lineages,
   db_connection = db_connection,
   qcd_gisaid_query = qcd_gisaid_query,
