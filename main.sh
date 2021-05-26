@@ -4,24 +4,12 @@ set -euo pipefail
 # ------------------------------------------------------
 # Settings
 
-# The user should set these settings prior to building the docker image
-MIN_DATE=2021-03-01
-MAX_DATE=2021-05-20
-MIN_LENGTH=20000
-MAX_SAMPLING_FRACTION=-1  # Proportion of confirmed cases to sub-sample to. -1 will include all sequences, regardless of confirmed case numbers
-SUBSAMPLE_BY_CANTON=false  # If sub-sampling enabled, 'true' will subsample within switzerland proportional to confirmed cases at the cantonal level
-TRAVEL_CONTEXT_SCALE_FACTOR=0
-SIMILARITY_CONTEXT_SCALE_FACTOR=1
-TRAVEL_DATA_WEIGHTS="1,1,1"  # Exposures, tourists, commuters
-WHICH_TREES='\\.*'  # R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. '\\.*' for all lineages, or for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'"
-PICK_CHAINS_UNDER_OTHER_CRITERIA=false  # If true, will also report transmission chains under different maximum total exports, maximum consecutive exports criteria.
-
 # These settings should not generally be modified
 WORKDIR=workdir  # this is a directory on the external computer that contains the input/ directory and is mapped into the container; because it's mapped bi-directionally, output can also be written here
 REFERENCE=$WORKDIR/input/reference.fasta
+CONFIG=$WORKDIR/input/grapevine_config.yaml
 IQTREE=/app/iqtree-2.0.6-Linux/bin/iqtree2
 PYTHON=python3
-N_TREES=-1  # will generate all trees unless a positive integer
 
 # All input files for this pipeline should be stored in this directory. Files in this directory will not be changed
 # by this script.
@@ -82,53 +70,14 @@ mkdir -p $TMP_CHAINS
 TMP_ASR=$TMP_DIR/asr
 mkdir -p $TMP_ASR
 
-# Write out settings
-echo "MIN_DATE: $MIN_DATE" > ${OUTPUT_DIR}/main_settings.txt
-echo "MAX_DATE: $MAX_DATE" >> ${OUTPUT_DIR}/main_settings.txt
-echo "MIN_LENGTH: $MIN_LENGTH" >> ${OUTPUT_DIR}/main_settings.txt
-echo "MAX_SAMPLING_FRACTION: $MAX_SAMPLING_FRACTION" >> ${OUTPUT_DIR}/main_settings.txt
-echo "TRAVEL_CONTEXT_SCALE_FACTOR: $TRAVEL_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
-echo "SIMILARITY_CONTEXT_SCALE_FACTOR: $SIMILARITY_CONTEXT_SCALE_FACTOR" >> ${OUTPUT_DIR}/main_settings.txt
-echo "TRAVEL_DATA_WEIGHTS: $TRAVEL_DATA_WEIGHTS" >> ${OUTPUT_DIR}/main_settings.txt
-echo "SUBSAMPLE_BY_CANTON: $SUBSAMPLE_BY_CANTON" >> ${OUTPUT_DIR}/main_settings.txt
-echo "WHICH_TREES: $WHICH_TREES" >> ${OUTPUT_DIR}/main_settings.txt
-
 # ------------------------------------------------------
 echo "--- Generate one alignment per pangolin lineage ---"
 
-if [ "$SUBSAMPLE_BY_CANTON" = "true" ]
-then
-    echo "Subsampling by canton chosen."
-    Rscript generate_alignments/generate_alignments.R \
-        --mindate $MIN_DATE \
-        --maxdate $MAX_DATE \
-        --minlength $MIN_LENGTH \
-        --maxsamplingfrac $MAX_SAMPLING_FRACTION \
-        --travelcontextscalefactor $TRAVEL_CONTEXT_SCALE_FACTOR \
-        --similaritycontextscalefactor $SIMILARITY_CONTEXT_SCALE_FACTOR \
-        --traveldataweights $TRAVEL_DATA_WEIGHTS \
-        --outdir $TMP_ALIGNMENTS \
-        --pythonpath $PYTHON \
-        --reference $REFERENCE \
-        --ntrees $N_TREES \
-        --whichtrees $WHICH_TREES \
-        --subsamplebycanton
-else 
-    echo "Subsampling at all-Switzerland level chosen."
-    Rscript generate_alignments/generate_alignments.R \
-        --mindate $MIN_DATE \
-        --maxdate $MAX_DATE \
-        --minlength $MIN_LENGTH \
-        --maxsamplingfrac $MAX_SAMPLING_FRACTION \
-        --travelcontextscalefactor $TRAVEL_CONTEXT_SCALE_FACTOR \
-        --similaritycontextscalefactor $SIMILARITY_CONTEXT_SCALE_FACTOR \
-        --traveldataweights $TRAVEL_DATA_WEIGHTS \
-        --outdir $TMP_ALIGNMENTS \
-        --pythonpath $PYTHON \
-        --reference $REFERENCE \
-        --ntrees $N_TREES \
-        --whichtrees $WHICH_TREES
-fi
+Rscript generate_alignments/generate_alignments.R \
+    --config $CONFIG \
+    --outdir $TMP_ALIGNMENTS \
+    --pythonpath $PYTHON \
+    --reference $REFERENCE
 
 # ------------------------------------------------------
 echo "--- Build ML trees using same 'fast' settings as Nextstrain augur ---"
@@ -172,7 +121,6 @@ for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
         # by default, -l is 0.5/seq_length and gives the threshold over which branches are forced to be greater than the minimum branch length
         # so by default, only branches longer than 0.5 substitutions must be greater than 0 length
 done
-
 # date-ci = number of replicates to compute confidence interval
 # date-outlier = # z-score cutoff to exclude outlier nodes
 # clock-sd = std-dev for lognormal relaxed clock (for uncertainty estimation)
@@ -238,7 +186,13 @@ done
 
 # ------------------------------------------------------
 
-if [ "$PICK_CHAINS_UNDER_OTHER_CRITERIA" = "true" ]
+# Parse parameter from config file
+eval $(
+sed -e 's/ *#.*//g;s/:[^:\/\/]/="/g;s/$/"/g;s/ *=/=/g' $WORKDIR/input/grapevine_config.yaml |
+grep 'pick_chains_under_other_criteria'
+)
+
+if [ "pick_chains_under_other_criteria" = "true" ]
 then
     echo "--- Picking chains under different chain assumptions ---"
     for MAX_NONFOCAL_SUBCLADES in 1 2 3 4; do
