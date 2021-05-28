@@ -862,7 +862,7 @@ get_similarity_strains <- function(
     similarity_strains_i <- priorities %>%
         arrange(desc(priority)) %>%
         mutate(priority_idx = 1:n()) %>%
-        top_n(n = min(n_similarity_seqs, n()), wt = priority_idx) %>%
+        top_n(n = min(n_similarity_seqs, n()), wt = -priority_idx) %>%
         select(strain) %>%
         mutate(pangolin_lineage = lineage) %>%
         left_join(prospective_context_seqs, by = "strain")
