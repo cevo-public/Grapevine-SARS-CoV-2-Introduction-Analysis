@@ -742,6 +742,20 @@ get_travel_strains <- function(
 
 # ------------------------------------------------------------------------------
 
+#' Run nextstrain script 'get_distance_to_focal_set.py' to get genetic proximity
+#' of prospective context sequences to focal sequences.
+# run_nextstrain_get_distance_to_focal_set <- function(
+#     focal_strains, nonfocal_strains
+# ) {
+# python3 scripts/get_distance_to_focal_set.py \
+#             --reference {input.reference} \
+#             --alignment {input.alignment} \
+#             --focal-alignment {input.focal_alignment} \
+#             --ignore-seqs {params.ignore_seqs} \
+#             --chunk-size {params.chunk_size} \
+#             --output {output.proximities} 2>&1 | tee {log}
+# }
+
 #' Run nextstrain priority script to rank context sequences by genetic proximity
 #' to focal sequenes. Writes out file with strains and corresponding priority.
 #' @return table with strains and corresponding priority
@@ -793,7 +807,7 @@ run_nextstrain_priority <- function(
   priorities <- read.delim(
     file = paste(outdir, "/", prefix, "_priorities.txt", sep = ""),
     header = F,
-    col.names = c("strain", "priority"),
+    col.names = c("strain", "priority", "focal_strain"),
     stringsAsFactors = F) %>%
     arrange(desc(priority))
   
@@ -979,9 +993,12 @@ write_out_alignments <- function(
     if (length(missing_strains) > 0) {
       stop(paste(paste0(missing_strains, collapse = ", "), "selected strains not found in table gisaid_sequence."))
     }
-    write.csv(
-      x = metadata_i, 
-      file = paste(outdir, "/", lineage, "_metadata.csv", sep = ""),
+    col_order <- c("tree_label", colnames(metadata_i)[colnames(metadata_i) != "tree_label"])  # reorder for figtree
+    write.table(
+      x = metadata_i %>% select(all_of(col_order)),
+      file = paste(outdir, "/", lineage, "_metadata.tsv", sep = ""),
+      sep = "\t",
+      quote = F,
       row.names = F)
     
     header_mapping <- metadata_i$tree_label
