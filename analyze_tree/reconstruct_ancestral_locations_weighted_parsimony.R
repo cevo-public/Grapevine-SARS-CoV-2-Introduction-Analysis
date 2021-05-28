@@ -39,7 +39,7 @@ require(argparse)
 require(magrittr)
 
 # tree_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/lsd/B.1.timetree.nex"
-# metadata_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/alignments/B.1_metadata.csv"
+# metadata_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/alignments/B.1_metadata.tsv"
 # chains_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/chains/B.1_m_3_p_1_s_F_chains.txt"
 # s <- F
 # outdir <- "~/Downloads"
@@ -76,7 +76,7 @@ system(command = paste("mkdir -p", outdir))
 # Load data
 tree <- treeio::read.beast(file = tree_file)
 tree_data <- tidytree::as_tibble(tree)
-metadata <- read.csv(file = metadata_file, stringsAsFactors = F)
+metadata <- read.table(file = metadata_file, stringsAsFactors = F, sep = "\t", header = T, quote = "")
 chains <- read.delim(file = chains_file, stringsAsFactors = F)
 
 # Make sure all tips present in metadata

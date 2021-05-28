@@ -135,7 +135,7 @@ for TREEFILE in $TMP_LSD/*.nex; do
     PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
     Rscript analyze_tree/pick_swiss_transmission_chains.R \
         --tree $TREEFILE \
-        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.tsv \
         --outdir $TMP_CHAINS \
         --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
         --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
@@ -150,7 +150,7 @@ for TREEFILE in $TMP_LSD/*.nex; do
     PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
     Rscript analyze_tree/pick_swiss_transmission_chains.R \
         --tree $TREEFILE \
-        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.tsv \
         --outdir $TMP_CHAINS \
         --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
         --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
@@ -168,7 +168,7 @@ for TREEFILE in $TMP_LSD/*.nex ; do
     PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
     Rscript analyze_tree/reconstruct_ancestral_locations_weighted_parsimony.R \
         --tree $TREEFILE \
-        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.tsv \
         --chains $TMP_CHAINS/${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T_chains.txt \
         --outdir $TMP_ASR \
         --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_T
@@ -178,7 +178,7 @@ for TREEFILE in $TMP_LSD/*.nex ; do
     PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
     Rscript analyze_tree/reconstruct_ancestral_locations_weighted_parsimony.R \
         --tree $TREEFILE \
-        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+        --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.tsv \
         --chains $TMP_CHAINS/${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F_chains.txt \
         --outdir $TMP_ASR \
         --prefix ${PREFIX}_m_${MAX_NONFOCAL_SUBCLADES}_p_${MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES}_s_F
@@ -208,7 +208,7 @@ then
               PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
               Rscript analyze_tree/pick_swiss_transmission_chains.R \
                   --tree $TREEFILE \
-                  --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+                  --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.tsv \
                   --outdir $TMP_CHAINS \
                   --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
                   --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
@@ -221,7 +221,7 @@ then
               PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
               Rscript analyze_tree/pick_swiss_transmission_chains.R \
                   --tree $TREEFILE \
-                  --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+                  --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.tsv \
                   --outdir $TMP_CHAINS \
                   --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
                   --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
@@ -242,7 +242,7 @@ then
         PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
         Rscript analyze_tree/pick_swiss_transmission_chains.R \
             --tree $TREEFILE \
-            --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+            --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.tsv \
             --outdir $TMP_CHAINS \
             --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
             --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \
@@ -255,7 +255,7 @@ then
         PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
         Rscript analyze_tree/pick_swiss_transmission_chains.R \
             --tree $TREEFILE \
-            --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.csv \
+            --metadata $TMP_ALIGNMENTS/${PREFIX}_metadata.tsv \
             --outdir $TMP_CHAINS \
             --maxtotalsubclades $MAX_NONFOCAL_SUBCLADES \
             --maxconsecutivesubclades $MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES \

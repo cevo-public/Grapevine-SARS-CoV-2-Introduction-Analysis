@@ -22,7 +22,7 @@ require(ggtree)
 require(dplyr)
 
 # tree <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/lsd/B.1.1.277.timetree.nex"
-# metadata <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/alignments/B.1.1.277_metadata.csv"
+# metadata <- "/Users/nadeaus/Repos/grapevine/dont_commit/test/tmp/alignments/B.1.1.277_metadata.tsv"
 # outdir <- "~/Downloads"
 # verbose <- T
 # m <- 3
@@ -58,7 +58,7 @@ source("analyze_tree/functions.R")
 
 # Load data
 tree <- treeio::read.beast(file = tree)
-metadata <- read.csv(file = metadata, stringsAsFactors = F)
+metadata <- read.table(file = metadata, stringsAsFactors = F, sep = "\t", header = T, quote = "")
 tree_data <- tidytree::as_tibble(tree)
 tree_data <- merge(
   x = tree_data, y = metadata %>% select(-c(date)),

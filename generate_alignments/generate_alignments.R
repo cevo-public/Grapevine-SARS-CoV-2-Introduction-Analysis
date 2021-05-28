@@ -37,6 +37,7 @@ which_trees <- config_values$which_trees
 n_trees <- config_values$n_trees
 outgroup_gisaid_epi_isls <- strsplit(config_values$outgroup_gisaid_epi_isls, split = " ")[[1]]
 unique_context_only <- config_values$unique_context_only
+favor_exposures <- config_values$favor_exposures
 
 db_connection = open_database_connection()
 system(command = paste("mkdir -p", outdir))
