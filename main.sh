@@ -80,7 +80,7 @@ Rscript generate_alignments/generate_alignments.R \
     --reference $REFERENCE
 
 # ------------------------------------------------------
-echo "--- Build ML trees using same 'fast' settings as Nextstrain augur ---"
+echo "--- Build ML trees using same default settings as Nextstrain augur ---"
 
 for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
     PREFIX="$(basename "${FASTA_FILE}" | sed 's/.fasta//g')"
@@ -88,9 +88,8 @@ for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
         -s $FASTA_FILE \
         -m HKY+F+G4 \
         -pre $TMP_IQTREE/$PREFIX \
-        -ninit 2 \
-        -n 2 \
-        -me 0.05
+        -ninit 10 \
+        -n 4
 done
 # ninit = number initial trees (1 parsimony, 1 BIONJ) which are then optimized with NNI moves
 # n = number of iterations until stop

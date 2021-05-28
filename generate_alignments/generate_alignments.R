@@ -38,6 +38,8 @@ n_trees <- config_values$n_trees
 outgroup_gisaid_epi_isls <- strsplit(config_values$outgroup_gisaid_epi_isls, split = " ")[[1]]
 unique_context_only <- config_values$unique_context_only
 favor_exposures <- config_values$favor_exposures
+mask_from_start <- config_values$mask_from_start
+mask_from_end <- config_values$mask_from_end
 
 db_connection = open_database_connection()
 system(command = paste("mkdir -p", outdir))
@@ -147,7 +149,9 @@ alignments <- write_out_alignments(
   outgroup_gisaid_epi_isls = outgroup_gisaid_epi_isls,
   outdir = outdir,
   qcd_gisaid_query = qcd_gisaid_query,
-  db_connection = db_connection
+  db_connection = db_connection,
+  mask_from_start = mask_from_start,
+  mask_from_end = mask_from_end
 )
 
 write.csv(

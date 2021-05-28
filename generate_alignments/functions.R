@@ -784,6 +784,7 @@ run_nextstrain_priority <- function(
     "--context-strains", outfile_context_strains,
     "--reference", reference,
     "--outfile", outfile_priorities,
+    "--config-filepath", "workdir/input/config.yml",
     "--automated")
   if (verbose) {
     print(priorities_command)
@@ -918,7 +919,7 @@ get_prospective_context_seqs <- function(
 #' @return Dataframe giving size of each alignment.
 write_out_alignments <- function(
   lineages, travel_strains, similarity_strains, outgroup_gisaid_epi_isls, outdir,
-  qcd_gisaid_query, db_connection
+  qcd_gisaid_query, db_connection, mask_from_start, mask_from_end
 ) {
   alignments_generated <- c()
   n_lineages <- nrow(lineages)
@@ -997,7 +998,9 @@ write_out_alignments <- function(
       table = "gisaid_sequence",
       sample_name_col = "gisaid_epi_isl",
       seq_col = "aligned_seq",
-      header_mapping = header_mapping)
+      header_mapping = header_mapping,
+      mask_from_start = mask_from_start,
+      mask_from_end = mask_from_end)
     
     alignment_info_i <- data.frame(
       lineage = lineage, n_seqs = length(alignment_strains_i))
