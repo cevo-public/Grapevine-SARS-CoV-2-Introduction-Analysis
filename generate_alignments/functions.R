@@ -742,20 +742,6 @@ get_travel_strains <- function(
 
 # ------------------------------------------------------------------------------
 
-#' Run nextstrain script 'get_distance_to_focal_set.py' to get genetic proximity
-#' of prospective context sequences to focal sequences.
-# run_nextstrain_get_distance_to_focal_set <- function(
-#     focal_strains, nonfocal_strains
-# ) {
-# python3 scripts/get_distance_to_focal_set.py \
-#             --reference {input.reference} \
-#             --alignment {input.alignment} \
-#             --focal-alignment {input.focal_alignment} \
-#             --ignore-seqs {params.ignore_seqs} \
-#             --chunk-size {params.chunk_size} \
-#             --output {output.proximities} 2>&1 | tee {log}
-# }
-
 #' Run nextstrain priority script to rank context sequences by genetic proximity
 #' to focal sequenes. Writes out file with strains and corresponding priority.
 #' @return table with strains and corresponding priority
