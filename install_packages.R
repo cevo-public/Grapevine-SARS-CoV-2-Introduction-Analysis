@@ -17,5 +17,7 @@ install.packages(c(
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 
-BiocManager::install("treeio")
 BiocManager::install("ggtree")
+
+install.packages("devtools")
+devtools::install_github("GuangchuangYu/treeio")
