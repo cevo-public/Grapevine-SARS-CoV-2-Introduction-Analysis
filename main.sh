@@ -124,6 +124,7 @@ done
 # date-outlier = # z-score cutoff to exclude outlier nodes
 # clock-sd = std-dev for lognormal relaxed clock (for uncertainty estimation)
 # -a gives root date contstraints, -u gives minimum branch length, -t gives lower bound for mutation rate
+# -D specifies output date format should be year-month-day
 
 # ------------------------------------------------------
 echo "--- Pick swiss transmission chains off the tree ---"
@@ -262,6 +263,29 @@ then
             --dontplot
     done
 fi
+
+# ------------------------------------------------------
+echo "--- Generating figures ---"
+# Parse parameter from config file
+eval $(
+sed -e 's/ *#.*//g;s/:[^:\/\/]/="/g;s/$/"/g;s/ *=/=/g' $WORKDIR/input/grapevine_config.yaml |
+grep 'max_date'
+)
+
+Rscript generate_figures/generate_figures.R \
+--maxdate $max_date \
+--workdir $WORKDIR
+
+# ------------------------------------------------------
+echo "--- Writing out alignments for BEAST analysis ---"
+Rscript analyze_clusters/get_bdsky_alignments.R \
+--workdir $WORKDIR \
+--maxdate 2020-11-30
+# maxdate 2020-11-30 chosen to be before B.1.1.7 affects shared Re assumption
+
+Rscript analyze_clusters/get_date_to_week_for_bdsky.R \
+--outdir $WORKDIR/output/transmission_chain_alignments \
+--maxdate 2020-11-30
 
 # ------------------------------------------------------
 echo "--- Finished successfully ---"

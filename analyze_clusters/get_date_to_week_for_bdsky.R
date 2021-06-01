@@ -18,8 +18,8 @@ outdir <- args$outdir
 max_date <- as.Date(args$maxdate)
 min_date <- as.Date(args$mindate)
 
-# Connect to local version of database
-db_connection <- open_database_connection("local")
+# Connect to database
+db_connection = open_database_connection()
 
 # Generate date data
 dates <- data.frame(date = seq.Date(from = min_date, to = max_date, by = "day"))
