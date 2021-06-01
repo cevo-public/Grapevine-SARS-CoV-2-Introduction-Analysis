@@ -390,3 +390,220 @@ symmetric_limits <- function (x) {
   c(-max, max)
 }
 
+
+# Thanks to https://github.com/YuLab-SMU/treeio/blob/master/R/beast.R
+# Need to use this version of the function because in-package version doesn't handle the ambigous "2021" date output by LSD well
+read.stats_beast_internal <- function(beast, tree) {
+  ##tree <- gsub(" ", "", tree)
+  ## tree2 <- gsub("\\[[^\\[]*\\]", "", tree)
+  ## phylo <- read.tree(text = tree2)
+  ## tree2 <- add_pseudo_nodelabel(phylo, tree2)
+  
+  phylo <- read.tree(text = tree)
+  tree2 <- add_pseudo_nodelabel(phylo)
+  
+  ## node name corresponding to stats
+  nn <- strsplit(tree2, split=",") %>% unlist %>%
+    strsplit(., split="\\)") %>% unlist %>%
+    gsub("\\(*", "", .) %>%
+    gsub("[:;].*", "", .) %>%
+    gsub(" ", "", .) %>%
+    gsub("'", "", .) %>%
+    gsub('"', "", .)
+  
+  phylo <- read.tree(text = tree2)
+  root <- rootnode(phylo)
+  nnode <- phylo$Nnode
+  
+  tree_label <- c(phylo$tip.label, phylo$node.label)
+  ii <- match(nn, tree_label)
+  
+  if (any(grepl("TRANSLATE", beast, ignore.case = TRUE))) {
+    label2 <- c(phylo$tip.label,
+                root:getNodeNum(phylo))
+    ## label2 <- c(treeinfo[treeinfo$isTip, "label"],
+    ##             root:(root+nnode-1))
+    
+  } else {
+    ## node <- as.character(treeinfo$node[match(nn, treeinfo$label)])
+    label2 <- as.character(1:getNodeNum(phylo))
+  }
+  node <- label2[match(nn, tree_label)]
+  
+  ## stats <- unlist(strsplit(tree, "\\["))[-1]
+  ## stats <- sub(":.+$", "", stats
+  ## BEAST1 edge stat fix
+  tree <- gsub("\\]:\\[&(.+?\\])", ",\\1:", tree)
+  # t1:[&mutation="test1"]0.04 -> t1[&mutation="test1"]:0.04
+  tree <- gsub(":(\\[.+?\\])", "\\1:", tree)
+  
+  if (grepl("\\:[0-9\\.eEL+\\-]*\\[", tree) || grepl("\\]\\[", tree)){
+    # t1:0.04[&mutation="test1"] -> t1[&mutation="test1"]:0.04
+    # or t1[&prob=100]:0.04[&mutation="test"] -> t1[&prob=100][&mutation="test"]:0.04 (MrBayes output)
+    # pattern <- "(\\w+)?(:?\\d*\\.?\\d*[Ee]?[\\+\\-]?\\d*)?(\\[&.*?\\])"
+    pattern <- "(\\w+)?(:\\d*\\.?\\d*[Ee]?[\\+\\-]?\\L*\\d*)?(\\[&.*?\\])"
+    tree <- gsub(pattern, "\\1\\3\\2", tree)
+  }
+  #if (grepl("\\]:[0-9\\.eE+\\-]*\\[", tree) || grepl("\\]\\[", tree)) {
+  #    ## MrBayes output
+  #    stats <- strsplit(tree, "\\]:[0-9\\.eE+\\-]*\\[") %>% unlist
+  #    lstats <- lapply(stats, function(x) {
+  #        unlist(strsplit(x, split="\\][,\\)]"))
+  #    })
+  #    
+  #    for (i in seq_along(stats)) {
+  #        n <- length(lstats[[i]])
+  #        if (i == length(stats)) {
+  #            stats[i] <- lstats[[i]][n]
+  #        } else {
+  #            stats[i] <- paste0(lstats[[i]][n],
+  #                               sub("&", ",", lstats[[i+1]][1])
+  #            )
+  #        }
+  #    }
+  #    stats <- gsub("\\]\\[&", ",", stats)
+  #} else {
+  #    ## BEAST output
+  #    stats <- strsplit(tree, ":") %>% unlist
+  #}
+  stats <- strsplit(tree, ":") %>% unlist
+  names(stats) <- node
+  
+  stats <- stats[grep("\\[", stats)]
+  stats <- sub("[^\\[]*\\[", "", stats)
+  
+  stats <- sub("^&", "", stats)
+  # this is for MrBayes output 
+  stats <- sub("\\]\\[&", ",", stats)
+  stats <- sub("];*$", "", stats)
+  stats <- gsub("\"", "", stats)
+  
+  stats2 <- lapply(seq_along(stats), function(i) {
+    x <- stats[[i]]
+    y <- unlist(strsplit(x, ","))
+    # the stats information does not has always {}
+    #sidx <- grep("=\\{", y)
+    #eidx <- grep("\\}$", y)
+    # [&mutation="test1,test2",rate=80,90]
+    sidx1 <- grep("=", y)
+    eidx1 <- sidx1 - 1
+    eidx1 <- c(eidx1[-1], length(y))
+    # for better parsing [&mutation="test",name="A"] single value to key.
+    sidx <- sidx1[!(sidx1==eidx1)]
+    eidx <- eidx1[!(sidx1==eidx1)]
+    
+    flag <- FALSE
+    if (length(sidx) > 0) {
+      flag <- TRUE
+      SETS <- lapply(seq_along(sidx), function(k) {
+        p <- y[sidx[k]:eidx[k]]
+        gsub(".*=\\{", "", p) %>% 
+          gsub("\\}$", "", .) %>%
+          gsub(".*=", "", .)
+      })
+      names(SETS) <- gsub("=.*", "", y[sidx])
+      
+      kk <- lapply(seq_along(sidx), function(k) {
+        sidx[k]:eidx[k]
+      }) %>%
+        unlist
+      y <- y[-kk]
+    }
+    
+    if (length(y) == 0)
+      return(SETS)
+    
+    name <- gsub("=.*", "", y)
+    val <- gsub(".*=", "", y) %>%
+      gsub("^\\{", "", .) %>%
+      gsub("\\}$", "", .)
+    
+    if (flag) {
+      nn <- c(name, names(SETS))
+    } else {
+      nn <- name
+    }
+    
+    res <- rep(NA, length(nn))
+    names(res) <- nn
+    
+    for (i in seq_along(name)) {
+      res[i] <- if(is_numeric(val[i])) as.numeric(val[i]) else val[i]
+    }
+    if (flag) {
+      j <- i
+      for (i in seq_along(SETS)) {
+        if(is_numeric(SETS[[i]])) {
+          res[i+j] <- list(as.numeric(SETS[[i]]))
+        } else {
+          res[i+j] <- SETS[i]
+        }
+      }
+    }
+    
+    return(res)
+  })
+  
+  nn <- lapply(stats2, names) %>% unlist %>%
+    unique %>% sort
+  
+  
+  stats2 <- lapply(stats2, function(x) {
+    y <- x[nn]
+    names(y) <- nn
+    y[vapply(y, is.null, logical(1))] <- NA
+    y
+  })
+  
+  stats3 <- do.call(rbind, stats2)
+  stats3 <- as_tibble(stats3)
+  
+  ## no need to extract sd from prob+-sd
+  ## as the sd is stored in prob_stddev
+  ##
+  ## "prob_stddev"   "prob(percent)" "prob+-sd"
+  ##
+  ##
+  ##
+  ## idx <- grep("\\+-", colnames(stats3))
+  ## if (length(idx)) {
+  ##     for (i in idx) {
+  ##         stats3[,i] <- as.numeric(gsub("\\d+\\+-", "", stats3[,i]))
+  ##     }
+  ## }
+  
+  cn <- gsub("(\\d+)%", "0.\\1", colnames(stats3))
+  cn <- gsub("\\(([^\\)]+)\\)", "_\\1", cn)
+  ## cn <- gsub("\\+-", "_", cn)
+  
+  colnames(stats3) <- cn
+  stats3$node <- names(stats)
+  
+  i <- vapply(stats3,
+              function(x) max(vapply(x, length, numeric(1))),
+              numeric(1))
+  
+  for (j in which(i==1)) {
+    stats3[,j] <- unlist(stats3[,j])
+  }
+  stats3$node <- as.integer(stats3$node)
+  return(stats3)
+}
+
+
+add_pseudo_nodelabel <- function(phylo) {
+  if(is.null(phylo$node.label)) {
+    nnode <- phylo$Nnode
+    phylo$node.label <- paste("X", 1:nnode, sep="")
+    ## for (i in 1:nnode) {
+    ##     treetext <- sub("\\)([:;])",
+    ##                     paste0("\\)", nlab[i], "\\1"),
+    ##                     treetext)
+    ## }
+  }
+  ## if tip.label contains () which will broken node name extraction
+  phylo$tip.label <- gsub("[\\(\\)]", "_", phylo$tip.label)
+  
+  treetext <- write.tree(phylo)
+  return(treetext)
+}
