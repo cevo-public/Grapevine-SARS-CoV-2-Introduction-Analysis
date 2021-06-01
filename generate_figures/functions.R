@@ -264,13 +264,14 @@ pivot_chains_to_samples <- function(
 }
 
 #' Load metadata from each alignment, concatenate
-load_sample_metadata <- function(workdir, pattern = "*_metadata.csv") {
+load_sample_metadata <- function(workdir, pattern = "*_metadata.tsv") {
   metadata_path <- paste(workdir, "tmp/alignments", sep = "/")
   metadata_files <- list.files(path = metadata_path, pattern = pattern, full.names = T)
   metadata <-
     metadata_files %>% 
-    purrr::map_df(~readr::read_csv(
+    purrr::map_df(~readr::read_tsv(
       ., 
+      quote = "\'",
       col_types = readr::cols(
         date = readr::col_date(format = "%Y-%m-%d"),
         date_str = readr::col_character()

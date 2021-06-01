@@ -40,20 +40,27 @@ grapevine_results <- load_grapevine_results(
   min_chain_size = 1,
   viollier_only = F)
 
-print("Plotting transmission chain origins through time.")
-plot_chain_origins(
-  workdir = workdir,
-  grapevine_results = grapevine_results,
-  outdir = outdir,
-  country_colors = country_colors)
-
-print("Tabling prior vs. posterior transmission chain origins in 1st & 2nd wave.")
-for (s in c(T, F)) {
-  table_chain_origins(
-    s = s,
+est_imports_file <- paste(workdir, "tmp/alignments/estimated_travel_cases.csv", sep = "/")
+if (file.exists(est_imports_file)) {
+  print("Plotting transmission chain origins through time.")
+  plot_chain_origins(
     workdir = workdir,
-    outdir = outdir
-  )
+    grapevine_results = grapevine_results,
+    outdir = outdir,
+    country_colors = country_colors)
+  
+  print("Tabling prior vs. posterior transmission chain origins in 1st & 2nd wave.")
+  for (s in c(T, F)) {
+    table_chain_origins(
+      s = s,
+      workdir = workdir,
+      outdir = outdir
+    )
+  }
+} else {
+  print(paste(
+    "Not plotting transmission chain origins through time because file", 
+    est_imports_file,"not found."))
 }
 
 print("Plotting transmission chains through time.")
