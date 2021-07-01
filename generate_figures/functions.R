@@ -79,7 +79,7 @@ load_grapevine_results <- function(
   origin_data <- chains_with_asr %>% 
     group_by(tree, chains_assumption, foreign_mrca, foreign_tmrca, foreign_tmrca_CI) %>% 
     mutate(n_chains_descending = n()) %>%
-    group_by(n_chains_descending, add = T) %>%
+    group_by(n_chains_descending, .add = T) %>%
     summarize_at(
       .vars = vars(ends_with("_loc_weight")),
       .funs = list(~head(., 1))) %>%   # if multiple chains have same foreign mrca, e.g. at a polytomy, the asr data is duplicated
@@ -452,10 +452,12 @@ plot_chains <- function(
     custom_theme_elements + 
     scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
     axis_labs
-  
+
+  pdf(NULL)
   ggsave(transmission_chain_plot, 
          file = paste(outdir, "transmission_chains.png", sep = "/"), 
          height = plot_height_in)
+  dev.off()
   
   # + geom_scatterpie(
   #     data = mrca_asr_data_2,
@@ -758,6 +760,7 @@ make_origins_plot <- function(origins_data, country_colors, origins_to_color) {
 
 save_origins_plot <- function(
   plotname, plot, outdir = "figures", single_col_width = 11.4) {
+  pdf(NULL)
   ggsave(
     plot = plot + 
       theme(
@@ -774,6 +777,7 @@ save_origins_plot <- function(
     height = single_col_width * 2,
     units = "cm"
   )
+  dev.off()
 }
 
 #' Table prior vs. posterior transmission chain origins in different time periods.
@@ -874,14 +878,20 @@ plot_lineage_with_exposure_location <- function(db_connection, lineage, workdir)
       color = country),
       hjust = -0.01)
 
+    pdf(NULL)
     ggsave(
     file = paste(outdir, paste(prefix, "tree_with_asr.png", sep = "_"), sep = "/"), 
     plot = p)
+    dev.off()
 }
 
 #' Plot barchart of sampling intensity through time.
 #' TODO: include unsampled seqeunces from viollier again
-plot_sampling_intensity <- function(db_connection, workdir, outdir, max_date) {
+#' @param dates_to_highlight Vector of character dates to draw vertical lines for.
+plot_sampling_intensity <- function(
+  db_connection, workdir, outdir, max_date, max_sampling_frac, 
+  dates_to_highlight = NULL
+) {
   sample_metadata <- load_sample_metadata(workdir = workdir)
   samples_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
     filter(gisaid_epi_isl %in% !! sample_metadata$gisaid_epi_isl)
@@ -913,20 +923,46 @@ plot_sampling_intensity <- function(db_connection, workdir, outdir, max_date) {
     geom_col(position = position_stack()) +
     labs(x = element_blank(), y = "Weekly number of cases")
 
+  add_vlines <- function(plot, dates_to_highlight) {
+    if (is.null(dates_to_highlight)) {
+      return(plot)
+    } else {
+      dates_to_highlight <- as.Date(dates_to_highlight, "%Y-%m-%d")
+      for (date in dates_to_highlight) {
+        plot <- plot + geom_vline(xintercept = date, linetype = "dashed")
+      }
+      return(plot)
+    }
+  }
+  
   weekly_samples_vs_cases <- ggplot(
     data = weekly_case_and_seq_data, 
     aes(x = as.Date(week), y = n_seqs_total / n_conf_cases)) + 
     geom_col() + 
-    geom_hline(yintercept = 0.01, color = "red", linetype = "dashed") + 
+    geom_hline(yintercept = max_sampling_frac, color = "red", linetype = "dashed") + 
     geom_text(
       aes(
-        y = (n_seqs_total / n_conf_cases) + 0.0001,
+        y = case_when(
+          (n_seqs_total / n_conf_cases) > 0.01 ~  (n_seqs_total / n_conf_cases) - 0.0001,
+          T ~ (n_seqs_total / n_conf_cases) + 0.0001),
+        hjust = case_when(
+          (n_seqs_total / n_conf_cases) > 0.01 ~ 1,
+          T ~ 0),
+        color = case_when(
+          (n_seqs_total / n_conf_cases) > 0.01 ~ "inside_color",
+          T ~ "outside_color"),
         label = paste(n_seqs_total, "/", n_conf_cases)),
-      angle = 90, vjust = 0.5, hjust = 0) + 
+      angle = 90, vjust = 0.5) + 
     labs(x = "Week", y = "Empirical sampling fraction") +
     scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") + 
+    scale_color_manual(values = c("inside_color" = "white", "outside_color" = "black")) + 
     shared_theme + 
-    lims(y = c(0, 0.015))
+    theme(legend.position = "none", axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+  
+  print(dates_to_highlight)
+  
+  weekly_samples_vs_cases <- weekly_samples_vs_cases %>% 
+    add_vlines(dates_to_highlight = dates_to_highlight)
 
   shared_scale_fill <- scale_fill_manual(
       values = RColorBrewer::brewer.pal(n = 3, name = "Dark2"),
@@ -939,13 +975,15 @@ plot_sampling_intensity <- function(db_connection, workdir, outdir, max_date) {
     abs_plot + shared_scale_fill + shared_theme,
     freq_plot + shared_scale_fill + shared_theme,
     nrow = 2, common.legend = T, legend = "right")
-  
+
+  pdf(NULL)
   ggsave(
     file = paste(outdir, "sampling_intensity.png", sep = "/"), 
     plot = sampling_intensity_plot)
   ggsave(
     file = paste(outdir, "weekly_samples_vs_cases.png", sep = "/"),
     plot = weekly_samples_vs_cases)
+  dev.off()
     
   return(plot_data)
 }
@@ -1010,10 +1048,12 @@ plot_introductions_and_extinctions <- function(
       name = "Event type") + 
     theme_bw() + 
     labs(x = element_blank(), y = "Weekly number of events")
-  
+
+  pdf(NULL)
   ggsave(
     file = paste(outdir, "introductions_and_extinctions.png", sep = "/"), 
     plot = introductions_and_extinctions_plot)
+  dev.off()
   return(introductions_and_extinctions_plot)
 }
 
@@ -1175,10 +1215,12 @@ plot_dep_var_by_quarantine_status <- function(
   
   if (!is.null(outdir)) {
     outfile <- paste(dep_varname, "_by_quarantine_status.png", sep = "")
+    pdf(NULL)
     ggsave(
       filename = paste(outdir, outfile, sep = "/"),
       plot = dep_var_by_quarantine_status,
       height = plot_height_cm, units = "cm")
+    dev.off()
   }
   if (return_plot) {
     return(dep_var_by_quarantine_status)
@@ -1247,16 +1289,16 @@ plot_tree <- function(
       limits = c(as.Date("2019-12-01"), as.Date("2021-06-01"))) + 
     theme_tree2() + 
     theme(legend.position = "none")
-  show(p)
-    
     
   if (is.null(outdir)) {
     return(p)
   } else {
+    pdf(NULL)
     ggsave(
       file = paste(outdir, paste(prefix, "_with_asr.pdf", sep = ""), sep = "/"),
       plot = p,
       dpi = 400
     )
+    dev.off()
   }
 }
