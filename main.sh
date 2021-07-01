@@ -192,7 +192,7 @@ sed -e 's/ *#.*//g;s/:[^:\/\/]/="/g;s/$/"/g;s/ *=/=/g' $WORKDIR/input/grapevine_
 grep 'pick_chains_under_other_criteria'
 )
 
-if [ "pick_chains_under_other_criteria" = "true" ]
+if [ "$pick_chains_under_other_criteria" = "true" ]
 then
     echo "--- Picking chains under different chain assumptions ---"
     for MAX_NONFOCAL_SUBCLADES in 1 2 3 4; do
@@ -271,9 +271,14 @@ eval $(
 sed -e 's/ *#.*//g;s/:[^:\/\/]/="/g;s/$/"/g;s/ *=/=/g' $WORKDIR/input/grapevine_config.yaml |
 grep 'max_date'
 )
+eval $(
+sed -e 's/ *#.*//g;s/:[^:\/\/]/="/g;s/$/"/g;s/ *=/=/g' $WORKDIR/input/grapevine_config.yaml |
+grep 'max_sampling_fraction'
+)
 
 Rscript generate_figures/generate_figures.R \
 --maxdate $max_date \
+--maxsamplingfrac $max_sampling_fraction \
 --workdir $WORKDIR
 
 # ------------------------------------------------------
