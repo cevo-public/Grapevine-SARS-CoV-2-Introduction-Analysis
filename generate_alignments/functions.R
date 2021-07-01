@@ -34,21 +34,21 @@ select_sequences <- function(
 #' @param max_sampling_frac Take no more than this fraction of confirmed cases each week.
 #' @param favor_exposures If true, first take sequences with recorded foreign exposures.
 #' @param subsample_by_canton If true, take sequences proportional to confirmed cases per canton.
+#' @param smooth_conf_cases If true, use smoothed confirmed case counts.
 #' @param output_summary_table If true, output table summarizing sampled sequences per region per week compare to confirmed cases
 #' @return qcd_gisaid_query Query filtered to include foreign samples & only selected swiss samples
 downsample_swiss_sequences <- function (
   qcd_gisaid_query, all_samples, db_connection, max_sampling_frac, favor_exposures = F,
-  verbose = T, subsample_by_canton = T, outdir = NULL
+  verbose = T, subsample_by_canton = T, smooth_conf_cases = F, outdir = NULL
 ) {
   print("Downsampling Swiss sequences")
-  # get bag exposure data
-  bag_exposures <- get_bag_exposures(db_connection)
 
-  # Get available seqs and cases numbers per week, possibly stratified by canton
+  # Get available seqs and cases numbers per week, possibly stratified by canton, possibly smoothed
   sampling_data_raw <- get_weekly_case_and_seq_data(
     db_connection = db_connection,
     qcd_gisaid_query = qcd_gisaid_query,
-    by_canton = subsample_by_canton)
+    by_canton = subsample_by_canton,
+    smooth_conf_cases = smooth_conf_cases)
 
   # restrict case data range to first and last week of available samples
   # (this takes into account the analysis date range specified in qcd_gisaid_query)
@@ -117,7 +117,7 @@ downsample_swiss_sequences <- function (
         "in week", format(as.Date(week_i), "%Y-%m-%d")))
     }
     n_samples_i <- min(n_samples_i, nrow(all_samples_i))  # correct for case when samples not attributed to a canton and there aren't enough sequences
-    sampled_strains_i <- sample_strains(bag_exposures, all_samples_i, favor_exposures, n_samples_i)
+    sampled_strains_i <- sample_strains(db_connection, all_samples_i, favor_exposures, n_samples_i)
     sampled_strains <- c(sampled_strains, sampled_strains_i)
   }
 
@@ -132,8 +132,10 @@ downsample_swiss_sequences <- function (
   return(qcd_gisaid_query)
 }
 
-sample_strains <- function(bag_exposures, all_samples_i, favor_exposures, n_samples_i) {
+sample_strains <- function(db_connection, all_samples_i, favor_exposures, n_samples_i) {
   if (favor_exposures) {
+    # get bag exposure data
+    bag_exposures <- get_bag_exposures(db_connection)
     # add bag meldeformular exposure data (not on GISAID) if there is any for samples from the week
     all_samples_i <- merge(
       x = bag_exposures, y = all_samples_i,
@@ -446,25 +448,41 @@ get_travel_cases <- function(
 
 #' Get the parent lineage for a pangolin lineage, or return NA if there is no 
 #' valid parent lineage.
-get_parent_lineage <- function(pangolin_lineage) {
-  if (grepl(x = pangolin_lineage, pattern = "\\.")) {
-    # Given B.1.1.1, return B.1.1
+get_parent_lineage <- function(pangolin_lineage, alias_table) {
+  if (grepl(x = pangolin_lineage, pattern = "^X")) {  
+    # Recombinants don't have parents
+    print(paste("No valid parent lineage for recombinant", pangolin_lineage, "\n"))
+    return(NA)
+  } else if (pangolin_lineage %in% alias_table$alias) {  
+    # Aliases get translated to their full name
+    return(unlist(unname(alias_table[alias_table$alias == pangolin_lineage, "full_name"])))
+  } else if (pangolin_lineage %in% c("A.1", "B.1")) {
+    # Special cases where A.1 and B.1 are not alias, their parents are just A and B
     return(sub(".[^.]+$", "", pangolin_lineage))
-  } else if (nchar(pangolin_lineage) == 1 && utf8ToInt(pangolin_lineage) %in% 66:90) {  
-    # According to pangolin website, C is an alias for B.1.1.1
-    # Given C, return B.1.1.1
-    lineage_letter <- intToUtf8(utf8ToInt(pangolin_lineage) - 1)
-    return(paste(lineage_letter, ".1.1.1", sep = ""))
+  } else if (grepl(x = pangolin_lineage, pattern = "\\.[[:digit:]]*\\.")) {  
+    # Given B.1.1.1, return B.1.1; Given B.1.1 return B.1
+    return(sub(".[^.]+$", "", pangolin_lineage))
+  } else if (grepl(x = pangolin_lineage, pattern = "^[[:alpha:]]\\.[[:digit:]]*$")) {  
+    # <letter!=A|B>.<number>$ is alias to <letter-1>.1.1.1.<number>
+    # E.g. given C.2 return alias B.1.1.1.2
+    alias_prefix <- substr(pangolin_lineage, 1, 1)
+    alias_suffix <- gsub(x = pangolin_lineage, pattern = "^[[:alpha:]]\\.", replacement = "")
+    lineage_letter <- intToUtf8(utf8ToInt(alias_prefix) - 1)
+    return(paste0(lineage_letter, ".1.1.1.", alias_suffix))
   } else {
     warning(paste("Cannot find a valid parent lineage for", pangolin_lineage, "\n"))
     return(NA)
   }
 }
 
+get_pango_alias_fullname <- function(pangolin_lineage, alias_table) {
+  
+}
+
 #' For pangolin lineages where > 50% of samples are Swiss, assign samples to the 
 #' parent lineage. The goal here is that the MRCA of all lineages is outside of 
 #' Switzerland. 
-aggregate_predominatly_swiss_lineages <- function(pangolin_lineages) {
+aggregate_predominatly_swiss_lineages <- function(pangolin_lineages, alias_table) {
   pangolin_lineages_aggregated <- pangolin_lineages %>% 
     mutate(
       pangolin_lineage_rollup = case_when(
@@ -482,7 +500,8 @@ aggregate_predominatly_swiss_lineages <- function(pangolin_lineages) {
            should_aggregate = is_swiss_TRUE > is_swiss_FALSE)
   pangolin_lineages_aggregated$parent_lineage <- unlist(lapply(
     FUN = get_parent_lineage,
-    X = pangolin_lineages_aggregated$pangolin_lineage
+    X = pangolin_lineages_aggregated$pangolin_lineage,
+    db_connection = db_connection
   ))           
   return(pangolin_lineages_aggregated)
 }
@@ -505,12 +524,15 @@ get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query) {
       parent_lineage = get_parent_lineage(pangolin_lineage),
       n_lineages_aggregated = 1,
       lineages_aggregated = pangolin_lineage)
+  print("Querying database for pangolin alias lookup table.")
+  alias_table <- dplyr::tbl(db_connection, "pangolin_lineage_alias") %>%
+    collect()
   print("Aggregating predominantly Swiss lineages into parent lineage.")
   pangolin_lineages_aggregated <- pangolin_lineages
   while(any(!is.na(pangolin_lineages_aggregated$parent_lineage) & 
             pangolin_lineages_aggregated$should_aggregate)) {
     pangolin_lineages_aggregated <- aggregate_predominatly_swiss_lineages(
-      pangolin_lineages_aggregated)
+      pangolin_lineages_aggregated, alias_table)
   }
   write.csv(
     x = pangolin_lineages_aggregated,
