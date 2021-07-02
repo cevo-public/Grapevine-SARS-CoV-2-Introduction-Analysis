@@ -290,11 +290,76 @@ get_chain_data_by_tip <- function(chains, metadata = NULL) {
 #' @param qc_gisaid_query A database query providing sequence filtering criteria 
 #' for seq data in table gisaid_sequence.
 #' @param by_canton If True, returns results stratified by canton with additional column 'canton_code'.
+#' @param smooth_conf_cases If true, smooth confirmed case counts.
 #' @return Dataframe with one row per week and columns giving the number of 
-#' sequences in the gisaid_sequence table from Switzerland passing the filter
-#' criteria.
-get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query, by_canton = F) {
+#' confirmed cases and sequences in the gisaid_sequence table from Switzerland 
+#' passing the filter criteria, stratified into Viollier and non-Viollier samples.
+#' Case-counts optionally smoothed across a 3-week window, reported at the cantonal level.
+get_weekly_case_and_seq_data <- function(
+  db_connection, qcd_gisaid_query, by_canton = F, smooth_conf_cases = F
+) {
   print("Getting weekly case and sequence data")
+  weekly_case_and_seq_data <- query_weekly_case_and_seq_data(db_connection, qcd_gisaid_query)
+  
+  print("Reformatting weekly case and sequence data")
+  if (!("is_viollier_TRUE" %in% colnames(weekly_case_and_seq_data))) {
+    warning("There are no viollier sequences found in the Swiss dataset.")
+    weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
+      mutate(is_viollier_TRUE = 0)
+  }
+  weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
+    rename("n_seqs_viollier" = "is_viollier_TRUE",
+           "n_seqs_other" = "is_viollier_FALSE") %>%
+    mutate(n_seqs_total = n_seqs_viollier + n_seqs_other,
+           n_seqs_viollier = as.numeric(n_seqs_viollier),
+           n_seqs_other = as.numeric(n_seqs_other),
+           n_seqs_total = as.numeric(n_seqs_total),
+           n_conf_cases = as.numeric(n_conf_cases)) %>%
+    tidyr::replace_na(replace = list(n_conf_cases = 0,
+                                     n_seqs_total = 0,
+                                     n_seqs_other = 0))
+  if (!by_canton) {
+    weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
+      select(-c(canton_code, division)) %>%
+      group_by(week) %>%
+      summarise_all(sum) %>%
+      mutate(canton_code = NA, division = NA)
+  }
+  
+  if (smooth_conf_cases) {
+    require(data.table)
+    setDT(weekly_case_and_seq_data)     # converts test to a data.table in place
+    setkey(weekly_case_and_seq_data, week, canton_code)
+    weekly_case_and_seq_data <- with(weekly_case_and_seq_data, weekly_case_and_seq_data[order(canton_code, week),])
+    weekly_case_and_seq_data[, n_conf_cases_smoothed := as.numeric(get.mav(n_conf_cases, 3)), by = canton_code]
+    weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
+      mutate(n_conf_cases_raw = n_conf_cases,
+             n_conf_cases = n_conf_cases_smoothed)
+  }
+  
+  return(weekly_case_and_seq_data)
+}
+
+#' Thanks to: https://stackoverflow.com/questions/26198551/rolling-mean-moving-average-by-group-id-with-dplyr
+#' @param bp A numeric vector.
+#' @param n Window size.
+#' @return Rolling average (left-aligned).
+get.mav <- function(bp, n){
+  require(zoo)
+  bp <- na.locf(bp, na.rm = FALSE)  # replace NA with most recent non-NA prior to it
+  if( length(bp) < n ) {
+    return(bp)
+  }
+  # Keep first n - 1 values as-is
+  return(c(bp[1:(n-1)], rollapply(bp, width = n, mean)))  
+}
+
+#' @return Dataframe with one row per week and columns giving the number of 
+#' confirmed cases and sequences in the gisaid_sequence table from Switzerland 
+#' passing the filter criteria, stratified into Viollier and non-Viollier samples.
+query_weekly_case_and_seq_data <- function(
+  db_connection, qcd_gisaid_query
+) {
   sequence_data_query <- qcd_gisaid_query %>%
     filter(iso_country == "CHE") %>%
     mutate(
@@ -322,29 +387,7 @@ get_weekly_case_and_seq_data <- function(db_connection, qcd_gisaid_query, by_can
       values_from = "n_seqs", 
       names_prefix = "is_viollier_",
       values_fill = list(n_seqs = 0))
-  if (!("is_viollier_TRUE" %in% colnames(weekly_case_and_seq_data))) {
-    warning("There are no viollier sequences found in the Swiss dataset.")
-    weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
-      mutate(is_viollier_TRUE = 0)
-  }
-  weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
-    rename("n_seqs_viollier" = "is_viollier_TRUE",
-           "n_seqs_other" = "is_viollier_FALSE") %>%
-    mutate(n_seqs_total = n_seqs_viollier + n_seqs_other,
-           n_seqs_viollier = as.numeric(n_seqs_viollier),
-           n_seqs_other = as.numeric(n_seqs_other),
-           n_seqs_total = as.numeric(n_seqs_total),
-           n_conf_cases = as.numeric(n_conf_cases)) %>%
-    tidyr::replace_na(replace = list(n_conf_cases = 0,
-                                     n_seqs_total = 0,
-                                     n_seqs_other = 0))
-  if (!by_canton) {
-    weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
-      select(-c(canton_code, division)) %>%
-      group_by(week) %>%
-      summarise_all(sum) %>%
-      mutate(canton_code = NA, division = NA)
-  }
+  
   return(weekly_case_and_seq_data)
 }
 

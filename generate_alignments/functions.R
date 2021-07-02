@@ -2,7 +2,8 @@
 #' @param focal_country ISO code for focal country.
 select_sequences <- function(
   qcd_gisaid_query, db_connection, max_sampling_frac, focal_country = 'CHE', 
-  favor_exposures = F, verbose = T, subsample_by_canton = T, outdir = NULL
+  favor_exposures = F, verbose = T, subsample_by_canton = T, smooth_conf_cases = F,
+  outdir = NULL
 ) {
     all_samples <- qcd_gisaid_query %>%
         filter(iso_country == !! focal_country) %>%
@@ -12,8 +13,8 @@ select_sequences <- function(
     print(paste("There are a total of", nrow(all_samples), "focal samples passing the qcd_gisaid_query"))
     if (focal_country == 'CHE' & max_sampling_frac > 0 & max_sampling_frac <= 1) {
         return(downsample_swiss_sequences(
-            qcd_gisaid_query, all_samples, db_connection, max_sampling_frac, favor_exposures, verbose,
-            subsample_by_canton, outdir))
+            qcd_gisaid_query, all_samples, db_connection, max_sampling_frac, 
+            favor_exposures, verbose, subsample_by_canton, smooth_conf_cases, outdir))
     } else if (max_sampling_frac == -1) {
         print("Not downsampling sequences.")
         return(qcd_gisaid_query)

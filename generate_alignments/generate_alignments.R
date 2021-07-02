@@ -30,6 +30,7 @@ min_date <- config_values$min_date
 min_length <- config_values$min_length
 max_sampling_frac <- config_values$max_sampling_fraction
 subsample_by_canton <- config_values$subsample_by_canton
+smooth_conf_cases <- config_values$smooth_conf_cases
 travel_context_scale_factor <- config_values$travel_context_scale_factor
 similarity_context_scale_factor <- config_values$similarity_context_scale_factor
 travel_data_weights <- config_values$travel_data_weights
@@ -88,7 +89,8 @@ qcd_gisaid_query <- select_sequences(
   favor_exposures = favor_exposures,
   db_connection = db_connection,
   outdir = outdir,
-  subsample_by_canton = subsample_by_canton
+  subsample_by_canton = subsample_by_canton,
+  smooth_conf_cases = smooth_conf_cases
 )
 
 if (n_trees > 0) {
