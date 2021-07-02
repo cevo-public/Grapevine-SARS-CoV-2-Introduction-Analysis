@@ -1,8 +1,9 @@
 #' Direct sample selection to appropriate function.
 #' @param focal_country ISO code for focal country.
 select_sequences <- function(
-  qcd_gisaid_query, db_connection, max_sampling_frac, focal_country = 'CHE', favor_exposures = F, verbose = T,
-  subsample_by_canton = T, outdir = NULL) {
+  qcd_gisaid_query, db_connection, max_sampling_frac, focal_country = 'CHE', 
+  favor_exposures = F, verbose = T, subsample_by_canton = T, outdir = NULL
+) {
     all_samples <- qcd_gisaid_query %>%
         filter(iso_country == !! focal_country) %>%
         mutate(week = as.Date(date_trunc('week', date))) %>%
@@ -462,7 +463,7 @@ get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query) {
   
   print("Translating lineage aliases to full names.")
   pangolin_lineages <- pangolin_lineages %>% 
-    mutate(pangolin_lineage = orig_pangolin_lineage,
+    mutate(orig_pangolin_lineage = pangolin_lineage,
            pangolin_lineage = unlist(lapply(
              FUN = expand_pangolin_lineage_aliases,
              X = pangolin_lineage,
@@ -515,6 +516,9 @@ get_parent_lineage <- function(pangolin_lineage) {
   } else if (grepl(x = pangolin_lineage, pattern = "\\.[[:digit:]]*\\.")) {  
     # Given B.1.1.1, return B.1.1; Given B.1.1 return B.1
     return(sub(".[^.]+$", "", pangolin_lineage))
+  } else if (grepl(x = pangolin_lineage, pattern = "(A|B)\\.[[:digit:]]*$")) {
+    # Special case, only A and B are valid single-letter lineages
+    return(sub(".[^.]+$", "", pangolin_lineage))
   } else {
     warning(paste("Cannot find a valid parent lineage for", pangolin_lineage, "\n"))
     return(NA)
@@ -542,9 +546,7 @@ aggregate_predominatly_swiss_lineages <- function(pangolin_lineages, alias_table
            should_aggregate = is_swiss_TRUE > is_swiss_FALSE)
   pangolin_lineages_aggregated$parent_lineage <- unlist(lapply(
     FUN = get_parent_lineage,
-    X = pangolin_lineages_aggregated$pangolin_lineage,
-    db_connection = db_connection
-  ))           
+    X = pangolin_lineages_aggregated$pangolin_lineage))           
   return(pangolin_lineages_aggregated)
 }
 
