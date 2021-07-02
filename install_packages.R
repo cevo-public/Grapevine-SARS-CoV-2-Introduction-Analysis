@@ -11,7 +11,9 @@ install.packages(c(
   "RColorBrewer",
   "RPostgres",
   "gplots",
-  "ggpubr"
+  "ggpubr",
+  "zoo",
+  "data.table"
 ))
 
 if (!requireNamespace("BiocManager", quietly = TRUE))
