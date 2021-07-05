@@ -265,6 +265,17 @@ then
 fi
 
 # ------------------------------------------------------
+echo "--- Writing out alignments for BEAST analysis ---"
+Rscript analyze_clusters/get_bdsky_alignments.R \
+--workdir $WORKDIR \
+--maxdate 2020-11-30
+# maxdate 2020-11-30 chosen to be before B.1.1.7 affects shared Re assumption
+
+Rscript analyze_clusters/get_date_to_week_for_bdsky.R \
+--outdir $WORKDIR/output/transmission_chain_alignments \
+--maxdate 2020-11-30
+
+# ------------------------------------------------------
 echo "--- Generating figures ---"
 # Parse parameter from config file
 eval $(
@@ -280,17 +291,6 @@ Rscript generate_figures/generate_figures.R \
 --maxdate $max_date \
 --maxsamplingfrac $max_sampling_fraction \
 --workdir $WORKDIR
-
-# ------------------------------------------------------
-echo "--- Writing out alignments for BEAST analysis ---"
-Rscript analyze_clusters/get_bdsky_alignments.R \
---workdir $WORKDIR \
---maxdate 2020-11-30
-# maxdate 2020-11-30 chosen to be before B.1.1.7 affects shared Re assumption
-
-Rscript analyze_clusters/get_date_to_week_for_bdsky.R \
---outdir $WORKDIR/output/transmission_chain_alignments \
---maxdate 2020-11-30
 
 # ------------------------------------------------------
 echo "--- Finished successfully ---"
