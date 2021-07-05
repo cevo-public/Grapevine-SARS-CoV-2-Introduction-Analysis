@@ -1,0 +1,126 @@
+# To build the docker image locally:
+cd ~/Repos/grapevine
+# Check that workdir/input/grapevine_config.yaml has the settings you want
+docker build -t grapevine .
+
+# To run a container locally:
+docker run --volume=/Users/nadeaus/Repos/grapevine/workdir:/app/workdir grapevine
+docker run --volume=/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_main:/app/workdir grapevine
+
+# To push the image to gitlab:
+cd ~/Repos/grapevine
+docker build -t registry.ethz.ch/sars_cov_2/grapevine .
+docker push registry.ethz.ch/sars_cov_2/grapevine
+
+# To run a container on Euler:
+ssh nadeaus@euler.ethz.ch
+cd $SCRATCH/grapevine
+
+CONTAINER_NAME=grapevine_restart
+WORKDIR=2021-05-31_for_manuscript_rep_1
+
+## Pull the image from gitlab and convert it to a singularity container in an interactive job on Euler - otherwise the batch system complains I abuse the login node!
+module load eth_proxy
+bsub -I -W 0:20 -o singularity_build_%J.log "singularity build --docker-login ${CONTAINER_NAME}.sif docker://registry.ethz.ch/sars_cov_2/grapevine:latest"
+# Enter credentials for ETH gitlab (no prompt will come, just enter the username and then the password and if specified time is long enough, at the end the image should be built)
+
+## Run the singularity container in an Euler job
+# Make sure workdir/input is set up correctly and that workdir/tmp and workdir/output don't exist:
+mkdir -p $WORKDIR/input
+scp workdir/input/grapevine_config.yaml nadeaus@euler.ethz.ch:/cluster/scratch/nadeaus/grapevine/$WORKDIR/input
+# OR cp example_workdir/input/grapevine_config.yaml $WORKDIR/input # Edit for the settings you want
+cp example_workdir/input/reference.fasta $WORKDIR/input
+cp example_workdir/input/config.yml $WORKDIR/input
+
+module load eth_proxy
+bsub -N -n 8 -R "rusage[mem=4096]" -W 12:00 -o $WORKDIR/${WORKDIR}_%J.log -B "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR}:/app/workdir ${CONTAINER_NAME}.sif"
+
+
+# Transfer results to local
+# See script in dont_commit for this
+
+# To re-run multiple replicate analyses with the same parameters
+WORKDIR=2021-05-28_for_supplement_3_sim
+module load eth_proxy
+for i in 1 2 3; do
+WORKDIR_REP=${WORKDIR}_rep_${i}
+mkdir -p $WORKDIR_REP/input
+cp $WORKDIR/input/grapevine_config.yaml $WORKDIR_REP/input # Edit for the settings you want
+cp $WORKDIR/input/reference.fasta $WORKDIR_REP/input
+cp $WORKDIR/input/config.yml $WORKDIR_REP/input
+bsub -N -n 8 -R "rusage[mem=2048]" -W 8:00 -o $WORKDIR_REP/${WORKDIR_REP}_%J.log -B "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR_REP}:/app/workdir ${CONTAINER_NAME}.sif"
+done
+
+### For supplement:
+cd $SCRATCH/grapevine
+module load eth_proxy
+CONTAINER_NAME=grapevine_for_supplement
+WORKDIR_BASE=2021-06-02_for_supplement
+
+# Build container:
+bsub -I -W 0:20 -o singularity_build_%J.log "singularity build --docker-login ${CONTAINER_NAME}.sif docker://registry.ethz.ch/sars_cov_2/grapevine:latest"
+
+# Define base workdir
+mkdir -p $WORKDIR_BASE/input
+cp 2021-05-31_for_manuscript_rep_1/input/grapevine_config.yaml $WORKDIR_BASE/input
+cp example_workdir/input/reference.fasta $WORKDIR_BASE/input
+cp example_workdir/input/config.yml $WORKDIR_BASE/input
+
+# Set up supplement workdirs
+for j in 1 2 3; do
+for i in 1 2 3; do
+WORKDIR_REP=${WORKDIR_BASE}_sim_${j}_rep_${i}
+mkdir -p $WORKDIR_REP/input
+cp $WORKDIR_BASE/input/grapevine_config.yaml $WORKDIR_REP/input
+sed -i "s/similarity_context_scale_factor:\ 2/similarity_context_scale_factor:\ ${j}/g" $WORKDIR_REP/input/grapevine_config.yaml
+cp $WORKDIR_BASE/input/reference.fasta $WORKDIR_REP/input
+cp $WORKDIR_BASE/input/config.yml $WORKDIR_REP/input
+done
+done
+
+# Remove base workdir
+rm -r $WORKDIR_BASE
+
+# Start an Euler run for each supplemental analysis
+for j in 1 2 3; do
+for i in 1 2 3; do
+WORKDIR_REP=${WORKDIR_BASE}_sim_${j}_rep_${i}
+bsub -N -n 8 -R "rusage[mem=4096]" -W 14:00 -o $WORKDIR_REP/${WORKDIR_REP}_%J.log -B "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR_REP}:/app/workdir ${CONTAINER_NAME}.sif"
+done
+done
+
+## Restart timed-out runs for supplement:
+
+cd $SCRATCH/grapevine
+module load eth_proxy
+CONTAINER_NAME=grapevine_for_supplement_restart
+WORKDIR_BASE=2021-06-02_for_supplement
+
+# Build container:
+bsub -I -W 0:20 -o singularity_build_%J.log "singularity build --docker-login ${CONTAINER_NAME}.sif docker://registry.ethz.ch/sars_cov_2/grapevine:latest"
+
+# Re-start an Euler run for each unfinished supplemental analysis
+for j in 3; do
+for i in 1 2 3; do
+WORKDIR_REP=${WORKDIR_BASE}_sim_${j}_rep_${i}
+bsub -N -n 8 -R "rusage[mem=4096]" -W 14:00 -o $WORKDIR_REP/${WORKDIR_REP}_restart_%J.log -B "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR_REP}:/app/workdir ${CONTAINER_NAME}.sif"
+done
+done
+
+## Restart alternate chain definitions and generate figures:
+
+cd $SCRATCH/grapevine
+module load eth_proxy
+CONTAINER_NAME=grapevine_for_supplement_restart_2
+WORKDIR_BASE=2021-06-02_for_supplement
+
+# Build container:
+bsub -I -W 0:20 -o singularity_build_%J.log "singularity build --docker-login ${CONTAINER_NAME}.sif docker://registry.ethz.ch/sars_cov_2/grapevine:latest"
+
+# Re-start a single run to test
+j=1
+i=1
+WORKDIR_REP=${WORKDIR_BASE}_sim_${j}_rep_${i}
+bsub -W 2:00 -o $WORKDIR_REP/${WORKDIR_REP}_restart_2_%J.log "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR_REP}:/app/workdir ${CONTAINER_NAME}.sif"
+done
+done
