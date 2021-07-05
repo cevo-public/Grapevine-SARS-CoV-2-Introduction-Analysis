@@ -959,8 +959,6 @@ plot_sampling_intensity <- function(
     shared_theme + 
     theme(legend.position = "none", axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
   
-  print(dates_to_highlight)
-  
   weekly_samples_vs_cases <- weekly_samples_vs_cases %>% 
     add_vlines(dates_to_highlight = dates_to_highlight)
 
