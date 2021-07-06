@@ -278,6 +278,21 @@ load_sample_metadata <- function(workdir, pattern = "*_metadata.tsv") {
       )
     ))
   print(paste("Loaded and concatenated", length(metadata_files), "metadata files."))
+  
+  # Remove duplicate entries for outgroup
+  metadata_duplicates <- metadata %>% 
+    group_by(gisaid_epi_isl) %>%
+    summarize(n_occurances = n()) %>%
+    filter(n_occurances > 1)
+  for (i in 1:nrow(metadata_duplicates)) {
+    epi_isl <- metadata_duplicates[i, "gisaid_epi_isl"]
+    if (metadata_duplicates[i, "n_occurances"] != length(metadata_files)) {
+      stop(paste("Strain", epi_isl, "found in multiple trees and is not in outgroup!"))
+    } else {
+      print(paste("Removing duplicate metadata entries for outgroup strain", epi_isl))
+    }
+  }
+  metadata <- metadata %>% filter(!duplicated(metadata, fromLast = F))
   return(metadata)
 }
 
