@@ -287,6 +287,7 @@ sed -e 's/ *#.*//g;s/:[^:\/\/]/="/g;s/$/"/g;s/ *=/=/g' $WORKDIR/input/grapevine_
 grep 'max_sampling_fraction'
 )
 
+# TODO: this fails on Euler with error: Error in (function (file = if (onefile) "Rplots.pdf" else "Rplot%03d.pdf",  : cannot open file 'Rplots.pdf'
 Rscript generate_figures/generate_figures.R \
 --maxdate $max_date \
 --maxsamplingfrac $max_sampling_fraction \
