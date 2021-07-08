@@ -2,28 +2,41 @@
 #' @param focal_country ISO code for focal country.
 select_sequences <- function(
   qcd_gisaid_query, db_connection, max_sampling_frac, focal_country = 'CHE', 
-  favor_exposures = F, verbose = T, subsample_by_canton = T, smooth_conf_cases = F,
-  outdir = NULL
+  verbose = T, subsample_by_canton = T, smooth_conf_cases = F,
+  outdir = NULL, max_date, min_date
 ) {
     all_samples <- qcd_gisaid_query %>%
-        filter(iso_country == !! focal_country) %>%
+        filter(country == focal_country) %>%
         mutate(week = as.Date(date_trunc('week', date))) %>%
-        select(strain, week, division, gisaid_epi_isl, iso_country_exposure) %>%
+        select(strain, week, division, gisaid_epi_isl) %>%
+        left_join(
+          y = dplyr::tbl(db_connection, "swiss_canton") %>%
+            mutate(canton = canton_code) %>%
+            select(gisaid_division, canton),
+          by = c("division" = "gisaid_division")) %>%
         collect()
     print(paste("There are a total of", nrow(all_samples), "focal samples passing the qcd_gisaid_query"))
-    if (focal_country == 'CHE' & max_sampling_frac > 0 & max_sampling_frac <= 1) {
-        return(downsample_swiss_sequences(
-            qcd_gisaid_query, all_samples, db_connection, max_sampling_frac, 
-            favor_exposures, verbose, subsample_by_canton, smooth_conf_cases, outdir))
+    if (max_sampling_frac > 0 & max_sampling_frac <= 1) {
+      downsample_data <- downsample_focal_sequences(
+        qcd_gisaid_query = qcd_gisaid_query,
+        all_samples = all_samples,
+        db_connection = db_connection,
+        max_sampling_frac = max_sampling_frac,
+        focal_country = focal_country,
+        verbose = verbose,
+        subsample_by_canton = subsample_by_canton,
+        smooth_conf_cases = smooth_conf_cases,
+        outdir = outdir,
+        max_date = max_date,
+        min_date = min_date)
+      return(downsample_data)
     } else if (max_sampling_frac == -1) {
-        print("Not downsampling sequences.")
-        return(qcd_gisaid_query)
+      print("Not downsampling sequences.")
+      return(qcd_gisaid_query)
     } else if (max_sampling_frac < 0 | max_sampling_frac > 1) {
-        stop("Error in selecting sequences: max_sampling_frac outside of range 0-1 or -1 for all samples.")
-    } else if (focal_country != 'CHE' & max_sampling_frac != -1) {
-        stop("Error in selecting sequences: downsampling by confirmed cases only implemented for CHE.")
+      stop("Error in selecting sequences: max_sampling_frac outside of range 0-1 or -1 for all samples.")
     } else {
-        stop("Error in selecting sequences: unspecified input error.")
+      stop("Error in selecting sequences: unspecified input error.")
     }
 }
 
@@ -34,40 +47,29 @@ select_sequences <- function(
 #' Optionally favor samples with recorded foreign exposure information per BAG meldeformular or GISAID metadata before filling up the week's sequence quota with non-exposed/unknown samples.
 #' @param qcd_gisaid_query Query of database table gisaid_sequence with QC filters.
 #' @param max_sampling_frac Take no more than this fraction of confirmed cases each week.
-#' @param favor_exposures If true, first take sequences with recorded foreign exposures.
-#' @param subsample_by_canton If true, take sequences proportional to confirmed cases per canton.
+#' @param subsample_by_canton If true, take sequences proportional to confirmed cases per canton. Only available if focal country is CHE.
 #' @param smooth_conf_cases If true, use smoothed confirmed case counts.
 #' @param output_summary_table If true, output table summarizing sampled sequences per region per week compare to confirmed cases
 #' @return qcd_gisaid_query Query filtered to include foreign samples & only selected swiss samples
-downsample_swiss_sequences <- function (
-  qcd_gisaid_query, all_samples, db_connection, max_sampling_frac, favor_exposures = F,
-  verbose = T, subsample_by_canton = T, smooth_conf_cases = F, outdir = NULL
+downsample_focal_sequences <- function (
+  qcd_gisaid_query, all_samples, db_connection, max_sampling_frac,
+  verbose = T, subsample_by_canton = T, smooth_conf_cases = F, outdir = NULL, focal_country, min_date, max_date
 ) {
-  print("Downsampling Swiss sequences")
+  print("Downsampling focal sequences")
 
   # Get available seqs and cases numbers per week, possibly stratified by canton, possibly smoothed
   sampling_data_raw <- get_weekly_case_and_seq_data(
     db_connection = db_connection,
     qcd_gisaid_query = qcd_gisaid_query,
-    by_canton = subsample_by_canton,
-    smooth_conf_cases = smooth_conf_cases)
-
-  # restrict case data range to first and last week of available samples
-  # (this takes into account the analysis date range specified in qcd_gisaid_query)
-  min_week <- all_samples %>%
-    summarize(min(week, na.rm = T)) %>%
-    collect()
-  max_week <- all_samples %>%
-    summarize(max(week, na.rm = T)) %>%
-    collect()
+    subsample_by_canton = subsample_by_canton,
+    focal_country = focal_country,
+    smooth_conf_cases = smooth_conf_cases) %>%
+    filter(week <= max_date, week >= min_date)
 
   # Calculate # seqs per week
   # and divide proportionally amongst cantons if data stratified by canton
   sampling_data <- sampling_data_raw %>%
-    mutate(week = as.character(week)) %>%
-    filter(
-      week <= max_week[[1]], week >= min_week[[1]],
-      (is.na(canton_code) | canton_code != "FL")) %>%  # don't count samples from FL, do count samples not associated with a canton
+    filter(canton != "FL") %>%  # don't count samples from Liechtenstein
     group_by(week) %>%
     mutate(
       max_seqs_from_week = floor(sum(n_conf_cases) * max_sampling_frac),
@@ -75,104 +77,86 @@ downsample_swiss_sequences <- function (
         votes = n_conf_cases,
         n_seats = max_seqs_from_week[1]),
       n_to_sample = case_when(
-        is.na(canton_code) ~ n_ideal_sample,  # hope that there are always enough Swiss-wide sequences to fill up the quota when the confirmed cases aren't attributed to a specific canton. If not, code will just sample all available sequences.
-        T ~ pmin(n_ideal_sample, n_seqs_total))) %>%
-    arrange(week, canton_code)
+        canton == focal_country ~ 0,  # placeholder, to be filled below
+        T ~ pmin(n_ideal_sample, n_seqs_total)))
+
+  # For weeks where some case data not aggregated by canton, take leftover sequences from whole-country
+  leftover_seqs_by_week <- sampling_data %>%
+    group_by(week) %>%
+    summarize(n_leftover_seqs = sum(n_seqs_total) - sum(n_to_sample)) %>%  # includes extra sequences from cantons and seqs not assigned a canton
+    mutate(canton = focal_country)
+  sampling_data <- merge(x = sampling_data, y = leftover_seqs_by_week, all.x = T, by = c("week", "canton"))
+  sampling_data <- sampling_data %>%
+    mutate(
+      n_to_sample = case_when(
+        canton == focal_country ~ pmin(n_ideal_sample, n_leftover_seqs),
+        T ~ n_to_sample))
+
+  # select sequences from cantons first, so that non-canton-specific sampling doesn't take too many first
+  canton_levels <- c(sort(unique(sampling_data$canton[sampling_data$canton != focal_country])), focal_country)
+  sampling_data$canton<- factor(
+    x = sampling_data$canton,
+    levels = canton_levels)
+  sampling_data <- sampling_data %>% arrange(canton, week)
 
   # sample sequences
   sampled_strains <- c()
   for (i in 1:nrow(sampling_data)) {
     week_i <- sampling_data[[i, "week"]]
-    division_i <- sampling_data[[i, "division"]]
-    canton_code_i <- sampling_data[[i, "canton_code"]]
+    canton_i <- as.character(sampling_data[[i, "canton"]])
     n_samples_i <- as.numeric(sampling_data[[i, "n_to_sample"]])
     
     if (n_samples_i == 0) {  # if no samples desired, continue
       next
     }
     
-    if (is.na(canton_code_i)) {  # if not stratifying by canton, or the canton is not known, take randomly from all Switzerland
-      print("Sampling from all Switzerland")
-      all_samples_i <- all_samples %>%
-        filter(week == week_i)
+    if (canton_i == focal_country) {  # if not stratifying by canton, or the canton is not known, take randomly from all Switzerland
       all_samples_i <- all_samples %>%
         filter(week == week_i, !(strain %in% !! sampled_strains))
-    } else if (is.na(division_i)) {  # if no sequences available, continue
-      print("Trying to sample from a canton, but division is NA, interpreting as no samples available")
-      if (verbose) {
-        print(paste(
-          "sampling", n_samples_i, 
-          "samples out of 0", 
-          "available from", case_when(is.na(canton_code_i) ~ "all Switzerland", T ~ canton_code_i),
-          "in week", format(as.Date(week_i), "%Y-%m-%d")))
-      }
-      next
     } else {  # else take from the right canton
       all_samples_i <- all_samples %>%
-        filter(week == week_i, division == division_i, !(strain %in% !! sampled_strains))
+        filter(week == week_i, canton == canton_i, !(strain %in% !! sampled_strains))
     }
     if (verbose) {
       print(paste(
         "sampling", n_samples_i, 
         "samples out of", nrow(all_samples_i), 
-        "available from", ifelse(test = is.na(canton_code_i), yes = "all Switzerland", no = canton_code_i),
+        "available from", ifelse(test = is.na(canton_i), yes = paste("all", focal_country), no = canton_i),
         "in week", format(as.Date(week_i), "%Y-%m-%d")))
     }
-    n_samples_i <- min(n_samples_i, nrow(all_samples_i))  # correct for case when samples not attributed to a canton and there aren't enough sequences
-    sampled_strains_i <- sample_strains(db_connection, all_samples_i, favor_exposures, n_samples_i)
+    sampled_strains_i <- sample_strains(all_samples_i, n_samples_i)
     sampled_strains <- c(sampled_strains, sampled_strains_i)
   }
 
   # output downsampling data table and figure
   if (!(is.null(outdir))) {
-    report_downsampling(sampling_data, outdir, max_sampling_frac)
+    report_downsampling(sampling_data, outdir, max_sampling_frac, focal_country)
   }
   
   # update master seq query to exclude non-sampled swiss strains
   qcd_gisaid_query <- qcd_gisaid_query %>%
-    filter(iso_country != 'CHE' | strain %in% !! sampled_strains)
+    filter(country != 'CHE' | strain %in% !! sampled_strains)
   return(qcd_gisaid_query)
 }
 
-sample_strains <- function(db_connection, all_samples_i, favor_exposures, n_samples_i) {
-  if (favor_exposures) {
-    # get bag exposure data
-    bag_exposures <- get_bag_exposures(db_connection)
-    # add bag meldeformular exposure data (not on GISAID) if there is any for samples from the week
-    all_samples_i <- merge(
-      x = bag_exposures, y = all_samples_i,
-      by = "gisaid_epi_isl", 
-      all.y = T) %>%
-      mutate(iso_country_exposure = dplyr::coalesce(iso_country_exposure.x, iso_country_exposure.y)) 
-    # shuffle samples but put foreign exposure samples first
-    exp_samples_i <- all_samples_i %>%
-      filter(!is.na(iso_country_exposure) & iso_country_exposure != "CHE")
-    other_samples_i <- all_samples_i %>% 
-      filter(is.na(iso_country_exposure) | iso_country_exposure == "CHE")
-    shuffled_samples_i <- rbind(
-      exp_samples_i[sample(nrow(exp_samples_i), replace = F), ],
-      other_samples_i[sample(nrow(other_samples_i), replace = F), ]
-    )
-  } else {
-    # shuffle samples
-    shuffled_samples_i <- all_samples_i[sample(nrow(all_samples_i), replace = F), ]
-  }
+sample_strains <- function(all_samples_i, n_samples_i) {
+  shuffled_samples_i <- all_samples_i[sample(nrow(all_samples_i), replace = F), ]
   sampled_strains_i <- shuffled_samples_i$strain[1:n_samples_i]
   return(sampled_strains_i)
 }
 
-report_downsampling <- function(sampling_data, outdir, max_sampling_frac) {
+report_downsampling <- function(sampling_data, outdir, max_sampling_frac, focal_country) {
   write.csv(
     x = sampling_data, 
-    file = paste(outdir, "swiss_downsampling_data.csv", sep = "/"),
+    file = paste(outdir, paste0(focal_country, "_downsampling_data.csv"), sep = "/"),
     row.names = F)
   sampling_plot <- ggplot(
-    data = sampling_data,
+    data = sampling_data %>% mutate(canton = tidyr::replace_na(data = canton, replace = focal_country)),
     aes(x = as.Date(week))) + 
     geom_col(aes(y = n_to_sample, fill = "Number of sequences analyzed")) + 
     geom_col(aes(y = -n_conf_cases * max_sampling_frac, 
                  fill = paste(max_sampling_frac * 100, "% of confirmed cases", sep = ""))) + 
-    facet_wrap(canton_code ~ ., scales = "free_y") +
+    facet_wrap(canton ~ ., scales = "free_y") +
     scale_x_date(date_breaks = "2 months", date_labels = "%b. %y") +
     scale_y_continuous(limits = symmetric_limits) + 
     theme_bw() + 
@@ -181,281 +165,20 @@ report_downsampling <- function(sampling_data, outdir, max_sampling_frac) {
           legend.title = element_blank()) + 
     labs(x = element_blank(), y = "Count")
   ggsave(
-    filename = paste(outdir, "swiss_downsampling.png", sep = "/"),
+    filename = paste(outdir, paste0(focal_country, "_downsampling.png"), sep = "/"),
     plot = sampling_plot)
-}
-
-#' Get GISAID_EPI_ISL and exposure country for sequences with BAG-recoreded foreign
-#' exposures. To be merged into GISAID data.
-get_bag_exposures <- function(db_connection) {
-  exposure_sql <- "select gisaid_epi_isl, iso_country_exp
-      from gisaid_sequence gs
-  join sequence_identifier si on si.gisaid_id = gs.gisaid_epi_isl
-  left join viollier_test vt on si.ethid = vt.ethid
-  left join bag_meldeformular bm on vt.sample_number = bm.sample_number
-  where iso_country_exp is not null and
-  iso_country_exp not in ('CHE', 'XXX');"
-  res <- DBI::dbSendQuery(conn = db_connection, statement = exposure_sql)
-  bag_exposures <- DBI::dbFetch(res = res)
-  DBI::dbClearResult(res = res)
-  return(bag_exposures %>% rename(iso_country_exposure = iso_country_exp))
-}
-
-# ------------------------------------------------------------------------------
-
-#' Get number of cases by exposure country and month of case confirmation from 
-#' BAG meldeformular.
-#' Null entries for 'exp_land' or entries of 'Schweiz' in BAG meldeformular are not reported.
-get_exposures_per_country_month <- function(db_connection, min_date, max_date) {
-  print("Getting number of cases by exposure country and month of case confirmation from BAG meldeformular.")
-  exposures_per_country_month <- dplyr::tbl(
-    db_connection, "bag_meldeformular") %>%
-    filter(!is.na(iso_country_exp), !(iso_country_exp %in% c('CHE', 'XXX')), 
-           fall_dt <= !! max_date, 
-           fall_dt >= !! min_date) %>%
-    select(iso_country_exp, fall_dt) %>%
-    collect() %>%
-    mutate(date = format(fall_dt, "%Y-%m-01")) %>%
-    group_by(date, iso_country_exp) %>%
-    summarise(n_exposures = n()) %>%
-    rename("iso_country" = "iso_country_exp")
-  return(exposures_per_country_month)
-}
-
-#' Estimate number of tourists arriving in Switzerland by origin country and 
-#' month of arrival. 
-#' @param db_connection
-#' @param max_date Character date, e.g. "2021-01-30" to extrapolate data to.
-get_tourist_arrivals_per_country_month <- function(
-  db_connection, min_date, max_date
-) {
-  print("Estimating number of tourists arriving in Switzerland by origin country and month of arrival.")
-  tourist_arrivals_per_country_month <- dplyr::tbl(
-    db_connection, "ext_fso_tourist_accommodation") %>%
-    filter(date <= !! max_date, date >= !! min_date) %>%
-    collect() %>%
-    ungroup() %>%
-    tidyr::complete(
-      date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
-      iso_country) %>%  
-    group_by(iso_country) %>%
-    arrange(date) %>%
-    tidyr::fill(n_arrivals) %>% # fill in missing months with prev month's value
-    rename(n_tourist_arrivals = n_arrivals)
-  return(tourist_arrivals_per_country_month)
-}
-
-# Get number of cross-border commuter permits for Switzerland by origin country 
-# and month.
-#' @param db_connection
-#' @param max_date Character date, e.g. "2021-01-30" to extrapolate data to.
-get_commuter_permits_per_country_month <- function(db_connection, min_date, max_date) { 
-  print("Getting number of cross-border commuter permits for Switzerland by origin country and month.")
-  commuter_permits_per_country_month <- dplyr::tbl(
-    db_connection, "ext_fso_cross_border_commuters") %>%
-    filter(date <= !! max_date, date >= !! min_date) %>%
-    collect() %>%
-    ungroup() %>%
-    tidyr::complete(
-      date = seq.Date(from = as.Date(min_date), to = as.Date(max_date), by = "month"), 
-      iso_country, wirtschaftsabteilung) %>% 
-    group_by(iso_country, wirtschaftsabteilung) %>%
-    arrange(date) %>%
-    tidyr::fill(n_permits) %>% # fill in months with quarterly values, missing quarters with previous quarter's value
-    group_by(iso_country, date) %>%
-    summarise(n_commuter_permits = sum(n_permits)) # sum across sectors
-  return(commuter_permits_per_country_month)
-}
-
-#' Get average daily infectious population (per million) by country and month.
-#' @param db_connection
-#' @param max_date Character date, e.g. "2021-01-30" to extrapolate data to.
-get_avg_infectious_per_country_month <- function(db_connection, min_date, max_date) {
-  print("Geting average daily infectious population (per million) by country and month.")
-  avg_infectious_per_country_month <- dplyr::tbl(
-    db_connection, "ext_owid_global_cases") %>%
-    filter(date <= !! max_date, date >= !! min_date) %>%
-    select(iso_country, date, new_cases_per_million) %>%
-    collect() %>%
-    group_by(iso_country) %>%
-    arrange(date) %>%
-    mutate(cumul_cases_per_million = cumsum(new_cases_per_million)) %>%
-    mutate(n_infectious_cases_per_million = lead(cumul_cases_per_million, n = 10) - cumul_cases_per_million) %>%
-    mutate(date = as.Date(format(date, "%Y-%m-01"))) %>%
-    filter(!is.na(n_infectious_cases_per_million)) %>%  # filters out NAs at ends of lead date ranges
-    group_by(date, iso_country) %>%
-    summarise(avg_daily_n_infectious_per_million = mean(n_infectious_cases_per_million)) %>% 
-    ungroup() %>%
-    tidyr::complete(
-      date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
-      iso_country) %>%  
-    group_by(iso_country) %>%
-    arrange(date) %>%
-    tidyr::fill(avg_daily_n_infectious_per_million)  # fill in months with previous monthly value
-  return(avg_infectious_per_country_month)  
-}
-
-#' Get data to estimate number of infectious arrivals into Switzerland by origin 
-#' country and month of arrival.
-#' @param db_connection
-#' @param max_date Character date, e.g. "2021-01-30" to extrapolate data to.
-get_infected_arrivals_per_country_month <- function(
-  db_connection, min_date, max_date
-) {
-  print("Estimating number of infectious arrivals into Switzerland by origin country and month of arrival.")
-  tourists <- get_tourist_arrivals_per_country_month(
-    db_connection, min_date, max_date)
-  commuters <- get_commuter_permits_per_country_month(
-    db_connection, min_date, max_date)
-  infectious <- get_avg_infectious_per_country_month(
-    db_connection, min_date, max_date)
-  arrivals <- merge(x = tourists, y = commuters, all = T, 
-                    by = c("date", "iso_country")) %>%
-    tidyr::replace_na(replace = list("n_tourist_arrivals" = 0, 
-                                     "n_commuter_permits" = 0))
-  infectious_arrivals <- merge(x = arrivals, y = infectious, 
-                               by = c("date", "iso_country"), all.x = T)
-  warn_missing_infectious_arrivals(infectious_arrivals)
-  infectious_arrivals <- infectious_arrivals %>% 
-    filter(!is.na(avg_daily_n_infectious_per_million)) 
-  return(infectious_arrivals)
-}
-
-warn_missing_infectious_arrivals <- function(infectious_arrivals) {
-  missing_case_data <- infectious_arrivals %>%
-    filter(is.na(avg_daily_n_infectious_per_million), 
-           date >= as.Date("2020-03-01")) %>%
-    group_by(iso_country, date) %>%
-    summarize(missing_case_data = T) 
-  if (nrow(missing_case_data) > 0) {
-    warning(
-      "These countries are missing case data from after 2020-03-01 but have tourist/commuter arrivals into Switzerland. These arrivals will be ignored for context sequence subsampling.",
-      paste(capture.output(print(missing_case_data)), collapse = "\n"))
-  }
-}
-
-plot_estimated_travel_cases <- function(travel_cases, outdir) {
-  print("Plotting estimated infectious arrivals per country and month.")
-  require(ggplot2)
-  top_10_countries <- travel_cases %>%
-    group_by(iso_country) %>%
-    summarize(total_travel_cases = sum(n_travel_cases)) %>%
-    top_n(n = 8, wt = total_travel_cases) %>%
-    select(iso_country)
-  p <- ggplot(
-    data = travel_cases %>% 
-      mutate(source_country = case_when(
-        iso_country %in% top_10_countries$iso_country ~ iso_country,
-        T ~ "Other")),
-    aes(x = format(date, "%Y-%m"), y = n_travel_cases)) +
-    geom_col(aes(fill = source_country)) + 
-    theme_bw() + 
-    labs(x = element_blank(), y = "No. individuals") + 
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
-  ggsave(
-    filename = paste(outdir, "estimated_travel_cases.png", sep = "/"), 
-    plot = p)
-}
-
-psum <- function(..., na.rm = T) { 
-  rowSums(do.call(cbind,list(...)), na.rm = na.rm) 
-} 
-
-#' Get a set of strains proportional to estimated travel connections to Switzerland.
-#' Estimated infectious individuals arriving and travel exposure cases are both
-#' in absolute numbers, so sum for total number infectious inidiviuals arriving
-#' in Switzerland from each country.
-#' @param db_connection
-#' @param travel_data_weights character with comma-delimited factors to scale
-#' number of BAG-recorded exposures, tourist arrivals, and commuter permits by, 
-#' respectively. Ex: '1,1,1'
-#' @return Dataframe with information on number of infected individuals arriving
-#' each month from each geographic origin. NA is only filled with zeros in col
-#' n_travel_cases, otherwise NA means no source data.
-get_travel_cases <- function(
-  db_connection, min_date, max_date, outdir = NULL, travel_data_weights
-) {
-  print("Pulling tourist accommodation and cross-border commuter stats from FSO into the database.")
-  source("database/R/import_fso_travel_stats.R")
-  import_fso_tourist_accommodation(db_connection = db_connection)
-  import_fso_cross_border_commuters(db_connection = db_connection)
-  
-  print("Querying tourist and exposure information from database.")
-  infected_arrivals <- get_infected_arrivals_per_country_month(
-    db_connection, min_date, max_date) 
-  exposures <- get_exposures_per_country_month(db_connection, min_date, max_date)
-
-  print(paste(
-    "Parsing travel context prior weights for exposures, estimated infected arrivals:", 
-    travel_data_weights))
-  travel_data_weights <- as.numeric(strsplit(travel_data_weights, split = ",")[[1]])
-  
-  print("Merging arrival and exposure data, weighting estimates based on different data sources.")
-  travel_cases <- merge(
-    x = infected_arrivals, y = exposures, 
-    all = T, by = c("date", "iso_country")) %>%
-    mutate(
-      n_unweighted_arrivals = psum(n_tourist_arrivals, n_commuter_permits),
-      n_arrivals = psum(
-        n_tourist_arrivals * travel_data_weights[2],
-        n_commuter_permits * travel_data_weights[3]),
-      n_infectious_arrivals = avg_daily_n_infectious_per_million * n_arrivals / 1E6,
-      n_travel_cases = psum(
-        n_exposures * travel_data_weights[1],
-        n_infectious_arrivals,
-        na.rm = T)) %>%
-    arrange(date, desc(n_infectious_arrivals))
-  
-  to_remove <- travel_cases %>%
-    filter(is.na(iso_country)) %>%
-    select(iso_country, country, n_arrivals, n_exposures)
-  if (length(to_remove) > 0) {
-    warning("Not adding travel context sequences for these entries because no valid iso country code found.\n",
-            paste(capture.output(print(to_remove)), collapse = "\n"))
-    travel_cases <- travel_cases %>% filter(!is.na(iso_country))
-  }
-  
-  print("Completing travel case data with zero values for months with no travel cases.")
-  travel_cases <- travel_cases %>%
-    select(-c(country, n_arrivals)) %>%
-    ungroup() %>%
-    tidyr::complete(
-      date = seq.Date(from = min(date), to = as.Date(max_date), by = "month"), 
-      iso_country) %>%  
-    group_by(iso_country) %>%
-    arrange(date) %>%
-    tidyr::replace_na(replace = list(
-      "n_travel_cases" = 0)) %>%  # fill in missing months with 0 value
-    mutate(
-      n_travel_cases = case_when(
-        n_travel_cases < 0 ~ 0,
-        T ~ n_travel_cases))  # when negative (can happen due to corrections in case count data), assume zero travel cases
-  
-  if (!is.null(outdir)) {
-    plot_estimated_travel_cases(
-      travel_cases = travel_cases,
-      outdir = outdir)
-    
-    print(paste("Writing out results to", outdir))
-    write.csv(
-      x = travel_cases, 
-      file = paste(outdir, "estimated_travel_cases.csv", sep = "/"), 
-      row.names = F)
-  }
-
-  return(travel_cases)
 }
 
 # ------------------------------------------------------------------------------
 
 #' QC gisaid data and split by pangolin lineage, aggregating lineages that are 
-#' predominantly Swiss into the parent lineage.
-get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query) {
+#' predominantly focal into the parent lineage.
+get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query, focal_country) {
   
   print("Querying database for pangolin lineages.")
   pangolin_lineages <- qcd_gisaid_query %>%
-    mutate(is_swiss = country == "Switzerland") %>%
-    group_by(pangolin_lineage, is_swiss) %>%
+    mutate(is_focal = country == focal_country) %>%
+    group_by(pangolin_lineage, is_focal) %>%
     summarize(n_seqs = n()) %>%
     collect() 
   
@@ -470,21 +193,21 @@ get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query) {
              X = pangolin_lineage,
              alias_table = alias_table)))
   
-  print("Aggregating predominantly Swiss lineages into parent lineage.")
+  print("Aggregating predominantly focal lineages into parent lineage.")
   pangolin_lineages_aggregated <- pangolin_lineages %>%
     tidyr::pivot_wider(
-      names_from = is_swiss, names_prefix = "is_swiss_", values_from = n_seqs) %>%
-    tidyr::replace_na(replace = list("is_swiss_TRUE" = 0, "is_swiss_FALSE" = 0)) %>%  # because by default 0s show up as NA after group_by %>% summarize
-    filter(is_swiss_TRUE > 0) %>%
+      names_from = is_focal, names_prefix = "is_focal_", values_from = n_seqs) %>%
+    tidyr::replace_na(replace = list("is_focal_TRUE" = 0, "is_focal_FALSE" = 0)) %>%  # because by default 0s show up as NA after group_by %>% summarize
+    filter(is_focal_TRUE > 0) %>%
     mutate(
-      should_aggregate = is_swiss_TRUE > is_swiss_FALSE,
+      should_aggregate = is_focal_TRUE > is_focal_FALSE,
       parent_lineage = get_parent_lineage(pangolin_lineage),
       n_lineages_aggregated = 1,
       lineages_aggregated = pangolin_lineage)
 
   while(any(!is.na(pangolin_lineages_aggregated$parent_lineage) & 
             pangolin_lineages_aggregated$should_aggregate)) {
-    pangolin_lineages_aggregated <- aggregate_predominatly_swiss_lineages(
+    pangolin_lineages_aggregated <- aggregate_predominatly_focal_lineages(
       pangolin_lineages_aggregated, alias_table)
   }
   
@@ -526,25 +249,25 @@ get_parent_lineage <- function(pangolin_lineage) {
   }
 }
 
-#' For pangolin lineages where > 50% of samples are Swiss, assign samples to the 
+#' For pangolin lineages where > 50% of samples are focal, assign samples to the
 #' parent lineage. The goal here is that the MRCA of all lineages is outside of 
-#' Switzerland. 
-aggregate_predominatly_swiss_lineages <- function(pangolin_lineages, alias_table) {
+#' focal country.
+aggregate_predominatly_focal_lineages <- function(pangolin_lineages, alias_table) {
   pangolin_lineages_aggregated <- pangolin_lineages %>% 
     mutate(
       pangolin_lineage_rollup = case_when(
-        is_swiss_TRUE > is_swiss_FALSE & !is.na(parent_lineage) ~ parent_lineage,
+        is_focal_TRUE > is_focal_FALSE & !is.na(parent_lineage) ~ parent_lineage,
         T ~ pangolin_lineage),
-      is_high_level_swiss_lineage = should_aggregate & is.na(parent_lineage)) %>%
+      is_high_level_focal_lineage = should_aggregate & is.na(parent_lineage)) %>%
     group_by(pangolin_lineage_rollup) %>%
-    summarize(is_swiss_TRUE = sum(is_swiss_TRUE),
-              is_swiss_FALSE = sum(is_swiss_FALSE),
+    summarize(is_focal_TRUE = sum(is_focal_TRUE),
+              is_focal_FALSE = sum(is_focal_FALSE),
               n_lineages_aggregated = sum(n_lineages_aggregated),
               lineages_aggregated = paste0(lineages_aggregated, collapse = ", "))
   
   pangolin_lineages_aggregated <- pangolin_lineages_aggregated %>%
     mutate(pangolin_lineage = pangolin_lineage_rollup,
-           should_aggregate = is_swiss_TRUE > is_swiss_FALSE)
+           should_aggregate = is_focal_TRUE > is_focal_FALSE)
   pangolin_lineages_aggregated$parent_lineage <- unlist(lapply(
     FUN = get_parent_lineage,
     X = pangolin_lineages_aggregated$pangolin_lineage))           

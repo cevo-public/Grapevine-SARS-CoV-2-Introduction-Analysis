@@ -6,27 +6,31 @@ require(ggplot2)
 require(argparse)
 require(yaml)
 
-# config <- "/Users/nadeaus/Repos/grapevine/example_workdir/input/grapevine_config.yaml"
-# outdir <- "~/Downloads"
-# python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
-# reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
+###
+config <- "/Users/nadeaus/Repos/grapevine/example_workdir/input/grapevine_config.yaml"
+outdir <- "~/Downloads"
+python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
+reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
 
-parser <- argparse::ArgumentParser()
-parser$add_argument("--config", type="character", help = "path to grapevine_config.yaml file.")
-parser$add_argument("--outdir", type="character")
-parser$add_argument("--pythonpath", type="character", help="Path to python3 with required packages installed.")
-parser$add_argument("--reference", type="character", help="Reference sequence.")
-
-args <- parser$parse_args()
-
-config <- args$config
-outdir <- args$outdir
-python_path <- args$pythonpath
-reference <- args$reference
+###
+# parser <- argparse::ArgumentParser()
+# parser$add_argument("--config", type="character", help = "path to grapevine_config.yaml file.")
+# parser$add_argument("--outdir", type="character")
+# parser$add_argument("--pythonpath", type="character", help="Path to python3 with required packages installed.")
+# parser$add_argument("--reference", type="character", help="Reference sequence.")
+#
+# args <- parser$parse_args()
+#
+# config <- args$config
+# outdir <- args$outdir
+# python_path <- args$pythonpath
+# reference <- args$reference
 
 config_values <- yaml::read_yaml(file = config)
+focal_country <- config_values$focal_country
 max_date <- config_values$max_date
 min_date <- config_values$min_date
+max_missing <- config_values$max_missing
 min_length <- config_values$min_length
 max_sampling_frac <- config_values$max_sampling_fraction
 subsample_by_canton <- config_values$subsample_by_canton
@@ -46,51 +50,50 @@ db_connection = open_database_connection()
 system(command = paste("mkdir -p", outdir))
 
 # QC GISAID sequences
-if (which_trees == '\\.*') {
-  qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
+qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_api_sequence") %>%
   filter(
     date <= !! max_date,
     date >= !! min_date,
-    length >= min_length,
+    nextclade_total_missing <= max_missing,
+    nextclade_alignment_end - nextclade_alignment_start + 1 >= min_length,
     host == 'Human',
     nextclade_qc_snp_clusters_status == 'good',
     nextclade_qc_private_mutations_status == 'good',
     nextclade_qc_overall_status != 'bad')
-} else {
-  qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
-  filter(
-    date <= !! max_date,
-    date >= !! min_date,
-    length >= min_length,
-    host == 'Human',
-    grepl(x = pangolin_lineage, pattern = which_trees))
+
+if (which_trees != '\\.*') {
+  qcd_gisaid_query <- qcd_gisaid_query %>%
+  filter(repl(x = pangolin_lineage, pattern = which_trees))
   unique_lineages <- qcd_gisaid_query %>%
     distinct(pangolin_lineage) %>%
     collect()
-  cat(paste(
+  cat(paste0(
     "Specified which_trees = '", which_trees, "' ",
     "so not including nextclade qc filters and", 
     " only including sequences from these lineages:\n", 
     paste0(unique_lineages$pangolin_lineage, collapse = "\n"), 
-    "\n", sep = ""))
+    "\n"))
 }
 
 # Get pangolin lineages to write out alignments for
 lineages <- get_pangolin_lineages(
   db_connection = db_connection,
   outdir = outdir,
-  qcd_gisaid_query = qcd_gisaid_query
+  qcd_gisaid_query = qcd_gisaid_query,
+  focal_country = focal_country
 )
 
 # Select focal sequences
 qcd_gisaid_query <- select_sequences(
   qcd_gisaid_query = qcd_gisaid_query,
   max_sampling_frac = max_sampling_frac,
-  favor_exposures = favor_exposures,
+  focal_country = focal_country,
   db_connection = db_connection,
   outdir = outdir,
   subsample_by_canton = subsample_by_canton,
-  smooth_conf_cases = smooth_conf_cases
+  smooth_conf_cases = smooth_conf_cases,
+  max_date = max_date,
+  min_date = min_date
 )
 
 if (n_trees > 0) {
