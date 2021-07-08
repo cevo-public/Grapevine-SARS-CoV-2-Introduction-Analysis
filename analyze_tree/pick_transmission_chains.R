@@ -1,16 +1,16 @@
 # This script takes a tree and tip location information and returns 
 # chain assignments based on a user-defined max number of monophyletic foreign
 # sub-clades (exports) and a max number of foreign clades budding from the spine
-# of a Swiss transmission chain in a row. 
+# of a focal country transmission chain in a row.
 # Note: the tree is NOT allowed to be one big chain (at the highest 
 # level of aggregation, clades descending from the root will be separate 
 # transmission chains). 
-# Note: When calculating the number of foreign clades that bud off from a Swiss
+# Note: When calculating the number of foreign clades that bud off from a focal
 # transmission chain in a row, foreign descendents of polytomies are assumed to 
-# be one clade. The rationale is that a single export from a Swiss chain seems 
+# be one clade. The rationale is that a single export from a focal chain seems
 # more likely than a series of many exports in a row.
-# Note: When calculating the minimum plausible number of chains (polytomies are
-# assumed to be Swiss, s = T), at large polytomies swiss descendents are 
+# Note: When calculating the largest plausible chains (polytomies are
+# assumed to be focal, l = T), at large polytomies focal descendents are
 # aggregated into transmission chains in size order. This doesn't guarantee the
 # largest possible transmission chains are formed but should promote the 
 # formation of large transmission chains.  
@@ -22,14 +22,16 @@ require(ggtree)
 require(dplyr)
 require(purrr)
 
-# tree <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/debug/B.1.177.32.timetree.nex"
-# metadata <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/debug/B.1.177.32_metadata.tsv"
+# tree <- "/Users/nadeaus/Repos/grapevine/workdir/tmp/lsd/A.2.timetree.nex"
+# metadata <- "/Users/nadeaus/Repos/grapevine/workdir/tmp/alignments/A.2_metadata.tsv"
 # outdir <- "~/Downloads"
 # verbose <- T
 # m <- 3
 # p <- 1
-# s <- T
-# prefix <- paste("test_s_", s, sep = "")
+# l <- F
+# prefix <- paste("test_l_", l, sep = "")
+# focalcountry <- "NZL"
+# dont_plot_tree <- F
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--tree", type="character")
@@ -38,7 +40,8 @@ parser$add_argument("--outdir", type="character")
 parser$add_argument("--maxtotalsubclades", type="double")
 parser$add_argument("--maxconsecutivesubclades", type="double")
 parser$add_argument("--prefix", type="character")
-parser$add_argument("--polytomiesareswiss", action = "store_true")
+parser$add_argument("--largestchains", action = "store_true")
+parser$add_argument("--focalcountry", type="character")
 parser$add_argument("--dontplot", action = "store_true")
 
 args <- parser$parse_args()
@@ -49,8 +52,9 @@ outdir <- args$outdir
 m <- args$maxtotalsubclades
 p <- args$maxconsecutivesubclades
 prefix <- args$prefix
-s <- args$polytomiesareswiss
+l <- args$largestchains
 dont_plot_tree <- args$dontplot
+focal_country <- args$focalcountry
 verbose <- F
 
 system(command = paste("mkdir -p", outdir))
@@ -70,7 +74,8 @@ chains <- pick_chains(
   tree_data = tree_data, 
   m = m, 
   p = p, 
-  s = s, 
+  l = l,
+  focal_country = focal_country,
   verbose = verbose
 )
 

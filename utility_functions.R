@@ -49,10 +49,10 @@ get_child_node_data <- function(node, tree_data) {
   return(child_node_data)
 }
 
-get_n_descendent_swiss_mrcas <- function(node, tree_data, chains, n_tips) {
-  # Returns 1 if the node is a Swiss MRCA, otherwise returns the # Swiss MRCAs
+get_n_descendent_focal_mrcas <- function(node, tree_data, chains, n_tips) {
+  # Returns 1 if the node is a focal MRCA, otherwise returns the # focal MRCAs
   # descending from the node. Counts only the uppermost MRCA if there additional
-  # Swiss MRCAs are nested under a Swiss MRCA higher in the tree.
+  # focal MRCAs are nested under a focal MRCA higher in the tree.
   if (node %in% chains$ch_mrca) {
     return(1)
   } else if (node <= n_tips) {
@@ -62,7 +62,7 @@ get_n_descendent_swiss_mrcas <- function(node, tree_data, chains, n_tips) {
   }
   n_descendent_swiss_mrcas <- sum(unlist(lapply(
     X = child_node_data$node,
-    FUN = get_n_descendent_swiss_mrcas,
+    FUN = get_n_descendent_focal_mrcas,
     tree_data = tree_data, 
     chains = chains, 
     n_tips = n_tips)))

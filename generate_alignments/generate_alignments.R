@@ -6,25 +6,23 @@ require(ggplot2)
 require(argparse)
 require(yaml)
 
-###
-config <- "/Users/nadeaus/Repos/grapevine/example_workdir/input/grapevine_config.yaml"
-outdir <- "~/Downloads"
-python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
-reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
+# config <- "/Users/nadeaus/Repos/grapevine/example_workdir/input/grapevine_config.yaml"
+# outdir <- "~/Downloads"
+# python_path <- "/Users/nadeaus/Repos/database/python/venv/bin/python3"
+# reference <- "/Users/nadeaus/Repos/database/python/ncov/defaults/reference_seq.fasta"
 
-###
-# parser <- argparse::ArgumentParser()
-# parser$add_argument("--config", type="character", help = "path to grapevine_config.yaml file.")
-# parser$add_argument("--outdir", type="character")
-# parser$add_argument("--pythonpath", type="character", help="Path to python3 with required packages installed.")
-# parser$add_argument("--reference", type="character", help="Reference sequence.")
-#
-# args <- parser$parse_args()
-#
-# config <- args$config
-# outdir <- args$outdir
-# python_path <- args$pythonpath
-# reference <- args$reference
+parser <- argparse::ArgumentParser()
+parser$add_argument("--config", type="character", help = "path to grapevine_config.yaml file.")
+parser$add_argument("--outdir", type="character")
+parser$add_argument("--pythonpath", type="character", help="Path to python3 with required packages installed.")
+parser$add_argument("--reference", type="character", help="Reference sequence.")
+
+args <- parser$parse_args()
+
+config <- args$config
+outdir <- args$outdir
+python_path <- args$pythonpath
+reference <- args$reference
 
 config_values <- yaml::read_yaml(file = config)
 focal_country <- config_values$focal_country
