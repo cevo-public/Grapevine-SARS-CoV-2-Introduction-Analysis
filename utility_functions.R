@@ -289,21 +289,21 @@ get_chain_data_by_tip <- function(chains, metadata = NULL) {
 #' Get number of sequences compared to confirmed cases per week.
 #' @param qc_gisaid_query A database query providing sequence filtering criteria 
 #' for seq data in table gisaid_sequence.
-#' @param by_canton If True, returns results stratified by canton with additional column 'canton_code'.
+#' @param subsample_by_canton If True, returns results stratified by canton with additional column 'canton_code'. Only available if focal country is CHE.
 #' @param smooth_conf_cases If true, smooth confirmed case counts.
 #' @return Dataframe with one row per week and columns giving the number of 
 #' confirmed cases and sequences in the gisaid_sequence table from Switzerland 
 #' passing the filter criteria, stratified into Viollier and non-Viollier samples.
 #' Case-counts optionally smoothed across a 3-week window, reported at the cantonal level.
 get_weekly_case_and_seq_data <- function(
-  db_connection, qcd_gisaid_query, by_canton = F, smooth_conf_cases = F
+  db_connection, qcd_gisaid_query, subsample_by_canton = F, smooth_conf_cases = F, focal_country
 ) {
   print("Getting weekly case and sequence data")
-  weekly_case_and_seq_data <- query_weekly_case_and_seq_data(db_connection, qcd_gisaid_query)
+  weekly_case_and_seq_data <- query_weekly_case_and_seq_data(db_connection, qcd_gisaid_query, focal_country)
   
   print("Reformatting weekly case and sequence data")
   if (!("is_viollier_TRUE" %in% colnames(weekly_case_and_seq_data))) {
-    warning("There are no viollier sequences found in the Swiss dataset.")
+    warning("There are no viollier sequences found in the focal dataset. This is expected if focal country is not CHE.")
     weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
       mutate(is_viollier_TRUE = 0)
   }
@@ -318,20 +318,20 @@ get_weekly_case_and_seq_data <- function(
     tidyr::replace_na(replace = list(n_conf_cases = 0,
                                      n_seqs_total = 0,
                                      n_seqs_other = 0))
-  if (!by_canton) {
+  if (!subsample_by_canton) {
     weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
-      select(-c(canton_code, division)) %>%
+      select(-c(canton)) %>%
       group_by(week) %>%
       summarise_all(sum) %>%
-      mutate(canton_code = NA, division = NA)
+      mutate(canton = focal_country)
   }
   
   if (smooth_conf_cases) {
     require(data.table)
     setDT(weekly_case_and_seq_data)     # converts test to a data.table in place
-    setkey(weekly_case_and_seq_data, week, canton_code)
-    weekly_case_and_seq_data <- with(weekly_case_and_seq_data, weekly_case_and_seq_data[order(canton_code, week),])
-    weekly_case_and_seq_data[, n_conf_cases_smoothed := as.numeric(get.mav(n_conf_cases, 3)), by = canton_code]
+    setkey(weekly_case_and_seq_data,week, canton)
+    weekly_case_and_seq_data <- with(weekly_case_and_seq_data, weekly_case_and_seq_data[order(canton, week),])
+    weekly_case_and_seq_data[, n_conf_cases_smoothed := as.numeric(get.mav(n_conf_cases, 3)), by = canton]
     weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
       mutate(n_conf_cases_raw = n_conf_cases,
              n_conf_cases = n_conf_cases_smoothed)
@@ -357,29 +357,43 @@ get.mav <- function(bp, n){
 #' @return Dataframe with one row per week and columns giving the number of 
 #' confirmed cases and sequences in the gisaid_sequence table from Switzerland 
 #' passing the filter criteria, stratified into Viollier and non-Viollier samples.
+#' If focal country is not CHE, no samples will be Viollier samples.
 query_weekly_case_and_seq_data <- function(
-  db_connection, qcd_gisaid_query
+  db_connection, qcd_gisaid_query, focal_country
 ) {
   sequence_data_query <- qcd_gisaid_query %>%
-    filter(iso_country == "CHE") %>%
+    filter(country == focal_country) %>%
     mutate(
       is_viollier = originating_lab == "Viollier AG" & submitting_lab == "Department of Biosystems Science and Engineering, ETH Zürich",
       week = as.Date(date_trunc('week', date))) %>%
     group_by(is_viollier, week, division) %>%
-    summarize(n_seqs = n(), .groups = "drop") %>%
-    left_join(
-      y = dplyr::tbl(db_connection, "swiss_canton") %>% 
-        select(gisaid_division, canton_code),
-      by = c("division" = "gisaid_division"))
-  
-  case_data_query <- dplyr::tbl(db_connection, "bag_test_numbers") %>%
-    mutate(week = as.Date(date_trunc('week', date))) %>%
-    group_by(week, canton) %>%
-    summarise(n_conf_cases = sum(positive_tests, na.rm = T), .groups = "drop")
+    summarize(n_seqs = n(), .groups = "drop")
+
+  if (focal_country == "CHE") {
+    sequence_data_query <- sequence_data_query  %>%
+      left_join(
+        y = dplyr::tbl(db_connection, "swiss_canton") %>%
+          mutate(canton = canton_code) %>%
+          select(gisaid_division, canton),
+        by = c("division" = "gisaid_division"))
+    case_data_query <- dplyr::tbl(db_connection, "bag_test_numbers") %>%
+      mutate(week = as.Date(date_trunc('week', date))) %>%
+      group_by(week, canton) %>%
+      summarise(n_conf_cases = sum(positive_tests, na.rm = T), .groups = "drop")
+  } else {
+    case_data_query <- dplyr::tbl(db_connection, "ext_owid_global_cases") %>%
+      filter(iso_country == focal_country) %>%
+      mutate(week = as.Date(date_trunc('week', date))) %>%
+      group_by(week) %>%
+      summarise(n_conf_cases = sum(new_cases, na.rm = T), .groups = "drop") %>%
+      mutate(canton = NA)
+  }
   
   weekly_case_and_seq_data <- dplyr::full_join(
-    x = sequence_data_query, y = case_data_query, 
-    by = c("week" = "week", "canton_code" = "canton")) %>% 
+    x = sequence_data_query %>%
+      tidyr::replace_na(replace = list(canton = focal_country)),
+    y = case_data_query %>%
+      tidyr::replace_na(replace = list(canton = focal_country))) %>%  # can't join NA with NA, need to replace NA with country code
     collect() %>%
     tidyr::replace_na(replace = list(is_viollier = F)) %>%  # weeks with 0 seqs have all 0 seqs coming from other labs, dummy val
     tidyr::pivot_wider(
@@ -387,6 +401,12 @@ query_weekly_case_and_seq_data <- function(
       values_from = "n_seqs", 
       names_prefix = "is_viollier_",
       values_fill = list(n_seqs = 0))
+
+  # Lump sequences with division not mapping to a canton (e.g. 'Basle') into NA canton for that week
+  weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
+    select(-division) %>%
+    group_by(week, canton) %>%
+    summarise_all(sum)
   
   return(weekly_case_and_seq_data)
 }
