@@ -54,6 +54,7 @@ qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_api_sequence") %>%
   filter(
     date <= !! max_date,
     date >= !! min_date,
+    !is.na(date),
     nextclade_total_missing <= max_missing,
     nextclade_alignment_end - nextclade_alignment_start + 1 >= min_length,
     host == 'Human',
@@ -63,7 +64,7 @@ qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_api_sequence") %>%
 
 if (which_trees != '\\.*') {
   qcd_gisaid_query <- qcd_gisaid_query %>%
-  filter(repl(x = pangolin_lineage, pattern = which_trees))
+  filter(grepl(x = pangolin_lineage, pattern = which_trees))
   unique_lineages <- qcd_gisaid_query %>%
     distinct(pangolin_lineage) %>%
     collect()
@@ -71,7 +72,7 @@ if (which_trees != '\\.*') {
     "Specified which_trees = '", which_trees, "' ",
     "so not including nextclade qc filters and", 
     " only including sequences from these lineages:\n", 
-    paste0(unique_lineages$pangolin_lineage, collapse = "\n"), 
+    paste0(unique_lineages$pangolin_lineage, collapse = "\n"),
     "\n"))
 }
 
@@ -104,7 +105,7 @@ if (n_trees > 0) {
 }
 
 # Select location context sequences
-if (travel_context_scale_factor > 0) {
+if (travel_context_scale_factor > 0 & focal_country == "CHE") {
   # Estimate travel cases by source country and month
   travel_cases <- get_travel_cases(
     db_connection = db_connection,
@@ -143,7 +144,8 @@ similarity_strains <- get_similarity_strains(
   db_connection = db_connection,
   qcd_gisaid_query = qcd_gisaid_query,
   python_path = python_path,
-  reference = reference
+  reference = reference,
+  focal_country = focal_country
 )
 
 # Write out alignments, one per pangolin lineage
@@ -156,7 +158,8 @@ alignments <- write_out_alignments(
   qcd_gisaid_query = qcd_gisaid_query,
   db_connection = db_connection,
   mask_from_start = mask_from_start,
-  mask_from_end = mask_from_end
+  mask_from_end = mask_from_end,
+  focal_country = focal_country
 )
 
 write.csv(
