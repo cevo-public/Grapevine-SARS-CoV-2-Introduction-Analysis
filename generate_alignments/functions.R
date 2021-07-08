@@ -563,7 +563,7 @@ run_nextstrain_priority <- function(
 get_similarity_strains <- function(
   db_connection, qcd_gisaid_query, similarity_context_scale_factor, lineages,
   priorities_script = "database/python/priorities_from_database.py",
-  python_path, reference, verbose = F, unique_context_only
+  python_path, reference, verbose = F, unique_context_only, focal_country
 ) {
   n_lineages <- nrow(lineages)
   initiated_df <- F
@@ -573,7 +573,7 @@ get_similarity_strains <- function(
     lineages_included <- strsplit(lineages_included_str, split = ", ")[[1]]
     
     focal_seqs <- qcd_gisaid_query %>%
-      filter(iso_country == "CHE", 
+      filter(country == focal_country,
              pangolin_lineage %in% !! lineages_included) %>%
       select(strain) %>%
       collect()
@@ -581,7 +581,8 @@ get_similarity_strains <- function(
       qcd_gisaid_query = qcd_gisaid_query,
       db_connection = db_connection,
       unique_context_only = unique_context_only,
-      lineages_included = lineages_included)
+      lineages_included = lineages_included,
+      focal_country = focal_country)
     
     if (nrow(focal_seqs) == 0 | nrow(prospective_context_seqs) == 0) {
       print(paste("No focal sequences from lineage", lineage))
@@ -621,18 +622,18 @@ get_similarity_strains <- function(
 
 #' Filter context set to the earliest sequences with unique AA mutations.
 get_prospective_context_seqs <- function(
-  qcd_gisaid_query, db_connection, unique_context_only, lineages_included
+  qcd_gisaid_query, db_connection, unique_context_only, lineages_included, focal_country
 ) {
   prospective_context_seqs <- qcd_gisaid_query %>%
-      filter(iso_country != "CHE",
+      filter(country != focal_country,
              pangolin_lineage %in% !! lineages_included) %>%
-      select(strain, gisaid_epi_isl, iso_country, date_str, date) %>%
+      select(strain, gisaid_epi_isl, country, date) %>%
       collect()
 
   if (unique_context_only) {
     print("Retaining only earliest of prospective context strains with identical amino acid mutations.")
     # Generate string of prospective context strains suitable for query
-    quoted_strains = lapply(prospective_context_seqs$strain, function(elt) {
+    quoted_strains = lapply(prospective_context_seqs$gisaid_epi_isl, function(elt) {
         DBI::dbQuoteString(conn = db_connection, elt)
     })
     strains_sql = paste0('(', do.call(paste, c(quoted_strains, sep = ',')), ')')
@@ -641,24 +642,22 @@ get_prospective_context_seqs <- function(
     prospective_context_seqs_sql <- paste("select",
         "min(strain order by date) as strain,",
         "min(gisaid_epi_isl order by date) as gisaid_epi_isl,",
-        "min(iso_country order by date) as iso_country,",
-        "min(date_str order by date) as date_str,",
+        "min(country order by date) as country,",
         "min(date) as date,",
         "count(*) as n_other_seqs_w_same_aa_mutations",
       "from (",
         "select",
           "gs.strain,",
           "gs.gisaid_epi_isl,",
-          "gs.iso_country,",
-          "gs.date_str,",
+          "gs.country,",
           "string_agg(aa_mutation, ',' order by aa_mutation) as aa_mutations,",
           "gs.date",
         "from",
-          "gisaid_sequence gs",
-          "left join gisaid_sequence_nextclade_mutation_aa gsnma on gs.strain = gsnma.strain",
+          "gisaid_api_sequence gs",
+          "left join gisaid_api_sequence_nextclade_mutation_aa gsnma on gs.gisaid_epi_isl = gsnma.gisaid_epi_isl",
         "where",
-          "gs.strain in", strains_sql,
-        "group by gs.strain ) seqs_w_aa_mutations",
+          "gs.gisaid_epi_isl in", strains_sql,
+        "group by gs.gisaid_epi_isl ) seqs_w_aa_mutations",
       "group by aa_mutations;")
     
    prospective_context_seqs <- DBI::dbGetQuery(
@@ -669,12 +668,12 @@ get_prospective_context_seqs <- function(
 
 # ------------------------------------------------------------------------------
 
-#' Write out an alignment for each lineage containing all QC-passed Swiss seqs,
+#' Write out an alignment for each lineage containing all QC-passed focal seqs,
 #' travel & genetic similarity context seqs, and outgroup seqs.
 #' @return Dataframe giving size of each alignment.
 write_out_alignments <- function(
   lineages, travel_strains, similarity_strains, outgroup_gisaid_epi_isls, outdir,
-  qcd_gisaid_query, db_connection, mask_from_start, mask_from_end
+  qcd_gisaid_query, db_connection, mask_from_start, mask_from_end, focal_country
 ) {
   alignments_generated <- c()
   n_lineages <- nrow(lineages)
@@ -685,7 +684,7 @@ write_out_alignments <- function(
     lineages_included <- strsplit(lineages_included_str, split = ", ")[[1]]
     
     focal_strains_i <- qcd_gisaid_query %>%
-      filter(iso_country == "CHE", 
+      filter(country == focal_country,
              pangolin_lineage %in% !! lineages_included) %>%
       collect()
     
@@ -711,17 +710,16 @@ write_out_alignments <- function(
       nrow(similarity_strains_i), "genetic similarity context seqs and\n",
       length(outgroup_gisaid_epi_isls), "outgroup sequences\n")
     
-    metadata_i <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
+    metadata_i <- dplyr::tbl(db_connection, "gisaid_api_sequence") %>%
       filter(gisaid_epi_isl %in% !! alignment_strains_i) %>%
-      select(gisaid_epi_isl, strain, date_str, date, region, iso_country, division, 
-             iso_country_exposure, nextstrain_clade, pangolin_lineage, 
-             originating_lab, submitting_lab, authors) %>%
+      select(gisaid_epi_isl, strain, date, region_original, country, division,
+             pangolin_lineage, originating_lab, submitting_lab, authors) %>%
       collect() %>%
       mutate(
         tree_pangolin_lineage = case_when(
           gisaid_epi_isl %in% outgroup_gisaid_epi_isls ~ pangolin_lineage,
           T ~ lineage),
-        tree_label = paste(gisaid_epi_isl, date_str, sep = "|"),
+        tree_label = paste(gisaid_epi_isl, date, sep = "|"),
         travel_context = case_when(
           gisaid_epi_isl %in% travel_strains_i$gisaid_epi_isl ~ T,
           T ~ F),
@@ -742,7 +740,7 @@ write_out_alignments <- function(
       sep = "\t",
       quote = F,
       row.names = F)
-    
+
     header_mapping <- metadata_i$tree_label
     names(header_mapping) <- metadata_i$gisaid_epi_isl
       
@@ -750,9 +748,9 @@ write_out_alignments <- function(
       db_connection = db_connection, 
       sample_names = alignment_strains_i,
       seq_outfile = paste(outdir, "/", lineage, ".fasta", sep = ""),
-      table = "gisaid_sequence",
+      table = "gisaid_api_sequence",
       sample_name_col = "gisaid_epi_isl",
-      seq_col = "aligned_seq",
+      seq_col = "seq_aligned",
       header_mapping = header_mapping,
       mask_from_start = mask_from_start,
       mask_from_end = mask_from_end)
