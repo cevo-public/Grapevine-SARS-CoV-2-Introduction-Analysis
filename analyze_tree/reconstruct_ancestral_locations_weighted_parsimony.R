@@ -1,9 +1,9 @@
 # This script infers ancestral locations on the tree. For this, we use only tips 
 # in the context dataset and ignore tips in the similarity dataset. 
 # Otherwise, over-sequenced locations would show up too often as sources. 
-# Our procedure is as follows: we begin by labelling the MRCAs of Swiss 
+# Our procedure is as follows: we begin by labelling the MRCAs of focal
 # transmission chains and all subtending nodes in the tree (excepting exported 
-# clades) as Swiss. Switzerland is excluded as a possible location for all 
+# clades) as focal. Focal country is excluded as a possible location for all
 # other nodes. Given these constraints, we calculate the parsimony score for 
 # each possible location at each remaining node. Among the possible locations, 
 # we also include a “dummy” location to record the maximum parsimony score. So, 
@@ -18,10 +18,10 @@
 # It's a modification of the Sankoff algorithm described by Joe Felsenstein:
 # https://evolution.gs.washington.edu/gs541/2010/lecture1.pdf
 # The modification is that all the nodes that are ancestors of tips classified 
-# as in a Swiss cluster (as defined in the chains produced by 
-# pick_swiss_transmission_chains.R) are treated like tips in that their locations are fixed. 
+# as in a focal cluster (as defined in the chains produced by
+# pick_focal_transmission_chains.R) are treated like tips in that their locations are fixed.
 # Ancestral state reconstruction then proceeds from nodes that are not ancestral 
-# to tips classified as in a Swiss cluster without regard to to the rest of the 
+# to tips classified as in a focal cluster without regard to to the rest of the
 # tree. Additionally, at binary splits we keep only the weights for minimally-
 # scoring (most parsimonious if this were the root) locations and set all other
 # weights to Inf. At polytomies, we keep all weights because we want to keep some
@@ -57,6 +57,7 @@ parser$add_argument("--outdir", type="character")
 parser$add_argument("--prefix", type="character")
 parser$add_argument("--plottree", action="store_true")
 parser$add_argument("--verbose", action="store_true")
+parser$add_argument("--focalcountry", type="character")
 parser$add_argument("--writescores", action="store_true")
 
 args <- parser$parse_args()
@@ -68,6 +69,7 @@ outdir <- args$outdir
 prefix <- args$prefix
 verbose <- args$verbose
 plot_tree <- args$plottree
+focal_country <- args$focalcountry
 write_scores <- args$writescores
 
 source("utility_functions.R")
@@ -92,14 +94,14 @@ context_node_set <- unlist(tree_data %>%
   filter(travel_context) %>%
   select(node))
 print(paste(tree_file, "has", length(context_node_set), "travel context sequences"))
-swiss_node_set <- unlist(tree_data %>%
+focal_node_set <- unlist(tree_data %>%
   filter(focal_sequence) %>%
   select(node))
-print(paste(tree_file, "has", length(swiss_node_set), "focal Swiss sequences"))
+print(paste(tree_file, "has", length(focal_node_set), "focal sequences"))
 
 # Initialize tree data with ancestral state information and cluster status
 tree_data$asr_loc <- tree_data$iso_country
-tree_data[tree_data$node %in% chains$ch_mrca, "asr_loc"] <- "CHE"
+tree_data[tree_data$node %in% chains$ch_mrca, "asr_loc"] <- focal_country
 
 # Delete internal zero-length branches as they screw up parsimony ASR
 n_tips <- length(tree_ids)
@@ -111,7 +113,7 @@ set_tip_score <- function(node, loc_to_idx_mapping, verbose) {
   # Otherwise initialize score for all tips to be 0 (no information provided); 
   # Mark node as visited
   node_data <- tree_data[tree_data$node == node, ]
-  if (node %in% c(context_node_set, swiss_node_set)) {
+  if (node %in% c(context_node_set, focal_node_set)) {
     if (verbose) {
       print(paste("visiting context tip node", node))
     }
@@ -130,7 +132,7 @@ set_tip_score <- function(node, loc_to_idx_mapping, verbose) {
 set_mrca_score <- function(node, loc_to_idx_mapping, verbose) {
   # Initialize score for assigned ASR loc to be 0, all others Inf; mark node as visited
   if (verbose) {
-    print(paste("visiting Swiss MRCA node", node))
+    print(paste("visiting focal MRCA node", node))
   }
   node_data <- tree_data[tree_data$node == node, ]
   tip_loc <- node_data$asr_loc
@@ -139,12 +141,12 @@ set_mrca_score <- function(node, loc_to_idx_mapping, verbose) {
   tree_data[tree_data$node == node, ] <<- node_data
 }
 
-is_ch_mrca <- function(node, n_tips) {
-  # Return if ancestral location has been fixed to Switzerland in the tree data
+is_ch_mrca <- function(node, n_tips, focal_country) {
+  # Return if ancestral location has been fixed to focal country in the tree data
   if (is.na(tree_data[tree_data$node == node, "asr_loc"]) | is_tip(node = node, n_tips = n_tips)) {
     return(F)
   }
-  return(tree_data[tree_data$node == node, "asr_loc"] == "CHE")
+  return(tree_data[tree_data$node == node, "asr_loc"] == focal_country)
 }
 
 visit_children <- function(node, verbose) {
@@ -166,7 +168,7 @@ visit_children <- function(node, verbose) {
   return(child_node_data)
 }
 
-visit_nonswiss_node <- function(node, candidate_asr_locs, child_node_data, verbose) {
+visit_nonfocal_node <- function(node, candidate_asr_locs, child_node_data, verbose) {
   if (verbose) {
     print(paste("calculating scores for node", node))
   }
@@ -185,8 +187,8 @@ visit_nonswiss_node <- function(node, candidate_asr_locs, child_node_data, verbo
       # update minimum, considering every possible state at the child node
       for (j in 1:length(candidate_asr_locs)) {
         c_ij <- ifelse(test = i == j, yes = 0, no = 1)  # cost for any transition is 1
-        if (i == loc_to_idx_mapping["CHE"]) {
-          c_ij <- Inf  # cost for transition from Switzerland is prohibitily large (CH not allowed as location at non-swiss nodes)
+        if (i == loc_to_idx_mapping[focal_country]) {
+          c_ij <- Inf  # cost for transition from focal country is prohibitily large (focal country not allowed as location at non-focal nodes)
         }
         S_c_j <- child_data_c$candidate_asr_scores[[1]][j]
         if (c_ij + S_c_j < contribution_c) {
@@ -215,11 +217,11 @@ visit_nonswiss_node <- function(node, candidate_asr_locs, child_node_data, verbo
   tree_data[tree_data$node == node, "is_visited"] <<- T
 }
 
-assign_node_as_swiss <- function(node, cluster_tips, loc_to_idx_mapping, verbose) {
+assign_node_as_focal <- function(node, cluster_tips, loc_to_idx_mapping, verbose, focal_country) {
   if (verbose) {
-    print(paste("node", node, "is to be assigned as swiss. Checking whether its children contain any of", paste0(cluster_tips, collapse = ", ")))
+    print(paste("node", node, "is to be assigned as focal. Checking whether its children contain any of", paste0(cluster_tips, collapse = ", ")))
   }
-  tree_data[tree_data$node == node, "asr_loc"] <<- "CHE"
+  tree_data[tree_data$node == node, "asr_loc"] <<- focal_country
   child_node_data <- get_child_node_data(node = node, tree_data = tree_data)
   for (i in 1:nrow(child_node_data)) {
     child_node <- child_node_data[i, "node"]
@@ -235,7 +237,7 @@ assign_node_as_swiss <- function(node, cluster_tips, loc_to_idx_mapping, verbose
         if (verbose) {
           print(paste("one of the tips under", child_node, "is found to be in the cluster"))
         }
-        assign_node_as_swiss(node = child_node, cluster_tips, loc_to_idx_mapping, verbose)
+        assign_node_as_focal(node = child_node, cluster_tips, loc_to_idx_mapping, verbose, focal_country)
       } else {
         if (verbose) {
           print("no cluster tips descendent, treating as new tree root")
@@ -244,7 +246,7 @@ assign_node_as_swiss <- function(node, cluster_tips, loc_to_idx_mapping, verbose
       }
     }
   }
-  set_mrca_score(node = node, loc_to_idx_mapping = loc_to_idx_mapping, verbose = verbose)  # set MRCA location to Switzerland
+  set_mrca_score(node = node, loc_to_idx_mapping = loc_to_idx_mapping, verbose = verbose)  # set MRCA location to focal country
 }
 
 get_cluster_tips <- function(ch_mrca, chains) {
@@ -263,10 +265,10 @@ get_asr_scores <- function(node, n_tips, loc_to_idx_mapping, verbose) {
     set_tip_score(node = node, loc_to_idx_mapping = loc_to_idx_mapping, verbose = verbose)
     return()
   } 
-  if (is_ch_mrca(node = node, n_tips = n_tips)) {
-    # Recursive case: node is a swiss mrca, continue on to score children as if they are the root of a tree
+  if (is_ch_mrca(node = node, n_tips = n_tips, focal_country = focal_country)) {
+    # Recursive case: node is a focal mrca, continue on to score children as if they are the root of a tree
     cluster_tips = get_cluster_tips(ch_mrca = node, chains = chains)
-    assign_node_as_swiss(node, cluster_tips = cluster_tips, loc_to_idx_mapping = loc_to_idx_mapping, verbose)
+    assign_node_as_focal(node, cluster_tips = cluster_tips, loc_to_idx_mapping = loc_to_idx_mapping, verbose, focal_country)
     return()
   }
   # Recursive case, visit unvisited children
@@ -277,7 +279,7 @@ get_asr_scores <- function(node, n_tips, loc_to_idx_mapping, verbose) {
   if (verbose) {
     print(paste("visiting node", node))
   }
-  visit_nonswiss_node(node = node, candidate_asr_locs = names(loc_to_idx_mapping), child_node_data = child_node_data, verbose)
+  visit_nonfocal_node(node = node, candidate_asr_locs = names(loc_to_idx_mapping), child_node_data = child_node_data, verbose)
   return()
 }
 
@@ -287,9 +289,9 @@ candidate_asr_locs <- c(unique(metadata$iso_country), "dummy_loc")  # include du
 loc_to_idx_mapping <- 1:length(candidate_asr_locs)
 names(loc_to_idx_mapping) <- candidate_asr_locs
 
-if (!("CHE" %in% names(loc_to_idx_mapping))) {  # if no swiss tips in tree, add Switzerland to candidate locations anyways so code doesn't break
-  candidate_asr_locs <- c(candidate_asr_locs, "CHE")
-  loc_to_idx_mapping[["CHE"]] <- length(loc_to_idx_mapping) + 1
+if (!(focal_country %in% names(loc_to_idx_mapping))) {  # if no focal tips in tree, add focal country to candidate locations anyways so code doesn't break
+  candidate_asr_locs <- c(candidate_asr_locs, focal_country)
+  loc_to_idx_mapping[[focal_country]] <- length(loc_to_idx_mapping) + 1
 }
 
 tree_data$candidate_asr_locs <- I(list(candidate_asr_locs))
@@ -348,10 +350,10 @@ max_changes <- apply(
   MARGIN = 1)
 
 # Assign ASR score for each valid location to be: max_changes - n_changes
-# Where min_changes is the # descendent Swiss MRCAs
+# Where min_changes is the # descendent focal MRCAs
 min_changes <- unlist(lapply(
   X = asr_pie_data[, 1],
-  FUN = get_n_descendent_swiss_mrcas,
+  FUN = get_n_descendent_focal_mrcas,
   tree_data = tree_data, chains = chains, n_tips = n_tips))
 
 calc_score <- function(max_changes, min_changes, num_changes) {
@@ -361,7 +363,7 @@ calc_score <- function(max_changes, min_changes, num_changes) {
   # If all neighbor sequences are priority, then the max # changes = min # changes and return 0 for all locations
   } else if (max_changes <= min_changes) {
     return(0)
-  # If the location is perfect, return score 1 (encompasses the case where Switzerland is enforced)
+  # If the location is perfect, return score 1 (encompasses the case where focal country is enforced)
   } else if (num_changes == 0) {
     return(1)
   # If the location the best possible, return score 1 (encompasses the case in which the loc is the only valid option)
@@ -420,7 +422,7 @@ write.table(
 if (plot_tree) {
   tree_data <- tree_data %>% mutate(
     node_annotation = case_when(
-      node %in% chains$ch_mrca ~ "(Swiss)",
+      node %in% chains$ch_mrca ~ "(Focal)",
       T ~ ""),
     is_context  = case_when(
       node %in% context_node_set ~ "Context",
@@ -433,8 +435,8 @@ if (plot_tree) {
       label = ifelse(
         test = is.na(node_annotation),
         yes = "",
-        no = paste(strain, ": ", iso_country, sep = "")),
-      color = iso_country,
+        no = paste(strain, ": ", country, sep = "")),
+      color = country,
       alpha = is_context),
       hjust = -0.01,
       size = 1) +

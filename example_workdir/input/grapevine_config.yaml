@@ -1,18 +1,18 @@
 focal_country: NZL
 min_date: 2020-01-01
 max_date: 2020-12-31
-max_missing: 3000
-min_length: 27000
-max_sampling_fraction: 0.1  # Maximum proportion of confirmed cases to sub-sample to, e.g. 0.005 takes at most X = (0.005 * confirmed cases) Swiss sequences from each week. -1 will include all sequences, regardless of confirmed case numbers.
+max_missing: 3000  # Max value for nextclade_total_missing.
+min_length: 27000  # Minimum value for nextclade_alignment_end - nextclade_alignment_start + 1.
+max_sampling_fraction: 0.05  # Maximum proportion of confirmed cases to sub-sample to, e.g. 0.005 takes at most X = (0.005 * confirmed cases) Swiss sequences from each week. -1 will include all sequences, regardless of confirmed case numbers.
 subsample_by_canton: false  # If sub-sampling enabled, 'true' will subsample within switzerland proportional to confirmed cases at the cantonal level
 travel_context_scale_factor: 0  # Multiplicative factor, how many times the # swiss sequences should we select for the travel context set?"
 similarity_context_scale_factor: 1  # Multiplicative factor, how many times the # swiss sequences should we select for the genetic similarity context set?
 travel_data_weights: "1,1,1"  # Number of times each exposure, tourist, and commuter permit are counted in setting up the travel context set.
-which_trees: 'A(\.[[:digit:]])+$' # R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. '\.*' for all lineages, or for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'"
+which_trees: '\.*' # R regex to match in the gisaid_sequence 'pangolin_lineage' field. E.g. '\.*' for all lineages, or for lineage B.1.617 and its descendents, use 'B\\.1\\.617(\\.|).*'"
 pick_chains_under_other_criteria: false  # If true, will also report transmission chains under different maximum total exports, maximum consecutive exports criteria.
 n_trees: -1  # will generate a tree for all lineages unless a positive integer, then will take only N first lineages; for testing purposes
 smooth_conf_cases: false  # If true smooths confirmed cases across 3 week window prior to downsampling genome sequences.
 outgroup_gisaid_epi_isls: EPI_ISL_406798 EPI_ISL_402125  # The nextstrain global tree is rooted between these two sequences (Wuhan/WH01/2019 & Wuhan/Hu-1/2019), which you can see by filtering the tree to Chinese sequences (to make it reasonably small), downloading the newick tree, and plotting it. Currently "EPI_ISL_406798|2019-12-26" is hardcoded as the outgroup in main.sh but strains listed here will still be included in each alignment.
-unique_context_only: true
+unique_context_only: false  # If true, filter potential context sequence set to earliest sequence of sequences with identical amino acid mutations.
 mask_from_start: 100
 mask_from_end: 50

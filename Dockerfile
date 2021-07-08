@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y python3-pip
 COPY database/python/requirements.txt database/python/requirements.txt
 RUN pip3 install -r database/python/requirements.txt
 
+# Install something ggsave needs (Thanks: https://notes.rmhogervorst.nl/post/2020/09/23/solving-libxt-so-6-cannot-open-shared-object-in-grdevices-grsoftversion/)
+RUN apt-get update && apt-get install -y --no-install-recommends libxt6
+
 COPY . .
 RUN chmod +x /app/main.sh
 

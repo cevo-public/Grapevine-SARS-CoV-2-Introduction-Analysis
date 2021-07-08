@@ -44,25 +44,25 @@ get_country_colors <- function(
 #' @param min_chain_size Only return data for chains of >= min_chain_size.
 #' @param viollier_only Only return data for samples from Viollier.
 #' @return chains: dataframe with one row per chain; samples: dataframe with 
-#' one row per swiss sample; origins: dataframe with one row per node that
+#' one row per focal sample; origins: dataframe with one row per node that
 #' is a foreign attachment point of a chain. 
 load_grapevine_results <- function(
   workdir, min_chain_size = 1, viollier_only = F
 ) {
   print(paste("Loading transmission chain data from", workdir))
   chains_with_asr <- rbind(
-    load_chain_asr_data(s = F, workdir = workdir) %>%  
+    load_chain_asr_data(l = F, workdir = workdir) %>%
       filter(size >= min_chain_size) %>%
       mutate(
         chain_idx = 1:n(),
         chains_assumption = "max",
-        tree = gsub(tree, pattern = "_s_F|_s_T", replacement = "")),
-    load_chain_asr_data(s = T, workdir = workdir) %>%  
+        tree = gsub(tree, pattern = "_l_F|_l_T", replacement = "")),
+    load_chain_asr_data(l = T, workdir = workdir) %>%
       filter(size >= min_chain_size) %>%
       mutate(
         chain_idx = 1:n(),
         chains_assumption = "min",
-        tree = gsub(tree, pattern = "_s_F|_s_T", replacement = ""))
+        tree = gsub(tree, pattern = "_l_F|_l_T", replacement = ""))
   ) 
   
   print("Formatting transmission chain data into per-sample, per-chain, and per-node dataframes.")
@@ -70,12 +70,12 @@ load_grapevine_results <- function(
   chains_data <- chains_with_asr %>% select(
     tree, chains_assumption, chain_idx, 
     foreign_mrca, foreign_tmrca, foreign_tmrca_CI, 
-    ch_mrca, ch_tmrca, ch_tmrca_CI,
+    mrca, tmrca, tmrca_CI,
     size, tips, tip_nodes,
     n_intl_subclades
   )
   
-  # one row per node that is a foreign_mrca of a swiss chain
+  # one row per node that is a foreign_mrca of a focal chain
   origin_data <- chains_with_asr %>% 
     group_by(tree, chains_assumption, foreign_mrca, foreign_tmrca, foreign_tmrca_CI) %>% 
     mutate(n_chains_descending = n()) %>%
@@ -116,7 +116,7 @@ load_grapevine_results <- function(
     ) %>% group_by(
       tree, chains_assumption, chain_idx, 
       foreign_mrca, foreign_tmrca, foreign_tmrca_CI, 
-      ch_mrca, ch_tmrca, ch_tmrca_CI
+      mrca, tmrca, tmrca_CI
     ) %>% summarize(
       size = n(),
       tips = paste0(sample, collapse = ", ")
@@ -132,18 +132,18 @@ load_grapevine_results <- function(
 }
 
 
-#' Join ancestral state location estimate for foreign mrca to swiss chain data.
-#' @param s Boolean indicating whether swiss descendents of polytomies are the 
+#' Join ancestral state location estimate for foreign mrca to focal chain data.
+#' @param l Boolean indicating whether focal descendents of polytomies are the
 #' same transmission chain.
 #' @param chains_only If true, only returns chains data, without ASR.
 #' @param chains_dirname Use to specify directory containing chains data per lineage.
 #' @return Dataframe with fields describing transmission chains and normalized 
 #' ancestral state location weights.
 load_chain_asr_data <- function(
-  s, workdir, chains_only = F, chains_dirname = "chains"
+  l, workdir, chains_only = F, chains_dirname = "chains"
 ) {
-  s_suffix <- paste("_s_", ifelse(test = s, yes = "T", no = "F"), sep = "")
-  chains_suffix <- paste(s_suffix, "_chains.txt$", sep = "")
+  l_suffix <- paste("_l_", ifelse(test = l, yes = "T", no = "F"), sep = "")
+  chains_suffix <- paste(l_suffix, "_chains.txt$", sep = "")
   print(paste("Looking for files ending in", chains_suffix, "within", paste(workdir, "tmp", chains_dirname, sep = "/")))
   chains_files <- list.files(
     path = paste(workdir, "tmp", chains_dirname, sep = "/"), pattern = chains_suffix)
@@ -155,16 +155,16 @@ load_chain_asr_data <- function(
     chains <- read.delim(file = chains_file, stringsAsFactors = F)
     
     if (!chains_only) {
-      asr_filename <- paste(prefix, s_suffix, "_tree_data_with_asr.txt", sep = "")
+      asr_filename <- paste(prefix, l_suffix, "_tree_data_with_asr.txt", sep = "")
       asr_file <- paste(workdir, "tmp/asr", asr_filename, sep = "/")
       asr <- read.delim(file = asr_file, stringsAsFactors = F, quote = "")
       chains_with_asr <- merge(
         x = chains, y = asr %>% select(node, ends_with("_loc_weight")),
         all.x = T, by.x = "foreign_mrca", by.y = "node") %>%
-        mutate(tree = paste(prefix, s_suffix, sep = ""))
+        mutate(tree = paste(prefix, l_suffix, sep = ""))
     } else {
       chains_with_asr <- chains %>%
-        mutate(tree = paste(prefix, s_suffix, sep = ""))
+        mutate(tree = paste(prefix, l_suffix, sep = ""))
     }
     
     if (is_first) {
@@ -178,17 +178,17 @@ load_chain_asr_data <- function(
   # Apply manual correction: LSD returns '2021' for date of tips with date '2020-12-31'
   chains_all[
     chains_all$size == 1 & 
-      chains_all$ch_tmrca == "2021" & 
-      grepl(x = chains_all$tips, pattern = "2020-12-31"), "ch_tmrca"] <- "2020-12-31"
-  chains_with_imprecise_ch_mrca <- chains_all %>%
-    filter(is.na(as.Date(chains_all$ch_tmrca)))
-  if (nrow(chains_with_imprecise_ch_mrca) > 0) {
+      chains_all$tmrca == "2021" &
+      grepl(x = chains_all$tips, pattern = "2020-12-31"), "tmrca"] <- "2020-12-31"
+  chains_with_imprecise_mrca <- chains_all %>%
+    filter(is.na(as.Date(chains_all$tmrca)))
+  if (nrow(chains_with_imprecise_mrca) > 0) {
     warning(paste(
-      "Some chains have imprecise ch_tmrca estimate.", 
+      "Some chains have imprecise tmrca estimate.",
       "LSD mysteriously replaces dates for tips on 2020-12-31 with 2021,", 
       "but this problem is already manually fixed in this function.", 
       "What else could be wrong?"))
-    print(chains_with_imprecise_ch_mrca)
+    print(chains_with_imprecise_mrca)
   }
   return(chains_all)
 }
@@ -273,8 +273,7 @@ load_sample_metadata <- function(workdir, pattern = "*_metadata.tsv") {
       ., 
       quote = "\'",
       col_types = readr::cols(
-        date = readr::col_date(format = "%Y-%m-%d"),
-        date_str = readr::col_character()
+        date = readr::col_date(format = "%Y-%m-%d")
       )
     ))
   print(paste("Loaded and concatenated", length(metadata_files), "metadata files."))
@@ -298,9 +297,9 @@ load_sample_metadata <- function(workdir, pattern = "*_metadata.tsv") {
 
 #' Pivot ASR data from wide to long format, remove ASR assignments of Switzerland
 #' for chains descending from a polytomy which have a the polytomy node as both 
-#' ch_mrca and foreign_mrca, replace periods in country names with spaces.
+#' mrca and foreign_mrca, replace periods in country names with spaces.
 #' @param origins Dataframe with fileds describing normalized ancestral state 
-#' location weights at nodes from which swiss transmission chains descend. 
+#' location weights at nodes from which focal transmission chains descend.
 #' @return Dataframe in long format with one column for chain origin and another 
 #' for asr_contribution (normalized ancestral state location weights).
 pivot_origins_longer <- function(origins) {
@@ -312,7 +311,7 @@ pivot_origins_longer <- function(origins) {
     values_to = "asr_contribution") %>%
     mutate(
       origin = gsub(x = origin, pattern = "_loc_weight", replacement = "")) %>%
-    # filter(origin != "Switzerland") %>%  # for s = T, a polytomy node can be both ch_mrca and foreign_mrca. Count these chains as unclassifiable.
+    # filter(origin != "Switzerland") %>%  # for l = T, a polytomy node can be both mrca and foreign_mrca. Count these chains as unclassifiable.
     mutate(origin = gsub(x = origin, pattern = "\\.", replacement = " "))
   return(origins_long)
 }
@@ -335,9 +334,9 @@ plot_chains <- function(
   workdir, outdir, country_colors, min_chain_size = 2, plot_height_in = 15
 ) {
   foreign_mrca_color <- "grey"
-  ch_mrca_color <- "black"
+  mrca_color <- "black"
   
-  chains <- load_chain_asr_data(s = F, workdir = workdir) %>%  # load max chains, then group by polytomy in plot
+  chains <- load_chain_asr_data(l = F, workdir = workdir) %>%  # load max chains, then group by polytomy in plot
     filter(size > min_chain_size) %>%
     mutate(chain_idx = 1:n())
     
@@ -352,11 +351,11 @@ plot_chains <- function(
     tidyr::unite(col = "unique_foreign_mrca", tree_pangolin_lineage, foreign_mrca)  # add facetting variable for each separate foreign attachment node on global tree
   
   chain_info <- samples_info %>% 
-    group_by(chain_idx, first_sample_in_chain, last_sample_in_chain, unique_foreign_mrca, ch_tmrca) %>%
+    group_by(chain_idx, first_sample_in_chain, last_sample_in_chain, unique_foreign_mrca, tmrca) %>%
     summarize(size = n()) %>%
     full_join(y = chains) %>%
     group_by(tree, foreign_mrca) %>%
-    arrange(desc(ch_tmrca)) %>%
+    arrange(desc(tmrca)) %>%
     mutate(chain_order_within_foreign_mrca = 1:n()) %>%
     ungroup()
   
@@ -375,18 +374,18 @@ plot_chains <- function(
       foreign_tmrca_CI_min = as.Date(foreign_tmrca_CI_min),
       foreign_tmrca_CI_max = as.Date(foreign_tmrca_CI_max)) %>%
     tidyr::separate(
-      ch_tmrca_CI, 
-      into = c("ch_tmrca_CI_min", "ch_tmrca_CI_max"),
+      tmrca_CI,
+      into = c("tmrca_CI_min", "tmrca_CI_max"),
       sep = ", ") %>%
     mutate(
-      ch_tmrca_CI_min = gsub(x = ch_tmrca_CI_min, pattern = "c\\(", replacement = ""),
-      ch_tmrca_CI_max = gsub(x = ch_tmrca_CI_max, pattern = "\\)", replacement = ""),
-      ch_tmrca_CI_min = as.Date(ch_tmrca_CI_min),
-      ch_tmrca_CI_max = as.Date(ch_tmrca_CI_max),
+      tmrca_CI_min = gsub(x = tmrca_CI_min, pattern = "c\\(", replacement = ""),
+      tmrca_CI_max = gsub(x = tmrca_CI_max, pattern = "\\)", replacement = ""),
+      tmrca_CI_min = as.Date(tmrca_CI_min),
+      tmrca_CI_max = as.Date(tmrca_CI_max),
       first_sample_in_chain = as.Date(first_sample_in_chain),
       last_sample_in_chain = as.Date(last_sample_in_chain),
       foreign_tmrca = as.Date(foreign_tmrca),
-      ch_tmrca = as.Date(ch_tmrca))  # format date information for chains
+      tmrca = as.Date(tmrca))  # format date information for chains
   
   samples_info <- samples_info %>% 
     mutate(unique_foreign_mrca = factor(
@@ -428,15 +427,15 @@ plot_chains <- function(
       shape = 4, color = foreign_mrca_color) +
     geom_point(
       data = chain_info,
-      aes(x = ch_tmrca,
+      aes(x = tmrca,
           y = chain_order_within_foreign_mrca),
-      shape = 4, color = ch_mrca_color) +
+      shape = 4, color = mrca_color) +
     geom_errorbarh(
       data = chain_info,
-      aes(xmin = ch_tmrca_CI_min,
-          xmax = ch_tmrca_CI_max,
+      aes(xmin = tmrca_CI_min,
+          xmax = tmrca_CI_max,
           y = chain_order_within_foreign_mrca),
-      color = ch_mrca_color) +
+      color = mrca_color) +
     geom_errorbarh(
       data = chain_info,
       aes(xmin = foreign_tmrca_CI_min,
@@ -491,7 +490,7 @@ plot_chains <- function(
   #   facet_grid(foreign_mrca ~ ., scales = "free_y", space = "free_y")
 }
 
-#' Plot estimated origins of swiss transmission lineages through time (prior vs. 'posterior').
+#' Plot estimated origins of focal transmission lineages through time (prior vs. 'posterior').
 #' @param grapevine_results Pre-loaded results of grapevine pipeline.
 #' @param country_colors Named list with color values for countries.
 plot_chain_origins <- function(
@@ -512,11 +511,11 @@ plot_chain_origins <- function(
     workdir = workdir,
     origins_representative = origins_per_chain)
   
-  # Count each origin once per unique chain, use the swiss mrca data and not the foreign mrca date
-  origins_data_per_chain_ch_mrca <- get_origin_prior_vs_posterior_data(
+  # Count each origin once per unique chain, use the focal mrca data and not the foreign mrca date
+  origins_data_per_chain_mrca <- get_origin_prior_vs_posterior_data(
     workdir = workdir,
     origins_representative = origins_per_chain,
-    posterior_date = "ch_tmrca")
+    posterior_date = "tmrca")
   
   if (is.null(origins_to_color)) {
     most_common_origins <- get_most_common_origins_to_plot(
@@ -538,9 +537,9 @@ plot_chain_origins <- function(
     country_colors = country_colors, 
     origins_data = origins_data_per_chain, 
     origins_to_color = origins_per_chain_to_color)
-  origins_per_chain_ch_tmrca_plot <- make_origins_plot(
+  origins_per_chain_tmrca_plot <- make_origins_plot(
     country_colors = country_colors, 
-    origins_data = origins_data_per_chain_ch_mrca, 
+    origins_data = origins_data_per_chain_mrca,
     origins_to_color = origins_per_chain_to_color)
   
   if (!is.null(outdir)) {
@@ -553,13 +552,13 @@ plot_chain_origins <- function(
       outdir = outdir,
       plotname = "chain_origins_per_chain_foreign_tmrca.png")
     save_origins_plot(
-      plot = origins_per_chain_ch_tmrca_plot,
+      plot = origins_per_chain_tmrca_plot,
       outdir = outdir,
-      plotname = "chain_origins_per_chain_ch_tmrca.png")
+      plotname = "chain_origins_per_chain_tmrca.png")
   } else {
     return(list("chain_origins_per_foreign_mrca_foreign_tmrca" = origins_plot,
                 "chain_origins_per_chain_foreign_tmrca" = origins_per_chain_plot,
-                "chain_origins_per_chain_ch_tmrca" = origins_per_chain_ch_tmrca_plot))
+                "chain_origins_per_chain_tmrca" = origins_per_chain_tmrca_plot))
   }
 }
 
@@ -573,7 +572,7 @@ get_origin_prior_vs_posterior_data <- function(
   travel_context <- load_travel_context(workdir = workdir)
   origins_posterior_long <- pivot_origins_longer(origins_representative)
   
-  # Fill in Unknown for origins that are unclassifiable (under max clusters assumption where ch_mrca == foreign_mrca or when a chain clusters only with similarity context sequences)
+  # Fill in Unknown for origins that are unclassifiable (under max clusters assumption where mrca == foreign_mrca or when a chain clusters only with similarity context sequences)
   origins_summary <- origins_posterior_long %>% 
     group_by(chains_assumption, tree, foreign_mrca, !!sym(posterior_date), origin_idx) %>% 
     summarize(total_asr_contribution = sum(asr_contribution, na.rm = T))
@@ -796,7 +795,7 @@ save_origins_plot <- function(
 }
 
 #' Table prior vs. posterior transmission chain origins in different time periods.
-#' @param origins One row per foreign mrca of swiss transmission chains, 
+#' @param origins One row per foreign mrca of focal transmission chains,
 #' with a column giving how many chains descend. 
 table_chain_origins <- function(
   workdir, outdir = NULL, period_breaks = c("2020-05-01"), 
@@ -853,8 +852,8 @@ table_chain_origins <- function(
       names_prefix = "Period beginning ")
   
   if (!is.null(outdir)) {
-    filename <- paste("posterior_vs_prior_origins_s_", 
-                      ifelse(test = s, yes = "T", no = "F"), ".csv", sep = "")
+    filename <- paste("posterior_vs_prior_origins_l_",
+                      ifelse(test = l, yes = "T", no = "F"), ".csv", sep = "")
     write.csv(
       x = posterior_vs_prior_by_period_to_table,
       file = paste(outdir, filename, sep = "/"),
@@ -877,7 +876,7 @@ plot_lineage_with_exposure_location <- function(db_connection, lineage, workdir)
   lineage <- "B.1.1.162"
   tree_filename <- paste(lineage, ".timetree.nex", sep = "")
   tree <- treeio::read.beast(file = paste(workdir, "tmp/lsd", tree_filename, sep = "/"))
-  tree_data_with_asr_filename <- paste(lineage, "_m_3_p_1_s_F_tree_data_with_asr.txt", sep = "")
+  tree_data_with_asr_filename <- paste(lineage, "_m_3_p_1_l_F_tree_data_with_asr.txt", sep = "")
   tree_data_with_asr <- read.delim(file = paste(workdir, "tmp/asr", tree_data_with_asr_filename, sep = "/")) 
   
   asr_pie_data <- tree_data_with_asr %>% select(node, all_of(ends_with("loc_weight")))
@@ -1241,11 +1240,11 @@ plot_dep_var_by_quarantine_status <- function(
 }
 
 #' Plot the time-scaled phylogeny with tip locations, estimated ancestral node
-#' locations, estimated Swiss transmission chains, and genetic similarity & 
+#' locations, estimated focal transmission chains, and genetic similarity &
 #' travel context tips.
 #' @param tree Grapevine output, e.g. /Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/jan-dec_-01_max_sampling_-5_context-sf/tmp/lsd/B.1.509.timetree.nex
-#' @param tree_data_with_asr Grapevine output, e.g. /Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/jan-dec_-01_max_sampling_-5_context-sf/tmp/asr/B.1.509_m_3_p_1_s_F_tree_data_with_asr.txt
-#' @param chains Grapevine output, e.g. /Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/jan-dec_-01_max_sampling_-5_context-sf/tmp/chains/B.1.509_m_3_p_1_s_F_chains.txt
+#' @param tree_data_with_asr Grapevine output, e.g. /Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/jan-dec_-01_max_sampling_-5_context-sf/tmp/asr/B.1.509_m_3_p_1_l_F_tree_data_with_asr.txt
+#' @param chains Grapevine output, e.g. /Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/jan-dec_-01_max_sampling_-5_context-sf/tmp/chains/B.1.509_m_3_p_1_l_F_chains.txt
 plot_tree <- function(
   tree, tree_data_with_asr, chains, country_colors, outdir = NULL, prefix = "tree"
 ) {
@@ -1259,7 +1258,7 @@ plot_tree <- function(
       node_annotation = "",
       tip_type = "")
       # node_annotation = case_when(
-      #   node %in% chains$ch_mrca ~ "Swiss MRCA",
+      #   node %in% chains$mrca ~ "focal MRCA",
       #   T ~ ""),
       # tip_type  = case_when(
       #   travel_context ~ "travel context",
