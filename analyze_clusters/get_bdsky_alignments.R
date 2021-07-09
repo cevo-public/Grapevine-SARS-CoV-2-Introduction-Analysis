@@ -3,7 +3,7 @@ source("generate_figures/functions.R")
 source("utility_functions.R")
 suppressMessages(suppressWarnings(require(dplyr)))
 
-# workdir <- "/Users/nadeaus/Repos/grapevine/workdir"
+# workdir <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/2021-07-09_nzl"
 # max_date <- "2020-11-30"
 # focal_country <- "NZL"
 
@@ -16,7 +16,7 @@ args <- parser$parse_args()
 
 workdir <- args$workdir
 max_date <- as.Date(args$maxdate)
-focal_country <- as.Date(args$focalcountry)
+focal_country <- args$focalcountry
 
 db_connection = open_database_connection()
 outdir <- paste(workdir, "output/transmission_chain_alignments", sep = "/")
@@ -24,10 +24,10 @@ system(command = paste("mkdir -p", outdir))
 
 print("Loading sample metadata and inferred transmission chain data.")
 sample_metadata <- load_sample_metadata(workdir = workdir)
-chains_max <- load_chain_asr_data(l = F, workdir = workdir) %>%
+chains_max <- load_chain_asr_data(l = F, workdir = workdir, chains_only = T) %>%
   mutate(chain_idx = 1:n(),
          chains_assumption = "max")
-chains_min <- load_chain_asr_data(l = T, workdir = workdir) %>%
+chains_min <- load_chain_asr_data(l = T, workdir = workdir, chains_only = T) %>%
   mutate(chain_idx = 1:n(),
          chains_assumption = "min")
 
@@ -36,7 +36,7 @@ samples_to_write_out <- rbind(
   pivot_chains_to_samples(chains = chains_max, metadata = sample_metadata),
   pivot_chains_to_samples(chains = chains_min, metadata = sample_metadata)) %>%
   tidyr::unite(col = "header", strain, sample, chain_idx, sep = "|", remove = F) %>%  # headers form: <strain with "\" & " " --> "_">|<gisaid_epi_isl>|<yyyy-mm-dd date>|<cluster_idx>
-  filter(date <= as.Date(max_date), focal_sequence)
+  filter(focal_sequence, date <= as.Date(max_date))
 
 if (focal_country == "CHE") {
   print("Filtering sample metadata to Viollier only, adding transmission chain information.")
@@ -44,7 +44,7 @@ if (focal_country == "CHE") {
     filter(originating_lab == "Viollier AG",
            submitting_lab == "Department of Biosystems Science and Engineering, ETH Zürich")  # because some samples sequenced by University Hospital Basel, Clinical Bacteriology also come from Viollier
 }
-  
+
 max_chain_header_mapping <- unlist(
   samples_to_write_out %>%
     filter(chains_assumption == "max") %>%

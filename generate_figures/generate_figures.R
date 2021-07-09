@@ -16,6 +16,7 @@ parser$add_argument("--workdir", type="character")
 parser$add_argument("--minchainsizeforplot", type="integer", default = 1)
 parser$add_argument("--maxsamplingfrac", type="double", default = 1)
 parser$add_argument("--datestohighlight", type="character", default = NULL)
+parser$add_argument("--focalcountry", type="character")
 
 args <- parser$parse_args()
 
@@ -24,6 +25,7 @@ workdir <- args$workdir
 min_chain_size <- args$minchainsizeforplot
 max_sampling_frac <- args$maxsamplingfrac
 dates_to_highlight <- args$datestohighlight
+focal_country <- args$focalcountry
 if (!is.null(dates_to_highlight)) {
   dates_to_highlight <- strsplit(dates_to_highlight, split = " ")[[1]]
 }
@@ -41,7 +43,8 @@ sampling_intensity_data <- plot_sampling_intensity(
   outdir = outdir,
   max_date = max_date,
   max_sampling_frac = max_sampling_frac,
-  dates_to_highlight = dates_to_highlight
+  dates_to_highlight = dates_to_highlight,
+  focal_country = focal_country
 )
 
 est_imports_file <- paste(workdir, "tmp/alignments/estimated_travel_cases.csv", sep = "/")

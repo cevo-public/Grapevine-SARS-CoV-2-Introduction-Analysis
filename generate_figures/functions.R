@@ -1,13 +1,13 @@
 #' Get a color assignment for countries so that colors are standardized across
-#' plots. Assigns a color to all countries from database table gisaid_sequence.
+#' plots. Assigns a color to all countries from database table gisaid_api_sequence.
 #' Inspired by stack overflow: https://stackoverflow.com/questions/15282580/how-to-generate-a-number-of-most-distinctive-colors-in-r
 #' @param db_connection
 get_country_colors <- function(
   db_connection
 ) {
-  require(RColorBrewer)
-  countries <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
-    group_by(iso_country) %>%
+  suppressMessages(suppressWarnings(require(RColorBrewer)))
+  countries <- dplyr::tbl(db_connection, "gisaid_api_sequence") %>%
+    group_by(country) %>%
     summarize(n_seqs = n()) %>%
     arrange(desc(n_seqs)) %>%
     collect()
@@ -30,7 +30,7 @@ get_country_colors <- function(
     size = (nrow(countries) - length(initial_colors)))
   
   colors <- c(initial_colors, remaining_colors)
-  names(colors) <- countries$iso_country
+  names(colors) <- countries$country
   colors[['XXX']] <- "grey"
   colors[['OTHER']] <- "brown"
   colors[['UNKNOWN']] <- "white"
@@ -47,17 +47,17 @@ get_country_colors <- function(
 #' one row per focal sample; origins: dataframe with one row per node that
 #' is a foreign attachment point of a chain. 
 load_grapevine_results <- function(
-  workdir, min_chain_size = 1, viollier_only = F
+  workdir, min_chain_size = 1, viollier_only = F, no_asr = F
 ) {
   print(paste("Loading transmission chain data from", workdir))
   chains_with_asr <- rbind(
-    load_chain_asr_data(l = F, workdir = workdir) %>%
+    load_chain_asr_data(l = F, workdir = workdir, chains_only = no_asr) %>%
       filter(size >= min_chain_size) %>%
       mutate(
         chain_idx = 1:n(),
         chains_assumption = "max",
         tree = gsub(tree, pattern = "_l_F|_l_T", replacement = "")),
-    load_chain_asr_data(l = T, workdir = workdir) %>%
+    load_chain_asr_data(l = T, workdir = workdir, chains_only = no_asr) %>%
       filter(size >= min_chain_size) %>%
       mutate(
         chain_idx = 1:n(),
@@ -72,7 +72,7 @@ load_grapevine_results <- function(
     foreign_mrca, foreign_tmrca, foreign_tmrca_CI, 
     mrca, tmrca, tmrca_CI,
     size, tips, tip_nodes,
-    n_intl_subclades
+    n_foreign_subclades
   )
   
   # one row per node that is a foreign_mrca of a focal chain
@@ -82,24 +82,22 @@ load_grapevine_results <- function(
     group_by(n_chains_descending, .add = T) %>%
     summarize_at(
       .vars = vars(ends_with("_loc_weight")),
-      .funs = list(~head(., 1))) %>%   # if multiple chains have same foreign mrca, e.g. at a polytomy, the asr data is duplicated
-    ungroup()
+      .funs = list(~head(., 1)),
+      .groups = "drop")  # if multiple chains have same foreign mrca, e.g. at a polytomy, the asr data is duplicated
   
   # one row per sample
   sample_metadata <- load_sample_metadata(workdir = workdir)
   samples_data <- pivot_chains_to_samples(
     chains = chains_data, metadata = sample_metadata) 
-  if(!("iso_country" %in% colnames(samples_data))) {
+  if(!("country" %in% colnames(samples_data))) {
     samples_data <- samples_data %>%
       mutate(
-        iso_country = country_name_to_iso_code(country),
-        iso_country_exposure = country_name_to_iso_code(country_exposure)
+        country = country_name_to_iso_code(country)
       )
   }
   samples_data <- samples_data %>% select(
     sample, tree, chains_assumption, chain_idx, sample_idx, gisaid_epi_isl, 
-    strain, date_str, date, region, iso_country, division, iso_country_exposure, 
-    nextstrain_clade, pangolin_lineage, originating_lab, submitting_lab, authors
+    strain, date, region_original, country, division, pangolin_lineage, originating_lab, submitting_lab, authors
   )
   
   if (viollier_only) {
@@ -119,7 +117,8 @@ load_grapevine_results <- function(
       mrca, tmrca, tmrca_CI
     ) %>% summarize(
       size = n(),
-      tips = paste0(sample, collapse = ", ")
+      tips = paste0(sample, collapse = ", "),
+      .groups = "drop"
     )
   }
   
@@ -157,7 +156,7 @@ load_chain_asr_data <- function(
     if (!chains_only) {
       asr_filename <- paste(prefix, l_suffix, "_tree_data_with_asr.txt", sep = "")
       asr_file <- paste(workdir, "tmp/asr", asr_filename, sep = "/")
-      asr <- read.delim(file = asr_file, stringsAsFactors = F, quote = "")
+      asr <- read.table(file = asr_file, stringsAsFactors = F, sep = "\t", header = T, quote = "\"")
       chains_with_asr <- merge(
         x = chains, y = asr %>% select(node, ends_with("_loc_weight")),
         all.x = T, by.x = "foreign_mrca", by.y = "node") %>%
@@ -180,12 +179,17 @@ load_chain_asr_data <- function(
     chains_all$size == 1 & 
       chains_all$tmrca == "2021" &
       grepl(x = chains_all$tips, pattern = "2020-12-31"), "tmrca"] <- "2020-12-31"
+  # And it appears also '2020' for node dates like '2019-12-31'
+  chains_all$tmrca <- gsub(x = chains_all$tmrca, pattern = "^2020$", replacement = "2019-12-31")
+  chains_all$tmrca_CI <- gsub(x = chains_all$tmrca_CI, pattern = ", 2020)", replacement = ", 2019-12-31)")
+  chains_all$foreign_tmrca <- gsub(x = chains_all$foreign_tmrca, pattern = "^2020$", replacement = "2019-12-31")
+  chains_all$foreign_tmrca_CI <- gsub(x = chains_all$foreign_tmrca_CI, pattern = ", 2020)", replacement = ", 2019-12-31)")
   chains_with_imprecise_mrca <- chains_all %>%
     filter(is.na(as.Date(chains_all$tmrca)))
   if (nrow(chains_with_imprecise_mrca) > 0) {
     warning(paste(
       "Some chains have imprecise tmrca estimate.",
-      "LSD mysteriously replaces dates for tips on 2020-12-31 with 2021,", 
+      "LSD mysteriously replaces dates at the end of year, e.g. 2020-12-31, with 2021,",
       "but this problem is already manually fixed in this function.", 
       "What else could be wrong?"))
     print(chains_with_imprecise_mrca)
@@ -269,13 +273,10 @@ load_sample_metadata <- function(workdir, pattern = "*_metadata.tsv") {
   metadata_files <- list.files(path = metadata_path, pattern = pattern, full.names = T)
   metadata <-
     metadata_files %>% 
-    purrr::map_df(~readr::read_tsv(
+    purrr::map_df(~read.delim(
       ., 
-      quote = "\'",
-      col_types = readr::cols(
-        date = readr::col_date(format = "%Y-%m-%d")
-      )
-    ))
+      quote = "\"")) %>%
+      mutate(date = as.Date(date))
   print(paste("Loaded and concatenated", length(metadata_files), "metadata files."))
   
   # Remove duplicate entries for outgroup
@@ -283,15 +284,17 @@ load_sample_metadata <- function(workdir, pattern = "*_metadata.tsv") {
     group_by(gisaid_epi_isl) %>%
     summarize(n_occurances = n()) %>%
     filter(n_occurances > 1)
-  for (i in 1:nrow(metadata_duplicates)) {
-    epi_isl <- metadata_duplicates[i, "gisaid_epi_isl"]
-    if (metadata_duplicates[i, "n_occurances"] != length(metadata_files)) {
-      stop(paste("Strain", epi_isl, "found in multiple trees and is not in outgroup!"))
-    } else {
-      print(paste("Removing duplicate metadata entries for outgroup strain", epi_isl))
+  if (nrow(metadata_duplicates) > 0) {
+    for (i in 1:nrow(metadata_duplicates)) {
+      epi_isl <- metadata_duplicates[i, "gisaid_epi_isl"]
+      if (metadata_duplicates[i, "n_occurances"] != length(metadata_files)) {
+        stop(paste("Strain", epi_isl, "found in multiple trees and is not in outgroup!"))
+      } else {
+        print(paste("Removing duplicate metadata entries for outgroup strain", epi_isl))
+      }
     }
+    metadata <- metadata %>% filter(!duplicated(metadata, fromLast = F))
   }
-  metadata <- metadata %>% filter(!duplicated(metadata, fromLast = F))
   return(metadata)
 }
 
@@ -336,7 +339,7 @@ plot_chains <- function(
   foreign_mrca_color <- "grey"
   mrca_color <- "black"
   
-  chains <- load_chain_asr_data(l = F, workdir = workdir) %>%  # load max chains, then group by polytomy in plot
+  chains <- load_chain_asr_data(l = F, workdir = workdir, chains_only = T) %>%  # load max chains, then group by polytomy in plot
     filter(size > min_chain_size) %>%
     mutate(chain_idx = 1:n())
     
@@ -852,8 +855,7 @@ table_chain_origins <- function(
       names_prefix = "Period beginning ")
   
   if (!is.null(outdir)) {
-    filename <- paste("posterior_vs_prior_origins_l_",
-                      ifelse(test = l, yes = "T", no = "F"), ".csv", sep = "")
+    filename <- paste0("posterior_vs_prior_origins_l_", ifelse(test = l, yes = "T", no = "F"), ".csv")
     write.csv(
       x = posterior_vs_prior_by_period_to_table,
       file = paste(outdir, filename, sep = "/"),
@@ -904,13 +906,13 @@ plot_lineage_with_exposure_location <- function(db_connection, lineage, workdir)
 #' @param dates_to_highlight Vector of character dates to draw vertical lines for.
 plot_sampling_intensity <- function(
   db_connection, workdir, outdir, max_date, max_sampling_frac, 
-  dates_to_highlight = NULL
+  dates_to_highlight = NULL, focal_country
 ) {
   sample_metadata <- load_sample_metadata(workdir = workdir)
-  samples_query <- dplyr::tbl(db_connection, "gisaid_sequence") %>%
+  samples_query <- dplyr::tbl(db_connection, "gisaid_api_sequence") %>%
     filter(gisaid_epi_isl %in% !! sample_metadata$gisaid_epi_isl)
   weekly_case_and_seq_data <- get_weekly_case_and_seq_data(
-    db_connection = db_connection, qcd_gisaid_query = samples_query) %>%
+    db_connection = db_connection, qcd_gisaid_query = samples_query, focal_country = focal_country) %>%
     filter(as.Date(week) <= as.Date(max_date))
   plot_data <- weekly_case_and_seq_data %>%
     mutate(n_unseq_conf_cases = pmax(n_conf_cases - n_seqs_viollier - n_seqs_other, 0)) %>%  # For any weeks where # sequences > # confirmed cases, set # unsequenced confirmed cases to 0.
@@ -1009,7 +1011,7 @@ plot_introductions_and_extinctions <- function(
   workdir, outdir, min_chain_size = 1, last_sample_to_extinction_delay = 14
 ) {
   samples <- load_grapevine_results(
-    workdir = workdir, min_chain_size = min_chain_size, viollier_only = T)$samples
+    workdir = workdir, min_chain_size = min_chain_size, viollier_only = F, no_asr = T)$samples
   week_to_week_start <- data.frame(
     day = seq.Date(
     from = min(samples$date), 
@@ -1257,14 +1259,6 @@ plot_tree <- function(
     mutate(
       node_annotation = "",
       tip_type = "")
-      # node_annotation = case_when(
-      #   node %in% chains$mrca ~ "focal MRCA",
-      #   T ~ ""),
-      # tip_type  = case_when(
-      #   travel_context ~ "travel context",
-      #   similarity_context ~ "genetic context",
-      #   focal_sequence ~ "",
-      #   T ~ "root"))
   
   # Apply manual correction: LSD returns '2021' for date of tips with date '2020-12-31'
   tree_data_to_plot$date <- as.character(tree_data_to_plot$date)
@@ -1289,11 +1283,8 @@ plot_tree <- function(
     geom_nodelab(aes(
       label = node_annotation)) +
     geom_tiplab(aes(
-      label = iso_code_to_country_name(iso_country),
-      # label = case_when(
-      #   tip_type != "" ~ paste(iso_code_to_country_name(iso_country), tip_type, sep = ": "),
-      #   T ~ iso_code_to_country_name(iso_country)),
-      color = iso_country),
+      label = iso_code_to_country_name(country),
+      color = country),
       hjust = -0.1, size = 2) +
     scale_color_manual(values = country_colors) +
     scale_x_date(
