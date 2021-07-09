@@ -30,13 +30,13 @@
 # To then assign locations based on these weights, we calculate a score as the 
 # number of changes avoided. This is normalized across all locations. 
 
-require(ape)
-require(dplyr)
-require(treeio)
-require(ggplot2)
-require(ggtree)
-require(argparse)
-require(magrittr)
+suppressMessages(suppressWarnings(require(ape)))
+suppressMessages(suppressWarnings(require(dplyr)))
+suppressMessages(suppressWarnings(require(treeio)))
+suppressMessages(suppressWarnings(require(ggplot2)))
+suppressMessages(suppressWarnings(require(ggtree)))
+suppressMessages(suppressWarnings(require(argparse)))
+suppressMessages(suppressWarnings(require(magrittr)))
 
 # tree_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/lsd/B.1.timetree.nex"
 # metadata_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/alignments/B.1_metadata.tsv"

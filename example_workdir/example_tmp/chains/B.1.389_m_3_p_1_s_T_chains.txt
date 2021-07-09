@@ -1,0 +1,2 @@
+size	ch_mrca	ch_tmrca	ch_tmrca_CI	tips	tip_nodes	n_intl_subclades	n_basal_intl_clades	foreign_tmrca	foreign_tmrca_CI	foreign_mrca
+5	21	2020-07-30	c("2020-07-16", "2020-08-10")	EPI_ISL_523875|2020-08-10, EPI_ISL_523886|2020-08-11, EPI_ISL_539455|2020-08-27, EPI_ISL_523916|2020-08-10, EPI_ISL_603355|2020-09-26	2, 3, 12, 10, 11	0	0	2020-07-30	c("2020-07-16", "2020-08-10")	21

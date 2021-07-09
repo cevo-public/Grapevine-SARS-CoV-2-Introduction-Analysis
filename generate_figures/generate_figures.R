@@ -1,10 +1,10 @@
 source("database/R/utility.R")
 source("utility_functions.R")
 source("generate_figures/functions.R")
-require(dplyr)
-require(ggplot2)
-require(ggtree)
-require(argparse)
+suppressMessages(suppressWarnings(require(dplyr)))
+suppressMessages(suppressWarnings(require(ggplot2)))
+suppressMessages(suppressWarnings(require(ggtree)))
+suppressMessages(suppressWarnings(require(argparse)))
 
 # max_date <- "2020-12-31"
 # workdir <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_main"

@@ -1,0 +1,139 @@
+IQ-TREE multicore version 2.0.6 for Linux 64-bit built May 30 2020
+Developed by Bui Quang Minh, Nguyen Lam Tung, Olga Chernomor,
+Heiko Schmidt, Dominik Schrempf, Michael Woodhams.
+
+Host:    615a8d4baec8 (AVX2, FMA3, 1 GB RAM)
+Command: /app/iqtree-2.0.6-Linux/bin/iqtree2 -s workdir/tmp/alignments/B.1.1.162.fasta -te workdir/tmp/iqtree/B.1.1.162.treefile -m HKY+F+G4 -keep-ident -o EPI_ISL_406798|2019-12-26 -ntmax 4 --date TAXNAME --date-ci 100 --date-outlier 3 --clock-sd 0.4 --date-options -a b(2019.872,2019.98) -u 0 -t 0.0008 -pre workdir/tmp/lsd/B.1.1.162
+Seed:    385120 (Using SPRNG - Scalable Parallel Random Number Generator)
+Time:    Wed Mar  3 21:29:22 2021
+Kernel:  AVX+FMA - 1 threads (2 CPU cores detected)
+
+HINT: Use -nt option to specify number of threads because your CPU has 2 cores!
+HINT: -nt AUTO will automatically determine the best number of threads to use.
+
+Reading alignment file workdir/tmp/alignments/B.1.1.162.fasta ... Fasta format detected
+Alignment most likely contains DNA/RNA sequences
+Alignment has 8 sequences with 29903 columns, 58 distinct patterns
+13 parsimony-informative, 23 singleton sites, 29867 constant sites
+                           Gap/Ambiguity  Composition  p-value
+   1  EPI_ISL_402125|2019-12-26    0.00%    passed     99.78%
+   2  EPI_ISL_406798|2019-12-26    0.12%    passed     99.94%
+   3  EPI_ISL_535612|2020-08-19    0.24%    passed     99.95%
+   4  EPI_ISL_639655|2020-09-21    0.00%    passed     99.74%
+   5  EPI_ISL_708186|2020-08-26    0.82%    passed     99.98%
+   6  EPI_ISL_708189|2020-08-26    0.76%    passed     99.98%
+   7  EPI_ISL_708194|2020-08-25    0.30%    passed     99.92%
+   8  EPI_ISL_959965|2020-09-24    0.53%    passed     99.88%
+****  TOTAL                        0.35%  0 sequences failed composition chi2 test (p-value<5%; df=3)
+Reading input tree file workdir/tmp/iqtree/B.1.1.162.treefile ...
+
+NOTE: 0 MB RAM (0 GB) is required!
+Estimate model parameters (epsilon = 0.010)
+1. Initial log-likelihood: -40941.053
+2. Current log-likelihood: -40924.354
+3. Current log-likelihood: -40924.322
+4. Current log-likelihood: -40924.291
+5. Current log-likelihood: -40924.259
+6. Current log-likelihood: -40924.227
+7. Current log-likelihood: -40924.196
+8. Current log-likelihood: -40924.165
+9. Current log-likelihood: -40924.133
+10. Current log-likelihood: -40924.102
+11. Current log-likelihood: -40924.071
+12. Current log-likelihood: -40924.040
+13. Current log-likelihood: -40924.009
+14. Current log-likelihood: -40923.978
+15. Current log-likelihood: -40923.948
+16. Current log-likelihood: -40923.917
+17. Current log-likelihood: -40923.887
+18. Current log-likelihood: -40923.857
+19. Current log-likelihood: -40923.828
+20. Current log-likelihood: -40923.799
+21. Current log-likelihood: -40923.770
+22. Current log-likelihood: -40923.741
+23. Current log-likelihood: -40923.713
+24. Current log-likelihood: -40923.685
+25. Current log-likelihood: -40923.657
+26. Current log-likelihood: -40923.630
+27. Current log-likelihood: -40923.603
+28. Current log-likelihood: -40923.577
+29. Current log-likelihood: -40923.551
+30. Current log-likelihood: -40923.526
+31. Current log-likelihood: -40923.501
+32. Current log-likelihood: -40923.477
+33. Current log-likelihood: -40923.454
+34. Current log-likelihood: -40923.431
+35. Current log-likelihood: -40923.408
+36. Current log-likelihood: -40923.387
+37. Current log-likelihood: -40923.366
+38. Current log-likelihood: -40923.345
+39. Current log-likelihood: -40923.326
+40. Current log-likelihood: -40923.307
+41. Current log-likelihood: -40923.289
+42. Current log-likelihood: -40923.271
+43. Current log-likelihood: -40923.255
+44. Current log-likelihood: -40923.239
+45. Current log-likelihood: -40923.224
+46. Current log-likelihood: -40923.209
+47. Current log-likelihood: -40923.195
+48. Current log-likelihood: -40923.182
+49. Current log-likelihood: -40923.170
+50. Current log-likelihood: -40923.159
+51. Current log-likelihood: -40923.148
+52. Current log-likelihood: -40923.138
+Optimal log-likelihood: -40923.128
+Rate parameters:  A-C: 1.00000  A-G: 10.64541  A-T: 1.00000  C-G: 1.00000  C-T: 10.64541  G-T: 1.00000
+Base frequencies:  A: 0.299  C: 0.184  G: 0.196  T: 0.321
+Gamma shape alpha: 998.448
+Parameters optimization took 52 rounds (0.118 sec)
+BEST SCORE FOUND : -40923.128
+Total tree length: 0.001
+
+Total number of iterations: 0
+CPU time used for tree search: 0.000 sec (0h:0m:0s)
+Wall-clock time used for tree search: 0.000 sec (0h:0m:0s)
+Total CPU time used: 0.047 sec (0h:0m:0s)
+Total wall-clock time used: 0.156 sec (0h:0m:0s)
+
+Analysis results written to: 
+  IQ-TREE report:                workdir/tmp/lsd/B.1.1.162.iqtree
+  Maximum-likelihood tree:       workdir/tmp/lsd/B.1.1.162.treefile
+  Screen log file:               workdir/tmp/lsd/B.1.1.162.log
+
+--- Start phylogenetic dating ---
+Extracting date from node names...
+8 dates extracted
+Building time tree by least-square dating (LSD) with command:
+lsd -i workdir/tmp/lsd/B.1.1.162.timetree.subst -s 29903 -o workdir/tmp/lsd/B.1.1.162.timetree -f 100 -q 0.4 -e 3 -g workdir/tmp/lsd/B.1.1.162.timetree.outgroup -d workdir/tmp/lsd/B.1.1.162.timetree.date -a b(2019.872,2019.98) -u 0 -t 0.0008 
+Reroot the tree 1 using given outgroups ...
+
+TREE 1
+*PROCESSING:
+Reading the tree ... 
+Collapse 2 (over 7) internal branches having branch length <= 1.67e-05
+ (settable via option -l)
+Parameter to adjust variances was set to 0.000334 (settable via option -b)
+Calculating the outlier nodes with Zscore threshold 3 (setable via option -e)...
+Minimum branch length of time scaled tree was set to 0 (settable
+ via option -u and -U)
+Estimating the root position on the branch defined by given outgroups ...
+Computing confidence intervals using sequence length 29903 and a lognormal
+ relaxed clock with mean 1, standard deviation 0.4 (settable via option -q)
+*WARNINGS:
+- 28.5714% internal branches were collapsed.
+- The estimated rate reaches the given lower bound. To change the lower bound, use option -t.
+*RESULTS:
+- There is not any outlier date.
+- Dating results:
+ rate 0.0008, tMRCA 2019-12-11
+- Results with confidence intervals:
+ rate 0.0008 [0.0008; 0.00115106], tMRCA 2019-12-11 [2019-11-14; 2019-12-26]
+
+TOTAL ELAPSED TIME: 0.00286 seconds
+LSD results written to:
+  LSD report:                  workdir/tmp/lsd/B.1.1.162.timetree.lsd
+  Time tree in nexus format:   workdir/tmp/lsd/B.1.1.162.timetree.nex
+  Time tree in newick format:  workdir/tmp/lsd/B.1.1.162.timetree.nwk
+
+--- End phylogenetic dating ---
+Date and Time: Wed Mar  3 21:29:22 2021

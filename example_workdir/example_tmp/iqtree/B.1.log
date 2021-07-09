@@ -1,0 +1,106 @@
+IQ-TREE multicore version 2.0.6 for Linux 64-bit built May 30 2020
+Developed by Bui Quang Minh, Nguyen Lam Tung, Olga Chernomor,
+Heiko Schmidt, Dominik Schrempf, Michael Woodhams.
+
+Host:    615a8d4baec8 (AVX2, FMA3, 1 GB RAM)
+Command: /app/iqtree-2.0.6-Linux/bin/iqtree2 -s workdir/tmp/alignments/B.1.fasta -m HKY+F+G4 -pre workdir/tmp/iqtree/B.1 -ninit 2 -n 2 -me 0.05
+Seed:    444098 (Using SPRNG - Scalable Parallel Random Number Generator)
+Time:    Wed Mar  3 21:29:21 2021
+Kernel:  AVX+FMA - 1 threads (2 CPU cores detected)
+
+HINT: Use -nt option to specify number of threads because your CPU has 2 cores!
+HINT: -nt AUTO will automatically determine the best number of threads to use.
+
+Reading alignment file workdir/tmp/alignments/B.1.fasta ... Fasta format detected
+Alignment most likely contains DNA/RNA sequences
+Alignment has 18 sequences with 29903 columns, 247 distinct patterns
+44 parsimony-informative, 102 singleton sites, 29757 constant sites
+                           Gap/Ambiguity  Composition  p-value
+   1  EPI_ISL_402125|2019-12-26    0.00%    passed     99.46%
+   2  EPI_ISL_406798|2019-12-26    0.12%    passed     99.76%
+   3  EPI_ISL_516575|2020-08-04    0.23%    passed     99.97%
+   4  EPI_ISL_516588|2020-08-04    0.80%    passed     99.24%
+   5  EPI_ISL_560455|2020-09-07    0.83%    passed     99.82%
+   6  EPI_ISL_560609|2020-08-02    0.40%    passed     99.98%
+   7  EPI_ISL_569095|2020-08-17    2.30%    passed     98.61%
+   8  EPI_ISL_581971|2020-08-18    1.97%    passed     99.82%
+   9  EPI_ISL_601548|2020-09-18    8.50%    passed     94.69%
+  10  EPI_ISL_603357|2020-09-26    0.23%    passed     99.96%
+  11  EPI_ISL_603407|2020-09-30    0.23%    passed     99.95%
+  12  EPI_ISL_644375|2020-08-27    5.55%    passed     98.74%
+  13  EPI_ISL_730572|2020-08-26    0.04%    passed     99.68%
+  14  EPI_ISL_730575|2020-09-20    0.42%    passed     99.68%
+  15  EPI_ISL_744994|2020-09-26    0.41%    passed     99.97%
+  16  EPI_ISL_830812|2020-09-20    3.09%    passed     99.61%
+  17  EPI_ISL_960072|2020-08-10    0.31%    passed     99.98%
+  18  EPI_ISL_969908|2020-09-02    3.84%    passed     99.94%
+****  TOTAL                        1.63%  0 sequences failed composition chi2 test (p-value<5%; df=3)
+
+Create initial parsimony tree by phylogenetic likelihood library (PLL)... 0.003 seconds
+
+NOTE: 0 MB RAM (0 GB) is required!
+Estimate model parameters (epsilon = 0.500)
+1. Initial log-likelihood: -42041.361
+2. Current log-likelihood: -42023.088
+3. Current log-likelihood: -42021.928
+4. Current log-likelihood: -42020.707
+5. Current log-likelihood: -42019.417
+6. Current log-likelihood: -42018.052
+7. Current log-likelihood: -42016.603
+8. Current log-likelihood: -42015.060
+9. Current log-likelihood: -42013.414
+10. Current log-likelihood: -42011.651
+11. Current log-likelihood: -42009.759
+12. Current log-likelihood: -42007.723
+13. Current log-likelihood: -42005.532
+14. Current log-likelihood: -42003.177
+15. Current log-likelihood: -42000.666
+16. Current log-likelihood: -41998.036
+17. Current log-likelihood: -41990.301
+Optimal log-likelihood: -41990.241
+Rate parameters:  A-C: 1.00000  A-G: 5.43548  A-T: 1.00000  C-G: 1.00000  C-T: 5.43548  G-T: 1.00000
+Base frequencies:  A: 0.299  C: 0.184  G: 0.196  T: 0.321
+Gamma shape alpha: 0.020
+Parameters optimization took 17 rounds (0.187 sec)
+Computing ML distances based on estimated model parameters... 0.002 sec
+Computing BIONJ tree...
+0.021 seconds
+Log-likelihood of BIONJ tree: -41994.112
+--------------------------------------------------------------------
+|             INITIALIZING CANDIDATE TREE SET                      |
+--------------------------------------------------------------------
+
+Do NNI search on 2 best initial trees
+BETTER TREE FOUND at iteration 1: -41990.226
+Finish initializing candidate tree set (4)
+Current best tree score: -41990.226 / CPU time: 0.028
+Number of iterations: 2
+TREE SEARCH COMPLETED AFTER 2 ITERATIONS / Time: 0h:0m:0s
+
+--------------------------------------------------------------------
+|                    FINALIZING TREE SEARCH                        |
+--------------------------------------------------------------------
+Performs final model parameters optimization
+Estimate model parameters (epsilon = 0.050)
+1. Initial log-likelihood: -41990.226
+Optimal log-likelihood: -41990.226
+Rate parameters:  A-C: 1.00000  A-G: 5.40785  A-T: 1.00000  C-G: 1.00000  C-T: 5.40785  G-T: 1.00000
+Base frequencies:  A: 0.299  C: 0.184  G: 0.196  T: 0.321
+Gamma shape alpha: 0.020
+Parameters optimization took 1 rounds (0.015 sec)
+BEST SCORE FOUND : -41990.226
+Total tree length: 0.005
+
+Total number of iterations: 2
+CPU time used for tree search: 0.019 sec (0h:0m:0s)
+Wall-clock time used for tree search: 0.038 sec (0h:0m:0s)
+Total CPU time used: 0.186 sec (0h:0m:0s)
+Total wall-clock time used: 0.343 sec (0h:0m:0s)
+
+Analysis results written to: 
+  IQ-TREE report:                workdir/tmp/iqtree/B.1.iqtree
+  Maximum-likelihood tree:       workdir/tmp/iqtree/B.1.treefile
+  Likelihood distances:          workdir/tmp/iqtree/B.1.mldist
+  Screen log file:               workdir/tmp/iqtree/B.1.log
+
+Date and Time: Wed Mar  3 21:29:22 2021

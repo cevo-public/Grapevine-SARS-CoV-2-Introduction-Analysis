@@ -1,0 +1,48 @@
+
+LEAST-SQUARE METHODS TO ESTIMATE RATES AND DATES - v.1.8.1 
+
+
+Input files:
+  i                                               Input tree file : workdir/tmp/lsd/B.1.1.58.timetree.subst
+  a                                                     Root date : b(2019.872,2019.98)
+  d                                               Input date file : workdir/tmp/lsd/B.1.1.58.timetree.date
+  p                                                Partition file : No
+Output file:
+  o                                                  Output file  : workdir/tmp/lsd/B.1.1.58.timetree
+Parameters:
+  c                                              With constraints : Yes
+  t                                      Lower bound for the rate : 0.0008
+  v                                                With variances : Yes, use variances based on input branch lengths
+  b                              Adjusted parameter for variances : To estimate
+  r                                             Estimate the root : On the branch given by the outgroups
+  w                                       Given substitution rate : No
+  g                                       File contains outgroups : workdir/tmp/lsd/B.1.1.58.timetree.outgroup
+  G                       Remove outgroups in the estimating tree : No
+  n                                             Multiple data set : No
+  f                                  Compute confidence intervals : Yes, sampling 100 times
+  q                  Standard deviation of lognormal relaxed clock: 0.4 (for computing confidence intervals)
+  s                                               Sequence length : 29903
+  e                                          Exclude outlier tips : Yes, detect and exclude outliers from the analysis
+  m                   Number of sampling nodes to detect outliers : 10
+  e                       The Zscore threshold to detect outliers : 3
+  u                Min internal branch length of time scaled tree : 0
+  U                Min external branch length of time scaled tree : To estimate
+  l                        Collapsed internal branch length limit : 1.67207e-05
+  D                                            Output date format : Based on input date format
+
+  h to print Help 
+  y to accept or type a letter to change an option (x = Exit) 
+Tree 1 
+Parameter to adjust variances was set to 0.000334415 (settable via option -b)
+*WARNINGS:
+- The estimated rate reaches the given lower bound. To change the lower bound, use option -t.
+*RESULTS:
+- There is not any outlier date.
+- Dating results:
+ rate 0.0008, tMRCA 2019-12-11
+- Results with confidence intervals:
+ rate 0.0008 [0.0008; 0.00139856], tMRCA 2019-12-11 [2019-11-14; 2019-12-26]
+
+*********************************************************
+
+TOTAL ELAPSED TIME: 0.002893 seconds

@@ -1,0 +1,6 @@
+iso_code	actual_total_seqs	ideal_total_seqs	percent_undersampling
+GRC	0	4	1
+MNE	0	1	1
+XKX	0	3	1
+ROU	1	3	0.666666666666667
+ALB	1	2	0.5

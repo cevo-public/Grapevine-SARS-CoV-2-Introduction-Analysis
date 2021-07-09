@@ -1,0 +1,131 @@
+IQ-TREE 2.0.6 built Jun  5 2020
+
+Input file name: workdir/tmp/alignments/B.1.221.fasta
+Type of analysis: tree reconstruction
+Random seed number: 252990
+
+REFERENCES
+----------
+
+To cite IQ-TREE please use:
+
+Bui Quang Minh, Heiko A. Schmidt, Olga Chernomor, Dominik Schrempf,
+Michael D. Woodhams, Arndt von Haeseler, and Robert Lanfear (2020)
+IQ-TREE 2: New models and efficient methods for phylogenetic inference
+in the genomic era. Mol. Biol. Evol., in press.
+https://doi.org/10.1093/molbev/msaa015
+
+SEQUENCE ALIGNMENT
+------------------
+
+Input data: 19 sequences with 29903 nucleotide sites
+Number of constant sites: 29847 (= 99.8127% of all sites)
+Number of invariant (constant or ambiguous constant) sites: 29847 (= 99.8127% of all sites)
+Number of parsimony informative sites: 23
+Number of distinct site patterns: 128
+
+SUBSTITUTION PROCESS
+--------------------
+
+Model of substitution: HKY+F+G4
+
+Rate parameter R:
+
+  A-C: 1.0000
+  A-G: 3.9620
+  A-T: 1.0000
+  C-G: 1.0000
+  C-T: 3.9620
+  G-T: 1.0000
+
+State frequencies: (empirical counts from alignment)
+
+  pi(A) = 0.2988
+  pi(C) = 0.1835
+  pi(G) = 0.1963
+  pi(T) = 0.3214
+
+Rate matrix Q:
+
+  A   -0.8957    0.1281    0.5431    0.2245
+  C    0.2086    -1.235    0.1371    0.8893
+  G    0.8266    0.1281    -1.179    0.2245
+  T    0.2086    0.5076    0.1371   -0.8533
+
+Model of rate heterogeneity: Gamma with 4 categories
+Gamma shape alpha: 0.02004
+
+ Category  Relative_rate  Proportion
+  1         5.062e-31      0.25
+  2         1.064e-15      0.25
+  3         9.78e-07       0.25
+  4         4              0.25
+Relative rates are computed as MEAN of the portion of the Gamma distribution falling in the category.
+
+MAXIMUM LIKELIHOOD TREE
+-----------------------
+
+Log-likelihood of the tree: -41167.8486 (s.e. 86.4033)
+Unconstrained log-likelihood (without tree): -64443.8943
+Number of free parameters (#branches + #model parameters): 40
+Akaike information criterion (AIC) score: 82415.6971
+Corrected Akaike information criterion (AICc) score: 82415.8070
+Bayesian information criterion (BIC) score: 82747.9257
+
+Total tree length (sum of branch lengths): 0.0019
+Sum of internal branch lengths: 0.0008 (41.7778% of tree length)
+
+WARNING: 10 near-zero internal branches (<0.0000) should be treated with caution
+         Such branches are denoted by '**' in the figure below
+
+NOTE: Tree is UNROOTED although outgroup taxon 'EPI_ISL_402125|2019-12-26' is drawn at root
+
++**EPI_ISL_402125|2019-12-26
+|
++----EPI_ISL_406798|2019-12-26
+|
+|                                          +--EPI_ISL_535591|2020-08-18
+|                                       +**|
+|                                       |  |                       +--EPI_ISL_578014|2020-09-18
+|                                       |  |  +--------------------|
+|                                       |  |  |                    +--EPI_ISL_632400|2020-09-23
+|                                       |  +**|
+|                                       |     +-------EPI_ISL_626252|2020-09-05
+|                                    +**|
+|                                    |  |  +**EPI_ISL_535606|2020-08-19
+|                                    |  +**|
+|                                    |     |           +**EPI_ISL_577943|2020-08-26
+|                                    |     |        +**|
+|                                    |     |        |  +--EPI_ISL_632670|2020-09-28
+|                                    |     |     +**|
+|                                    |     |     |  +----EPI_ISL_904159|2020-09-21
+|                                    |     |  +--|
+|                                    |     |  |  |     +--EPI_ISL_603275|2020-10-01
+|                                    |     |  |  |  +**|
+|                                    |     |  |  |  |  +**EPI_ISL_603292|2020-10-01
+|                                    |     |  |  +**|
+|                                    |     |  |     +-------EPI_ISL_790960|2020-09-24
+|                                    |     +--|
+|                                    |        +--EPI_ISL_581603|2020-08-14
+|                                 +**|
+|                                 |  |     +--------------------EPI_ISL_621721|2020-09-21
+|                                 |  |  +--|
+|                                 |  |  |  +**EPI_ISL_644459|2020-08-27
+|                                 |  +**|
+|                                 |     +------------EPI_ISL_631382|2020-09-28
+|                         +-------|
+|                         |       +--EPI_ISL_815283|2020-08-10
++-------------------------|
+                          +-------EPI_ISL_830784|2020-09-05
+
+Tree in newick format:
+
+(EPI_ISL_402125|2019-12-26:0.0000010000,EPI_ISL_406798|2019-12-26:0.0000668889,(((((EPI_ISL_535591|2020-08-18:0.0000334430,((EPI_ISL_578014|2020-09-18:0.0000372906,EPI_ISL_632400|2020-09-23:0.0000359818):0.0002649812,EPI_ISL_626252|2020-09-05:0.0001014689):0.0000010000):0.0000010000,(EPI_ISL_535606|2020-08-19:0.0000010000,((((EPI_ISL_577943|2020-08-26:0.0000010000,EPI_ISL_632670|2020-09-28:0.0000334430):0.0000010000,EPI_ISL_904159|2020-09-21:0.0000688290):0.0000010000,((EPI_ISL_603275|2020-10-01:0.0000334430,EPI_ISL_603292|2020-10-01:0.0000010000):0.0000010000,EPI_ISL_790960|2020-09-24:0.0001003378):0.0000010000):0.0000334430,EPI_ISL_581603|2020-08-14:0.0000334430):0.0000334430):0.0000010000):0.0000010000,((EPI_ISL_621721|2020-09-21:0.0002686945,EPI_ISL_644459|2020-08-27:0.0000010000):0.0000334430,EPI_ISL_631382|2020-09-28:0.0001672446):0.0000010000):0.0000010000,EPI_ISL_815283|2020-08-10:0.0000334430):0.0001079524,EPI_ISL_830784|2020-09-05:0.0001089926):0.0003261018);
+
+TIME STAMP
+----------
+
+Date and time: Wed Mar  3 21:29:18 2021
+Total CPU time used: 0.051242 seconds (0h:0m:0s)
+Total wall-clock time used: 0.343745 seconds (0h:0m:0s)
+

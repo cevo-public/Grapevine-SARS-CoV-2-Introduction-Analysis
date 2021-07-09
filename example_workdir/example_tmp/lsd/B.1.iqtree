@@ -1,0 +1,136 @@
+IQ-TREE 2.0.6 built Jun  5 2020
+
+Input file name: workdir/tmp/alignments/B.1.fasta
+User tree file name: workdir/tmp/iqtree/B.1.treefile
+Type of analysis: tree reconstruction
+Random seed number: 125978
+
+REFERENCES
+----------
+
+To cite IQ-TREE please use:
+
+Bui Quang Minh, Heiko A. Schmidt, Olga Chernomor, Dominik Schrempf,
+Michael D. Woodhams, Arndt von Haeseler, and Robert Lanfear (2020)
+IQ-TREE 2: New models and efficient methods for phylogenetic inference
+in the genomic era. Mol. Biol. Evol., in press.
+https://doi.org/10.1093/molbev/msaa015
+
+Since you used least square dating (LSD) please also cite: 
+
+Thu-Hien To, Matthieu Jung, Samantha Lycett, Olivier Gascuel (2016)
+Fast dating using least-squares criteria and algorithms. Syst. Biol. 65:82-97.
+https://doi.org/10.1093/sysbio/syv068
+
+SEQUENCE ALIGNMENT
+------------------
+
+Input data: 18 sequences with 29903 nucleotide sites
+Number of constant sites: 29757 (= 99.5118% of all sites)
+Number of invariant (constant or ambiguous constant) sites: 29757 (= 99.5118% of all sites)
+Number of parsimony informative sites: 44
+Number of distinct site patterns: 247
+
+SUBSTITUTION PROCESS
+--------------------
+
+Model of substitution: HKY+F+G4
+
+Rate parameter R:
+
+  A-C: 1.0000
+  A-G: 5.4079
+  A-T: 1.0000
+  C-G: 1.0000
+  C-T: 5.4079
+  G-T: 1.0000
+
+State frequencies: (empirical counts from alignment)
+
+  pi(A) = 0.2988
+  pi(C) = 0.1836
+  pi(G) = 0.1963
+  pi(T) = 0.3214
+
+Rate matrix Q:
+
+  A   -0.8838    0.1036    0.5989    0.1813
+  C    0.1686     -1.26    0.1107    0.9806
+  G    0.9117    0.1036    -1.197    0.1813
+  T    0.1686    0.5601    0.1107   -0.8395
+
+Model of rate heterogeneity: Gamma with 4 categories
+Gamma shape alpha: 0.02003
+
+ Category  Relative_rate  Proportion
+  1         4.82e-31       0.25
+  2         1.039e-15      0.25
+  3         9.681e-07      0.25
+  4         4              0.25
+Relative rates are computed as MEAN of the portion of the Gamma distribution falling in the category.
+
+USER TREE
+---------
+
+Log-likelihood of the tree: -41990.2257 (s.e. 117.1263)
+Unconstrained log-likelihood (without tree): -69408.3079
+Number of free parameters (#branches + #model parameters): 38
+Akaike information criterion (AIC) score: 84056.4513
+Corrected Akaike information criterion (AICc) score: 84056.5506
+Bayesian information criterion (BIC) score: 84372.0685
+
+Total tree length (sum of branch lengths): 0.0051
+Sum of internal branch lengths: 0.0006 (12.6492% of tree length)
+
+WARNING: 7 near-zero internal branches (<0.0000) should be treated with caution
+         Such branches are denoted by '**' in the figure below
+
+NOTE: Tree is UNROOTED although outgroup taxon 'EPI_ISL_406798|2019-12-26' is drawn at root
+
++**EPI_ISL_402125|2019-12-26
+|
++---EPI_ISL_406798|2019-12-26
+|
+|                 +-----------------EPI_ISL_516575|2020-08-04
+|              +--|
+|              |  |  +---------------EPI_ISL_560609|2020-08-02
+|              |  +**|
+|              |     +----------------------------------EPI_ISL_744994|2020-09-26
+|           +**|
+|           |  |  +----------EPI_ISL_730572|2020-08-26
+|           |  +--|
+|           |     +---------------------------------------EPI_ISL_730575|2020-09-20
+|        +**|
+|        |  |              +-------------EPI_ISL_516588|2020-08-04
+|        |  |           +**|
+|        |  |           |  +--------------------EPI_ISL_960072|2020-08-10
+|        |  |        +--|
+|        |  |        |  |                                            +**EPI_ISL_569095|2020-08-17
+|        |  |        |  +--------------------------------------------|
+|        |  |        |                                               +**EPI_ISL_644375|2020-08-27
+|        |  |     +--|
+|        |  |     |  +---------------------------------EPI_ISL_969908|2020-09-02
+|        |  |  +**|
+|        |  |  |  +-----------EPI_ISL_581971|2020-08-18
+|        |  +**|
+|        |     |                     +**EPI_ISL_560455|2020-09-07
+|        |     |  +------------------|
+|        |     |  |                  +**EPI_ISL_830812|2020-09-20
+|        |     +**|
+|        |        |                        +--EPI_ISL_603357|2020-09-26
+|        |        +------------------------|
+|        |                                 +**EPI_ISL_603407|2020-09-30
++--------|
+         +-----------------------------------EPI_ISL_601548|2020-09-18
+
+Tree in newick format:
+
+(EPI_ISL_402125|2019-12-26:0.0000010000,EPI_ISL_406798|2019-12-26:0.0000668889,((((EPI_ISL_516575|2020-08-04:0.0002676272,(EPI_ISL_560609|2020-08-02:0.0002341633,EPI_ISL_744994|2020-09-26:0.0005038880):0.0000010000):0.0000334430,(EPI_ISL_730572|2020-08-26:0.0001672446,EPI_ISL_730575|2020-09-20:0.0005712921):0.0000334430):0.0000010000,(((((EPI_ISL_516588|2020-08-04:0.0002022293,EPI_ISL_960072|2020-08-10:0.0003010940):0.0000010000,(EPI_ISL_569095|2020-08-17:0.0000010000,EPI_ISL_644375|2020-08-27:0.0000010000):0.0006452434):0.0000334430,EPI_ISL_969908|2020-09-02:0.0004863420):0.0000334430,EPI_ISL_581971|2020-08-18:0.0001705055):0.0000010000,((EPI_ISL_560455|2020-09-07:0.0000010000,EPI_ISL_830812|2020-09-20:0.0000010000):0.0002694783,(EPI_ISL_603357|2020-09-26:0.0000334430,EPI_ISL_603407|2020-09-30:0.0000010000):0.0003680366):0.0000010000):0.0000010000):0.0000010000,EPI_ISL_601548|2020-09-18:0.0005121303):0.0001337897);
+
+TIME STAMP
+----------
+
+Date and time: Wed Mar  3 21:29:33 2021
+Total CPU time used: 0.165875 seconds (0h:0m:0s)
+Total wall-clock time used: 0.43965 seconds (0h:0m:0s)
+

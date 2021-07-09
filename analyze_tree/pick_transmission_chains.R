@@ -15,20 +15,20 @@
 # largest possible transmission chains are formed but should promote the 
 # formation of large transmission chains.  
 
-require(treeio)
-require(tidytree)
-require(ggplot2)
-require(ggtree)
-require(dplyr)
-require(purrr)
+suppressMessages(suppressWarnings(require(treeio)))
+suppressMessages(suppressWarnings(require(tidytree)))
+suppressMessages(suppressWarnings(require(ggplot2)))
+suppressMessages(suppressWarnings(require(ggtree)))
+suppressMessages(suppressWarnings(require(dplyr)))
+suppressMessages(suppressWarnings(require(purrr)))
 
-# tree <- "/Users/nadeaus/Repos/grapevine/workdir/tmp/lsd/A.2.timetree.nex"
-# metadata <- "/Users/nadeaus/Repos/grapevine/workdir/tmp/alignments/A.2_metadata.tsv"
+# tree <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/2021-07-08_nzl/tmp/lsd/A.2.timetree.nex"
+# metadata <- "~/Downloads/metadata_quote.tsv"
 # outdir <- "~/Downloads"
 # verbose <- T
 # m <- 3
 # p <- 1
-# l <- F
+# l <- T
 # prefix <- paste("test_l_", l, sep = "")
 # focalcountry <- "NZL"
 # dont_plot_tree <- F
@@ -63,7 +63,7 @@ source("analyze_tree/functions.R")
 
 # Load data
 tree <- read.beast(file = tree)
-metadata <- read.table(file = metadata, stringsAsFactors = F, sep = "\t", header = T, quote = "")
+metadata <- read.table(file = metadata, stringsAsFactors = F, sep = "\t", header = T)
 tree_data <- as_tibble(tree)
 tree_data <- merge(
   x = tree_data, y = metadata %>% select(-c(date)),

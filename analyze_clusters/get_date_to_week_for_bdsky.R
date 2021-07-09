@@ -3,7 +3,7 @@
 
 source("database/R/utility.R")
 source("utility_functions.R")
-require(dplyr)
+suppressMessages(suppressWarnings(require(dplyr)))
 
 # outdir <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/jan-dec_-01_max_sampling_1_travel_1_sim_context-sf_111_travel-wt/output/transmission_chain_alignments"
 
