@@ -78,7 +78,7 @@ system(command = paste("mkdir -p", outdir))
 # Load data
 tree <- treeio::read.beast(file = tree_file)
 tree_data <- tidytree::as_tibble(tree)
-metadata <- read.table(file = metadata_file, stringsAsFactors = F, sep = "\t", header = T, quote = "")
+metadata <- read.table(file = metadata_file, stringsAsFactors = F, sep = "\t", header = T)
 chains <- read.delim(file = chains_file, stringsAsFactors = F)
 
 # Make sure all tips present in metadata
@@ -322,7 +322,7 @@ if (write_scores) {
   write.table(
     x = tree_data_to_print,
     file = paste(outdir, paste(prefix, "_tree_data_with_scores.txt", sep = ""), sep = "/"),
-    quote = F, row.names = F, col.names = T, sep = "\t")
+    row.names = F, col.names = T, sep = "\t")
 }
 
 # Generate data frame with one row per node, 1 column per candidate ancestral location,
@@ -416,7 +416,7 @@ tree_data_to_print[c("CI_date", "CI_height")] <- apply(
 write.table(
   x = tree_data_to_print,
   file = paste(outdir, paste(prefix, "_tree_data_with_asr.txt", sep = ""), sep = "/"),
-  row.names = F, col.names = T, quote = F, sep = "\t")
+  row.names = F, col.names = T, sep = "\t")
 
 # Plot the tree with ASR pie charts at nodes
 if (plot_tree) {

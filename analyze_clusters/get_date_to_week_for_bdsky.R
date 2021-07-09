@@ -39,11 +39,6 @@ DBI::dbWriteTable(
   overwrite = T
 )
 
-DBI::dbReadTable(
-  conn = db_connection,
-  name = tbl_name
-)
-
 # Generate mapping
 dates_with_week <- dplyr::tbl(db_connection, tbl_name) %>%
   mutate(week = date_trunc('week', date)) %>%
