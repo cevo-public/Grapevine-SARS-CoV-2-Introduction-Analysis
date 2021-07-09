@@ -138,6 +138,7 @@ grep 'focal_country'
 MAX_NONFOCAL_SUBCLADES=3
 MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=1
 for TREEFILE in $TMP_LSD/*.nex; do
+    echo "Picking largest chains from tree: $TREEFILE"
     PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
     Rscript analyze_tree/pick_transmission_chains.R \
         --tree $TREEFILE \
@@ -154,6 +155,7 @@ done
 MAX_NONFOCAL_SUBCLADES=3
 MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=1
 for TREEFILE in $TMP_LSD/*.nex; do
+    echo "Picking smallest chains from tree: $TREEFILE"
     PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
     Rscript analyze_tree/pick_transmission_chains.R \
         --tree $TREEFILE \
@@ -173,6 +175,7 @@ MAX_NONFOCAL_SUBCLADES=3
 MAX_CONSECUTIVE_BUDDING_NONFOCAL_SUBCLADES=1
 
 for TREEFILE in $TMP_LSD/*.nex ; do
+    echo "Reconstructing ancestral locations based on largest chains from tree: $TREEFILE"
     PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
     Rscript analyze_tree/reconstruct_ancestral_locations_weighted_parsimony.R \
         --tree $TREEFILE \
@@ -184,6 +187,7 @@ for TREEFILE in $TMP_LSD/*.nex ; do
 done
 
 for TREEFILE in $TMP_LSD/*.nex ; do
+    echo "Reconstructing ancestral locations based on smallest chains from tree: $TREEFILE"
     PREFIX="$(basename "${TREEFILE}" | sed 's/.timetree.nex//g')"
     Rscript analyze_tree/reconstruct_ancestral_locations_weighted_parsimony.R \
         --tree $TREEFILE \

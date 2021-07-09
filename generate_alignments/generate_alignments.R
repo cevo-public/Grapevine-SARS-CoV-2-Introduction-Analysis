@@ -1,10 +1,10 @@
 source("database/R/utility.R")
 source("utility_functions.R")
 source("generate_alignments/functions.R")
-require(dplyr)
-require(ggplot2)
-require(argparse)
-require(yaml)
+suppressMessages(suppressWarnings(require(dplyr)))
+suppressMessages(suppressWarnings(require(ggplot2)))
+suppressMessages(suppressWarnings(require(argparse)))
+suppressMessages(suppressWarnings(require(yaml)))
 
 # config <- "/Users/nadeaus/Repos/grapevine/example_workdir/input/grapevine_config.yaml"
 # outdir <- "~/Downloads"

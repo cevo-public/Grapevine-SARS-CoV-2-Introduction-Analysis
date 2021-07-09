@@ -1,0 +1,92 @@
+IQ-TREE multicore version 2.0.6 for Linux 64-bit built May 30 2020
+Developed by Bui Quang Minh, Nguyen Lam Tung, Olga Chernomor,
+Heiko Schmidt, Dominik Schrempf, Michael Woodhams.
+
+Host:    615a8d4baec8 (AVX2, FMA3, 1 GB RAM)
+Command: /app/iqtree-2.0.6-Linux/bin/iqtree2 -s workdir/tmp/alignments/B.1.1.54.fasta -m HKY+F+G4 -pre workdir/tmp/iqtree/B.1.1.54 -ninit 2 -n 2 -me 0.05
+Seed:    286762 (Using SPRNG - Scalable Parallel Random Number Generator)
+Time:    Wed Mar  3 21:29:10 2021
+Kernel:  AVX+FMA - 1 threads (2 CPU cores detected)
+
+HINT: Use -nt option to specify number of threads because your CPU has 2 cores!
+HINT: -nt AUTO will automatically determine the best number of threads to use.
+
+Reading alignment file workdir/tmp/alignments/B.1.1.54.fasta ... Fasta format detected
+Alignment most likely contains DNA/RNA sequences
+Alignment has 5 sequences with 29903 columns, 46 distinct patterns
+7 parsimony-informative, 27 singleton sites, 29869 constant sites
+                           Gap/Ambiguity  Composition  p-value
+   1  EPI_ISL_402125|2019-12-26    0.00%    passed     99.66%
+   2  EPI_ISL_406798|2019-12-26    0.12%    passed     99.80%
+   3  EPI_ISL_541449|2020-09-03    0.24%    passed     99.96%
+   4  EPI_ISL_602925|2020-09-29    6.67%    passed     98.70%
+   5  EPI_ISL_603394|2020-09-30    0.18%    passed     99.94%
+****  TOTAL                        1.44%  0 sequences failed composition chi2 test (p-value<5%; df=3)
+
+Create initial parsimony tree by phylogenetic likelihood library (PLL)... 0.003 seconds
+
+NOTE: 0 MB RAM (0 GB) is required!
+Estimate model parameters (epsilon = 0.500)
+1. Initial log-likelihood: -40911.586
+2. Current log-likelihood: -40906.000
+Optimal log-likelihood: -40905.766
+Rate parameters:  A-C: 1.00000  A-G: 12.17381  A-T: 1.00000  C-G: 1.00000  C-T: 12.17381  G-T: 1.00000
+Base frequencies:  A: 0.299  C: 0.184  G: 0.196  T: 0.321
+Gamma shape alpha: 998.448
+Parameters optimization took 2 rounds (0.011 sec)
+Computing ML distances based on estimated model parameters... 0.000 sec
+Computing BIONJ tree...
+0.020 seconds
+Log-likelihood of BIONJ tree: -40905.820
+--------------------------------------------------------------------
+|             INITIALIZING CANDIDATE TREE SET                      |
+--------------------------------------------------------------------
+Generating 1 parsimony trees... 0.000 second
+Computing log-likelihood of 1 initial trees ... 0.000 seconds
+Current best score: -40905.766
+
+Do NNI search on 2 best initial trees
+Finish initializing candidate tree set (2)
+Current best tree score: -40905.766 / CPU time: 0.015
+Number of iterations: 2
+TREE SEARCH COMPLETED AFTER 2 ITERATIONS / Time: 0h:0m:0s
+
+--------------------------------------------------------------------
+|                    FINALIZING TREE SEARCH                        |
+--------------------------------------------------------------------
+Performs final model parameters optimization
+Estimate model parameters (epsilon = 0.050)
+1. Initial log-likelihood: -40905.766
+2. Current log-likelihood: -40905.526
+3. Current log-likelihood: -40905.282
+4. Current log-likelihood: -40905.033
+5. Current log-likelihood: -40904.781
+6. Current log-likelihood: -40904.527
+7. Current log-likelihood: -40903.500
+8. Current log-likelihood: -40903.284
+9. Current log-likelihood: -40903.090
+10. Current log-likelihood: -40902.922
+11. Current log-likelihood: -40902.785
+12. Current log-likelihood: -40902.680
+13. Current log-likelihood: -40902.606
+Optimal log-likelihood: -40902.558
+Rate parameters:  A-C: 1.00000  A-G: 5.03440  A-T: 1.00000  C-G: 1.00000  C-T: 5.03440  G-T: 1.00000
+Base frequencies:  A: 0.299  C: 0.184  G: 0.196  T: 0.321
+Gamma shape alpha: 998.448
+Parameters optimization took 13 rounds (0.036 sec)
+BEST SCORE FOUND : -40902.558
+Total tree length: 0.001
+
+Total number of iterations: 2
+CPU time used for tree search: 0.002 sec (0h:0m:0s)
+Wall-clock time used for tree search: 0.023 sec (0h:0m:0s)
+Total CPU time used: 0.021 sec (0h:0m:0s)
+Total wall-clock time used: 0.160 sec (0h:0m:0s)
+
+Analysis results written to: 
+  IQ-TREE report:                workdir/tmp/iqtree/B.1.1.54.iqtree
+  Maximum-likelihood tree:       workdir/tmp/iqtree/B.1.1.54.treefile
+  Likelihood distances:          workdir/tmp/iqtree/B.1.1.54.mldist
+  Screen log file:               workdir/tmp/iqtree/B.1.1.54.log
+
+Date and Time: Wed Mar  3 21:29:10 2021

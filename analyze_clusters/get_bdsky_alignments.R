@@ -1,7 +1,7 @@
 source("database/R/utility.R")
 source("generate_figures/functions.R")
 source("utility_functions.R")
-require(dplyr)
+suppressMessages(suppressWarnings(require(dplyr)))
 
 # workdir <- "/Users/nadeaus/Repos/grapevine/workdir"
 # max_date <- "2020-11-30"

@@ -3,17 +3,6 @@
 
 #' Overwrites the open_database_connection function: Connection data (including the password) must be provided via
 #' environment variables.
-# open_database_connection <- function (...) {
-#   db_connection <- DBI::dbConnect(
-#     RPostgres::Postgres(),
-#     host = Sys.getenv("DB_HOST"),
-#     port = Sys.getenv("DB_PORT"),
-#     user = Sys.getenv("DB_USER"),
-#     password = Sys.getenv("DB_PASSWORD"),
-#     dbname = Sys.getenv("DB_DBNAME")
-#   )
-#   return(db_connection)
-# }
 open_database_connection <- function (
   db_instance = "server",
   config_file = "workdir/input/config.yml"

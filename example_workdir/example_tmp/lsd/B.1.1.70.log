@@ -1,0 +1,114 @@
+IQ-TREE multicore version 2.0.6 for Linux 64-bit built May 30 2020
+Developed by Bui Quang Minh, Nguyen Lam Tung, Olga Chernomor,
+Heiko Schmidt, Dominik Schrempf, Michael Woodhams.
+
+Host:    615a8d4baec8 (AVX2, FMA3, 1 GB RAM)
+Command: /app/iqtree-2.0.6-Linux/bin/iqtree2 -s workdir/tmp/alignments/B.1.1.70.fasta -te workdir/tmp/iqtree/B.1.1.70.treefile -m HKY+F+G4 -keep-ident -o EPI_ISL_406798|2019-12-26 -ntmax 4 --date TAXNAME --date-ci 100 --date-outlier 3 --clock-sd 0.4 --date-options -a b(2019.872,2019.98) -u 0 -t 0.0008 -pre workdir/tmp/lsd/B.1.1.70
+Seed:    596780 (Using SPRNG - Scalable Parallel Random Number Generator)
+Time:    Wed Mar  3 21:29:27 2021
+Kernel:  AVX+FMA - 1 threads (2 CPU cores detected)
+
+HINT: Use -nt option to specify number of threads because your CPU has 2 cores!
+HINT: -nt AUTO will automatically determine the best number of threads to use.
+
+Reading alignment file workdir/tmp/alignments/B.1.1.70.fasta ... Fasta format detected
+Alignment most likely contains DNA/RNA sequences
+Alignment has 25 sequences with 29903 columns, 146 distinct patterns
+26 parsimony-informative, 64 singleton sites, 29813 constant sites
+                            Gap/Ambiguity  Composition  p-value
+   1  EPI_ISL_1055687|2020-08-12    0.64%    passed     99.98%
+   2  EPI_ISL_402125|2019-12-26     0.00%    passed     99.66%
+   3  EPI_ISL_406798|2019-12-26     0.12%    passed     99.86%
+   4  EPI_ISL_523894|2020-08-12     0.23%    passed     99.98%
+   5  EPI_ISL_523902|2020-08-13     0.24%    passed     99.98%
+   6  EPI_ISL_535615|2020-08-20     0.25%    passed     99.98%
+   7  EPI_ISL_539344|2020-08-21     0.24%    passed     99.98%
+   8  EPI_ISL_539362|2020-08-22     0.23%    passed     99.98%
+   9  EPI_ISL_539410|2020-08-25     0.23%    passed     99.98%
+  10  EPI_ISL_541465|2020-09-03     0.24%    passed     99.97%
+  11  EPI_ISL_541514|2020-09-01     0.24%    passed     99.99%
+  12  EPI_ISL_541526|2020-08-28     0.23%    passed     99.99%
+  13  EPI_ISL_667658|2020-08        0.35%    passed     99.96%
+  14  EPI_ISL_710548|2020-08-31     0.03%    passed     99.70%
+  15  EPI_ISL_710555|2020-08-17     0.00%    passed     99.70%
+  16  EPI_ISL_710556|2020-08-30     0.00%    passed     99.75%
+  17  EPI_ISL_710557|2020-09-03     0.00%    passed     99.75%
+  18  EPI_ISL_710560|2020-09-08     0.00%    passed     99.70%
+  19  EPI_ISL_710565|2020-09-28     0.00%    passed     99.75%
+  20  EPI_ISL_747342|2020-09-22     1.86%    passed     99.85%
+  21  EPI_ISL_828637|2020-08-22     2.83%    passed     98.98%
+  22  EPI_ISL_853971|2020-09-18     0.40%    passed     99.96%
+  23  EPI_ISL_853977|2020-09-18     0.40%    passed     99.97%
+  24  EPI_ISL_913093|2020-09-08     1.14%    passed     99.57%
+  25  EPI_ISL_956404|2020-09-11     0.35%    passed     99.99%
+****  TOTAL                         0.41%  0 sequences failed composition chi2 test (p-value<5%; df=3)
+Reading input tree file workdir/tmp/iqtree/B.1.1.70.treefile ...
+
+NOTE: 0 MB RAM (0 GB) is required!
+Estimate model parameters (epsilon = 0.010)
+1. Initial log-likelihood: -41582.023
+2. Current log-likelihood: -41569.620
+3. Current log-likelihood: -41568.157
+4. Current log-likelihood: -41566.577
+5. Current log-likelihood: -41564.870
+6. Current log-likelihood: -41563.030
+7. Current log-likelihood: -41561.066
+8. Current log-likelihood: -41559.018
+9. Current log-likelihood: -41553.910
+10. Current log-likelihood: -41553.809
+Optimal log-likelihood: -41553.809
+Rate parameters:  A-C: 1.00000  A-G: 4.38007  A-T: 1.00000  C-G: 1.00000  C-T: 4.38007  G-T: 1.00000
+Base frequencies:  A: 0.299  C: 0.184  G: 0.196  T: 0.321
+Gamma shape alpha: 0.020
+Parameters optimization took 10 rounds (0.074 sec)
+BEST SCORE FOUND : -41553.809
+Total tree length: 0.003
+
+Total number of iterations: 0
+CPU time used for tree search: 0.000 sec (0h:0m:0s)
+Wall-clock time used for tree search: 0.000 sec (0h:0m:0s)
+Total CPU time used: 0.063 sec (0h:0m:0s)
+Total wall-clock time used: 0.109 sec (0h:0m:0s)
+
+Analysis results written to: 
+  IQ-TREE report:                workdir/tmp/lsd/B.1.1.70.iqtree
+  Maximum-likelihood tree:       workdir/tmp/lsd/B.1.1.70.treefile
+  Screen log file:               workdir/tmp/lsd/B.1.1.70.log
+
+--- Start phylogenetic dating ---
+Extracting date from node names...
+25 dates extracted
+Building time tree by least-square dating (LSD) with command:
+lsd -i workdir/tmp/lsd/B.1.1.70.timetree.subst -s 29903 -o workdir/tmp/lsd/B.1.1.70.timetree -f 100 -q 0.4 -e 3 -g workdir/tmp/lsd/B.1.1.70.timetree.outgroup -d workdir/tmp/lsd/B.1.1.70.timetree.date -a b(2019.872,2019.98) -u 0 -t 0.0008 
+Reroot the tree 1 using given outgroups ...
+
+TREE 1
+*PROCESSING:
+Reading the tree ... 
+Collapse 9 (over 24) internal branches having branch length <= 1.67e-05
+ (settable via option -l)
+Parameter to adjust variances was set to 0.000334 (settable via option -b)
+Calculating the outlier nodes with Zscore threshold 3 (setable via option -e)...
+Minimum branch length of time scaled tree was set to 0 (settable
+ via option -u and -U)
+Estimating the root position on the branch defined by given outgroups ...
+Computing confidence intervals using sequence length 29903 and a lognormal
+ relaxed clock with mean 1, standard deviation 0.4 (settable via option -q)
+*WARNINGS:
+- 37.5% internal branches were collapsed.
+- The estimated rate reaches the given lower bound. To change the lower bound, use option -t.
+*RESULTS:
+- There is not any outlier date.
+- Dating results:
+ rate 0.0008, tMRCA 2019-12-11
+- Results with confidence intervals:
+ rate 0.0008 [0.0008; 0.00129364], tMRCA 2019-12-11 [2019-11-17; 2019-12-26]
+
+TOTAL ELAPSED TIME: 0.0088 seconds
+LSD results written to:
+  LSD report:                  workdir/tmp/lsd/B.1.1.70.timetree.lsd
+  Time tree in nexus format:   workdir/tmp/lsd/B.1.1.70.timetree.nex
+  Time tree in newick format:  workdir/tmp/lsd/B.1.1.70.timetree.nwk
+
+--- End phylogenetic dating ---
+Date and Time: Wed Mar  3 21:29:27 2021

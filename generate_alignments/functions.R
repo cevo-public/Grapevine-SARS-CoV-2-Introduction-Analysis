@@ -738,7 +738,6 @@ write_out_alignments <- function(
       x = metadata_i %>% select(all_of(col_order)),
       file = paste(outdir, "/", lineage, "_metadata.tsv", sep = ""),
       sep = "\t",
-      quote = F,
       row.names = F)
 
     header_mapping <- metadata_i$tree_label

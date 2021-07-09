@@ -1,0 +1,173 @@
+IQ-TREE multicore version 2.0.6 for Linux 64-bit built May 30 2020
+Developed by Bui Quang Minh, Nguyen Lam Tung, Olga Chernomor,
+Heiko Schmidt, Dominik Schrempf, Michael Woodhams.
+
+Host:    615a8d4baec8 (AVX2, FMA3, 1 GB RAM)
+Command: /app/iqtree-2.0.6-Linux/bin/iqtree2 -s workdir/tmp/alignments/B.1.160.fasta -te workdir/tmp/iqtree/B.1.160.treefile -m HKY+F+G4 -keep-ident -o EPI_ISL_406798|2019-12-26 -ntmax 4 --date TAXNAME --date-ci 100 --date-outlier 3 --clock-sd 0.4 --date-options -a b(2019.872,2019.98) -u 0 -t 0.0008 -pre workdir/tmp/lsd/B.1.160
+Seed:    644602 (Using SPRNG - Scalable Parallel Random Number Generator)
+Time:    Wed Mar  3 21:29:26 2021
+Kernel:  AVX+FMA - 1 threads (2 CPU cores detected)
+
+HINT: Use -nt option to specify number of threads because your CPU has 2 cores!
+HINT: -nt AUTO will automatically determine the best number of threads to use.
+
+Reading alignment file workdir/tmp/alignments/B.1.160.fasta ... Fasta format detected
+Alignment most likely contains DNA/RNA sequences
+Alignment has 90 sequences with 29903 columns, 737 distinct patterns
+67 parsimony-informative, 152 singleton sites, 29684 constant sites
+                            Gap/Ambiguity  Composition  p-value
+   1  EPI_ISL_1015029|2020-09-28    0.07%    passed     99.83%
+   2  EPI_ISL_1015162|2020-09-21    0.11%    passed     99.96%
+   3  EPI_ISL_1020297|2020-09-18    0.22%    passed     99.99%
+   4  EPI_ISL_402125|2019-12-26     0.00%    passed     98.77%
+   5  EPI_ISL_406798|2019-12-26     0.12%    passed     99.25%
+   6  EPI_ISL_539348|2020-08-21     0.23%    passed     99.99%
+   7  EPI_ISL_539361|2020-08-22     0.23%    passed    100.00%
+   8  EPI_ISL_539436|2020-08-25     0.24%    passed    100.00%
+   9  EPI_ISL_539441|2020-08-25     0.22%    passed    100.00%
+  10  EPI_ISL_539442|2020-08-25     0.69%    passed     99.85%
+  11  EPI_ISL_541433|2020-09-03     0.23%    passed    100.00%
+  12  EPI_ISL_541443|2020-08-31     0.23%    passed    100.00%
+  13  EPI_ISL_541444|2020-08-31     0.23%    passed     99.99%
+  14  EPI_ISL_541464|2020-08-28     0.23%    passed    100.00%
+  15  EPI_ISL_541477|2020-09-03     0.24%    passed    100.00%
+  16  EPI_ISL_541483|2020-09-03     0.24%    passed    100.00%
+  17  EPI_ISL_541484|2020-09-03     0.23%    passed    100.00%
+  18  EPI_ISL_541487|2020-09-03     0.23%    passed    100.00%
+  19  EPI_ISL_560436|2020-09-07     0.23%    passed    100.00%
+  20  EPI_ISL_560437|2020-09-08     0.25%    passed     99.96%
+  21  EPI_ISL_560442|2020-09-09     0.23%    passed    100.00%
+  22  EPI_ISL_560515|2020-09-08     0.24%    passed    100.00%
+  23  EPI_ISL_560516|2020-09-08     0.23%    passed    100.00%
+  24  EPI_ISL_560535|2020-09-09     0.23%    passed    100.00%
+  25  EPI_ISL_560543|2020-09-07     0.23%    passed    100.00%
+  26  EPI_ISL_566464|2020-09-10     1.54%    passed    100.00%
+  27  EPI_ISL_569050|2020-08-05     0.67%    passed     99.99%
+  28  EPI_ISL_569130|2020-08-19     1.63%    passed     99.06%
+  29  EPI_ISL_569191|2020-08-13     0.67%    passed     99.97%
+  30  EPI_ISL_569195|2020-08-14     0.87%    passed     99.95%
+  31  EPI_ISL_569238|2020-09-11     0.67%    passed    100.00%
+  32  EPI_ISL_573837|2020-09-09     0.00%    passed     99.21%
+  33  EPI_ISL_581989|2020-08-27     3.49%    passed     99.47%
+  34  EPI_ISL_584925|2020-09-29     2.68%    passed     99.92%
+  35  EPI_ISL_590173|2020-09-04     0.40%    passed     99.99%
+  36  EPI_ISL_594628|2020-09-23     0.05%    passed     99.79%
+  37  EPI_ISL_603313|2020-10-01     0.23%    passed    100.00%
+  38  EPI_ISL_603324|2020-10-01     0.24%    passed    100.00%
+  39  EPI_ISL_603330|2020-09-25     0.23%    passed     99.99%
+  40  EPI_ISL_603335|2020-09-25     0.24%    passed    100.00%
+  41  EPI_ISL_603337|2020-09-25     0.24%    passed    100.00%
+  42  EPI_ISL_603339|2020-09-25     0.24%    passed     99.99%
+  43  EPI_ISL_603346|2020-09-25     0.23%    passed    100.00%
+  44  EPI_ISL_603350|2020-09-25     0.21%    passed    100.00%
+  45  EPI_ISL_603351|2020-09-25     0.23%    passed    100.00%
+  46  EPI_ISL_603380|2020-09-29     0.21%    passed     99.99%
+  47  EPI_ISL_603383|2020-09-29     0.23%    passed     99.99%
+  48  EPI_ISL_603417|2020-09-30     0.23%    passed    100.00%
+  49  EPI_ISL_613551|2020-09-02     0.40%    passed    100.00%
+  50  EPI_ISL_615476|2020-08-31     3.35%    passed     97.50%
+  51  EPI_ISL_619953|2020-09-28     9.37%    passed     95.88%
+  52  EPI_ISL_620972|2020-09-28     3.45%    passed     99.50%
+  53  EPI_ISL_621291|2020-09-21     3.24%    passed     97.64%
+  54  EPI_ISL_621754|2020-09-14     3.45%    passed     99.62%
+  55  EPI_ISL_621821|2020-09-21     0.40%    passed    100.00%
+  56  EPI_ISL_622184|2020-09-21     9.13%    passed     99.90%
+  57  EPI_ISL_639980|2020-09-22     0.11%    passed     99.97%
+  58  EPI_ISL_644436|2020-09-16     0.67%    passed    100.00%
+  59  EPI_ISL_644439|2020-09-18     0.78%    passed     99.99%
+  60  EPI_ISL_644509|2020-09-25     1.50%    passed     99.55%
+  61  EPI_ISL_644512|2020-09-25     0.80%    passed     99.98%
+  62  EPI_ISL_644522|2020-09-28     0.69%    passed     99.99%
+  63  EPI_ISL_671942|2020-09-08     0.22%    passed    100.00%
+  64  EPI_ISL_683381|2020-08-26     0.15%    passed     99.39%
+  65  EPI_ISL_683391|2020-09-05     0.22%    passed     99.99%
+  66  EPI_ISL_683393|2020-09-04     0.07%    passed     99.37%
+  67  EPI_ISL_693502|2020-09-21     0.18%    passed     99.63%
+  68  EPI_ISL_739947|2020-09-16     7.95%    passed     90.65%
+  69  EPI_ISL_740028|2020-08-03     0.55%    passed     99.98%
+  70  EPI_ISL_744139|2020-09-18     9.06%    passed     94.03%
+  71  EPI_ISL_753743|2020-09-25     2.25%    passed     99.96%
+  72  EPI_ISL_830739|2020-09-25     1.20%    passed     99.97%
+  73  EPI_ISL_830765|2020-09-28     2.02%    passed     99.75%
+  74  EPI_ISL_830808|2020-09-16     1.76%    passed     99.89%
+  75  EPI_ISL_830813|2020-09-20     1.63%    passed     99.80%
+  76  EPI_ISL_830814|2020-09-24     0.96%    passed     99.97%
+  77  EPI_ISL_830819|2020-09-29     0.96%    passed     99.97%
+  78  EPI_ISL_830825|2020-10-01     0.38%    passed     99.96%
+  79  EPI_ISL_830986|2020-09-06     1.64%    passed     99.85%
+  80  EPI_ISL_830989|2020-09-23     0.30%    passed     99.99%
+  81  EPI_ISL_842651|2020-09-25     4.06%    passed     99.89%
+  82  EPI_ISL_853906|2020-08-22     0.40%    passed    100.00%
+  83  EPI_ISL_896150|2020-09-23     3.18%    passed     97.96%
+  84  EPI_ISL_900176|2020-09-23     6.59%    passed     98.65%
+  85  EPI_ISL_900177|2020-09-23     6.80%    passed     82.47%
+  86  EPI_ISL_900188|2020-09-25     7.63%    passed     89.61%
+  87  EPI_ISL_940189|2020-10-01     1.01%    passed    100.00%
+  88  EPI_ISL_940199|2020-09-04     0.17%    passed     99.96%
+  89  EPI_ISL_940201|2020-09-05     0.10%    passed     99.99%
+  90  EPI_ISL_940204|2020-09-07     1.55%    passed     99.89%
+****  TOTAL                         1.35%  0 sequences failed composition chi2 test (p-value<5%; df=3)
+Reading input tree file workdir/tmp/iqtree/B.1.160.treefile ...
+
+NOTE: 8 MB RAM (0 GB) is required!
+Estimate model parameters (epsilon = 0.010)
+1. Initial log-likelihood: -43073.362
+2. Current log-likelihood: -43021.640
+3. Current log-likelihood: -43021.515
+Optimal log-likelihood: -43021.510
+Rate parameters:  A-C: 1.00000  A-G: 3.55120  A-T: 1.00000  C-G: 1.00000  C-T: 3.55120  G-T: 1.00000
+Base frequencies:  A: 0.299  C: 0.184  G: 0.196  T: 0.322
+Gamma shape alpha: 0.020
+Parameters optimization took 3 rounds (0.327 sec)
+BEST SCORE FOUND : -43021.510
+Total tree length: 0.008
+
+Total number of iterations: 0
+CPU time used for tree search: 0.000 sec (0h:0m:0s)
+Wall-clock time used for tree search: 0.000 sec (0h:0m:0s)
+Total CPU time used: 0.315 sec (0h:0m:0s)
+Total wall-clock time used: 0.374 sec (0h:0m:0s)
+
+Analysis results written to: 
+  IQ-TREE report:                workdir/tmp/lsd/B.1.160.iqtree
+  Maximum-likelihood tree:       workdir/tmp/lsd/B.1.160.treefile
+  Screen log file:               workdir/tmp/lsd/B.1.160.log
+
+--- Start phylogenetic dating ---
+Extracting date from node names...
+90 dates extracted
+Building time tree by least-square dating (LSD) with command:
+lsd -i workdir/tmp/lsd/B.1.160.timetree.subst -s 29903 -o workdir/tmp/lsd/B.1.160.timetree -f 100 -q 0.4 -e 3 -g workdir/tmp/lsd/B.1.160.timetree.outgroup -d workdir/tmp/lsd/B.1.160.timetree.date -a b(2019.872,2019.98) -u 0 -t 0.0008 
+Reroot the tree 1 using given outgroups ...
+
+TREE 1
+*PROCESSING:
+Reading the tree ... 
+Collapse 61 (over 89) internal branches having branch length <= 1.67e-05
+ (settable via option -l)
+Parameter to adjust variances was set to 0.000334 (settable via option -b)
+Calculating the outlier nodes with Zscore threshold 3 (setable via option -e)...
+Minimum branch length of time scaled tree was set to 0 (settable
+ via option -u and -U)
+Estimating the root position on the branch defined by given outgroups ...
+Computing confidence intervals using sequence length 29903 and a lognormal
+ relaxed clock with mean 1, standard deviation 0.4 (settable via option -q)
+*WARNINGS:
+- 68.5393% internal branches were collapsed.
+*RESULTS:
+- The input dates associated with the following 3 nodes are considered as
+ outliers, so the nodes were removed from the analysis:
+ EPI_ISL_644522|2020-09-28 EPI_ISL_744139|2020-09-18 EPI_ISL_739947|2020-09-16
+- Dating results:
+ rate 0.000810752, tMRCA 2019-12-06
+- Results with confidence intervals:
+ rate 0.000810752 [0.0008; 0.00124356], tMRCA 2019-12-06 [2019-11-14; 2019-12-26]
+
+TOTAL ELAPSED TIME: 0.0182 seconds
+LSD results written to:
+  LSD report:                  workdir/tmp/lsd/B.1.160.timetree.lsd
+  Time tree in nexus format:   workdir/tmp/lsd/B.1.160.timetree.nex
+  Time tree in newick format:  workdir/tmp/lsd/B.1.160.timetree.nwk
+
+--- End phylogenetic dating ---
+Date and Time: Wed Mar  3 21:29:27 2021
