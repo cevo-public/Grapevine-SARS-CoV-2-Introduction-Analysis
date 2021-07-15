@@ -180,11 +180,11 @@ get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query, focal
     mutate(is_focal = country == focal_country) %>%
     group_by(pangolin_lineage, is_focal) %>%
     summarize(n_seqs = n()) %>%
-    collect() 
-  
-  print("Querying database for pangolin alias lookup table.")
+    collect()
+
   alias_table <- dplyr::tbl(db_connection, "pangolin_lineage_alias") %>% collect()
-  
+  print("Querying database for pangolin alias lookup table.")
+
   print("Translating lineage aliases to full names.")
   pangolin_lineages <- pangolin_lineages %>% 
     mutate(orig_pangolin_lineage = pangolin_lineage,
@@ -203,7 +203,7 @@ get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query, focal
       should_aggregate = is_focal_TRUE > is_focal_FALSE,
       parent_lineage = get_parent_lineage(pangolin_lineage),
       n_lineages_aggregated = 1,
-      lineages_aggregated = pangolin_lineage)
+      lineages_aggregated = paste0(c(pangolin_lineage, orig_pangolin_lineage), collapse = ", "))
 
   while(any(!is.na(pangolin_lineages_aggregated$parent_lineage) & 
             pangolin_lineages_aggregated$should_aggregate)) {
