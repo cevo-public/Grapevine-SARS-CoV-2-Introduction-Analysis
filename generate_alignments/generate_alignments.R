@@ -5,6 +5,7 @@ suppressMessages(suppressWarnings(require(dplyr)))
 suppressMessages(suppressWarnings(require(ggplot2)))
 suppressMessages(suppressWarnings(require(argparse)))
 suppressMessages(suppressWarnings(require(yaml)))
+suppressMessages(suppressWarnings(require(stringr)))
 
 # config <- "/Users/nadeaus/Repos/grapevine/example_workdir/input/grapevine_config.yaml"
 # outdir <- "~/Downloads"
@@ -59,19 +60,6 @@ qcd_gisaid_query <- dplyr::tbl(db_connection, "gisaid_api_sequence") %>%
     nextclade_qc_snp_clusters_status == 'good',
     nextclade_qc_private_mutations_status == 'good',
     nextclade_qc_overall_status != 'bad')
-
-# alias_table <- dplyr::tbl(db_connection, "pangolin_lineage_alias") %>% collect()
-# qcd_gisaid_query_lineages <- qcd_gisaid_query %>%
-#   select(gisaid_epi_isl, pangolin_lineage) %>%
-#   collect() %>%
-#   mutate(pangolin_lineage_new = unlist(lapply(
-#     X = pangolin_lineage,
-#     FUN = expand_pangolin_lineage_aliases,
-#     alias_table = alias_table
-#   )))
-#
-# qcd_gisaid_query_2 <- qcd_gisaid_query %>%
-#   left_join(qcd_gisaid_query_lineages, by = "gisaid_epi_isl", copy = T)
 
 if (which_trees != '\\.*') {
   qcd_gisaid_query <- qcd_gisaid_query %>%

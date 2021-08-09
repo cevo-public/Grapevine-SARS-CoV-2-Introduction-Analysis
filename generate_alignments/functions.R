@@ -179,19 +179,28 @@ get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query, focal
   pangolin_lineages <- qcd_gisaid_query %>%
     mutate(is_focal = country == focal_country) %>%
     group_by(pangolin_lineage, is_focal) %>%
-    summarize(n_seqs = n()) %>%
+    summarize(n_seqs = n(), .groups = "drop") %>%
     collect()
 
-  alias_table <- dplyr::tbl(db_connection, "pangolin_lineage_alias") %>% collect()
   print("Querying database for pangolin alias lookup table.")
+  alias_table <- dplyr::tbl(db_connection, "pangolin_lineage_alias") %>% collect()
 
-  print("Translating lineage aliases to full names.")
+  print("Grouping by expanded pangolin lineage names, in case any are aliased.")
+  pangolin_lineages <- pangolin_lineages %>%
+    mutate(pangolin_lineage = unlist(lapply(
+      FUN = expand_pangolin_lineage_aliases,
+      X = pangolin_lineage,
+      alias_table = alias_table))) %>%
+    group_by(pangolin_lineage, is_focal) %>%
+    summarize(n_seqs = sum(n_seqs), .groups = "drop")
+
+  print("Storing alias information for previously aliased lineages.")
   pangolin_lineages <- pangolin_lineages %>% 
-    mutate(orig_pangolin_lineage = pangolin_lineage,
-           pangolin_lineage = unlist(lapply(
-             FUN = expand_pangolin_lineage_aliases,
-             X = pangolin_lineage,
-             alias_table = alias_table)))
+    mutate(
+      lineage_alias = unlist(lapply(
+        FUN = get_pangolin_lineage_aliases,
+        X = pangolin_lineage,
+        alias_table = alias_table)))
   
   print("Aggregating predominantly focal lineages into parent lineage.")
   pangolin_lineages_aggregated <- pangolin_lineages %>%
@@ -201,9 +210,13 @@ get_pangolin_lineages <- function(db_connection, outdir, qcd_gisaid_query, focal
     filter(is_focal_TRUE > 0) %>%
     mutate(
       should_aggregate = is_focal_TRUE > is_focal_FALSE,
-      parent_lineage = get_parent_lineage(pangolin_lineage),
+      parent_lineage = unlist(lapply(
+        FUN = get_parent_lineage,
+        X = pangolin_lineage)),
       n_lineages_aggregated = 1,
-      lineages_aggregated = paste0(c(pangolin_lineage, orig_pangolin_lineage), collapse = ", "))
+      lineages_aggregated = case_when(
+        is.na(lineage_alias) ~ pangolin_lineage,
+        T ~ paste(pangolin_lineage, lineage_alias, sep = ", ")))
 
   while(any(!is.na(pangolin_lineages_aggregated$parent_lineage) & 
             pangolin_lineages_aggregated$should_aggregate)) {
@@ -228,6 +241,34 @@ expand_pangolin_lineage_aliases <- function(pangolin_lineage, alias_table) {
     new_prefix <- prefix  # not an alias, return same lineage
   }
   return(paste0(new_prefix, suffix))                   
+}
+
+#' @return Contraction of pangolin lineage into an alias, if any alias exists
+#' E.g. given pangolin_lineage 'B.1.177.15.1', return 'AA.1' because 'B.1.177.15' = 'AA'
+get_pangolin_lineage_aliases <- function(pangolin_lineage, alias_table, verbose = F) {
+  suffix <- ""
+  while (!is.na(pangolin_lineage)) {
+    if (verbose) print(paste("Trying prefix", pangolin_lineage, "with suffix", suffix))
+    if (pangolin_lineage %in% alias_table$full_name) {
+      new_prefix <- unlist(unname(alias_table[alias_table$full_name == pangolin_lineage, "alias"]))
+      if (suffix != "") {
+        alias <- paste(new_prefix, suffix, sep = ".")
+      } else {
+        alias <- new_prefix
+      }
+      return(alias)
+    }
+    suffix_addition <- sub("^(.*)\\.", replacement = "", pangolin_lineage)
+    if (suffix != "") {
+      suffix <- paste(suffix_addition, suffix, sep = ".")
+    } else {
+      suffix <- suffix_addition
+    }
+    pangolin_lineage <- tryCatch(
+    {get_parent_lineage(pangolin_lineage)},
+    warning = function(cond) {return(NA)})  # catch warning that there's no more valid parent lineage silently
+  }
+  return(NA)
 }
 
 #' @param pangolin_lineage Lineage name, assumes alias are already expanded.
