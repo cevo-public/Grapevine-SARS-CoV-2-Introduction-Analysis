@@ -15,7 +15,7 @@ open_database_connection <- function (
     host = connection_data$host,
     port = connection_data$port,
     user = connection_data$username,
-    password = connection_data$dbpassword,
+    password = connection_data$password,
     dbname = connection_data$dbname
   )
   return(db_connection)
