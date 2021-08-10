@@ -1,11 +1,6 @@
-# Grapevine: CH Sequence Analysis Pipeline
+# Grapevine: SARS-CoV-2 Sequence Analysis Pipeline
 
-TODOs
-* Tree rooting currently done based on one of the outgroup sequences, think about whether this makes sense even when the lineage is this sequence's lineage
-* The code only filters out uncertain dates in travel context set; for other seqs LSD handles incomplete dates by e.g. assigning the 15th for an unknown day and a known month
-* The confirmed case data in the database isn't updated by the script, and the travel data is updated every single time the script is run - instead check the age of the tables and decide whether they need to be updated
-* Currently the unmasked alignment is used - re-implement site masking according to De Maio et al.
-* Finish implementing manually defined lineage splits (see branch reduce-large-lineages)
+This pipeline performs a phylogenetic analysis that sub-samples and quality filters available GISAID data, classifies data into introductions/transmission chains, generates figures and introduction-annotated alignments, and (Swiss data only, not extensively used/supported) estimates ancestral locations.
 
 ## Usage
 
@@ -18,10 +13,12 @@ workdir
 ├── input
 │   ├─01- reference.fasta
 │   ├─02- config.yml
+│   ├─03- grapevine_config.yml
 ```
 
 - The file (01) is the reference genome which can be downloaded from https://www.ncbi.nlm.nih.gov/nuccore/MN908947
 - The file (02) is a configuration file giving database connection info. See template in `example_workdir/input/config.yml`
+- The file (03) is a configuration file giving phylogenetic analysis specifications. See template in `example_workdir/input/grapevine_config.yml`
 
 
 ### Required Programs
@@ -29,25 +26,23 @@ workdir
 The pipeline is run in a docker (or singularity) container so all required programs (R, python3, IQ-TREE) are installed. However, access to the sars_cov_2 database (sars_cov_2@id-hdb-psgr-cp61.ethz.ch) is required.
 
 A list of R packages used are listed in `install-packages.R`.
-A list of python packates used are listed in `database/python/requirements.txt`.
+A list of python packages used are listed in `database/python/requirements.txt`.
 
 
 ### Settings
 
-All the settings are at the top of `main.sh`.
+All the settings are in grapevine_config.yml.
 
 
 ### Output Structure
 
 ```
 workdir
-├── input
-│   ├─01- reference.fasta
 ├── tmp
 ├── output
 ```
 
-The script will write into two folders: one for **temporary** files and one for the final **output** files. The script will not make any change to the **input** directory.
+The script will write into two folders: tmp for intermediate files like alignments, trees, and introductions and one for the final output files like alignments for phylodynamic analysis and figures. The script will not make any change to the input directory.
 
 
 ### Run
@@ -77,25 +72,25 @@ singularity build --docker-login grapevine.sif docker://registry.ethz.ch/sars_co
 Finally, run:
 
 ```
-bsub -N -n 8 -R "rusage[mem=2048]" -W 12:00 -B "singularity run --bind /scratch:/scratch --bind /cluster/scratch/nadeaus/grapevine/workdir:/app/workdir grapevine.sif"
+bsub -N -n 8 -R "rusage[mem=4096]" -W 12:00 -o $WORKDIR/${WORKDIR}_%J.log -B "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR}:/app/workdir ${CONTAINER_NAME}.sif"
 ```
 
 ### Pipeline structure
 ```
 main.sh
 ├── generate_alignments/generate_alignments.R
-│   ├─31- alignments/$PREFIX.fasta
-│   ├─32- alignments/$PREFIX_metadata.csv
-├──35- tmp/iqtree/
-├──38- tmp/lsd/
-├── analyze_tree/pick_swiss_clusters.R 
-│   ├─39- tmp/clusters/$PREFIX_chains.txt
+│   ├─01- alignments/$PREFIX.fasta
+│   ├─02- alignments/$PREFIX_metadata.csv
+├──03- tmp/iqtree/
+├──04- tmp/lsd/
+├── analyze_tree/pick_transmission_chains.R 
+│   ├─05- tmp/chains/$PREFIX_chains.txt
 ├── analyze_tree/analyze_tree/reconstruct_ancestral_locations_weighted_parsimony.R
-|   ├─40- tmp/asr/$PREFIX_tree_data_with_asr.txt
+|   ├─06- tmp/asr/$PREFIX_tree_data_with_asr.txt
 ```
 
-- (31 - 32) are the alignment and metadata files for tree-building.
-- (35) are the result of tree-building based on (31).
-- (38) are the results of rooting and least-squares dating based on (35) hardcoded outgroup.
-- (39) are transmission chains picked from the tree under the assumptions specified in $PREFIX.
-- (40) is the tree data specified by $PREFIX with transmission chains defined as specified in PREFIX with ancestral states reconstructed at internal nodes according to parsimony scores.
+- (01 - 02) are the alignment and metadata files for tree-building.
+- (03) are the result of tree-building based on (01).
+- (04) are the results of rooting and least-squares dating based on (03) with the specified outgroup.
+- (05) are transmission chains picked from the tree under the assumptions specified in $PREFIX.
+- (06) is the tree data specified by $PREFIX with transmission chains defined as specified in PREFIX with ancestral states reconstructed at internal nodes according to parsimony scores.
