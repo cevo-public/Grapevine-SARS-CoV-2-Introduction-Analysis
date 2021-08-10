@@ -34,6 +34,10 @@ bsub -I -W 0:20 -o singularity_build_%J.log "singularity build --docker-login ${
 
 # Make sure workdir/input is set up correctly and that workdir/tmp and workdir/output don't exist:
 mkdir -p $WORKDIR/input
+
+# From local machine:
+DATE=`date +"%Y-%m-%d"`
+WORKDIR=${DATE}_for_manuscript_rep_1
 scp workdir/input/* nadeaus@euler.ethz.ch:/cluster/scratch/nadeaus/grapevine/$WORKDIR/input  # MAKE SURE HAS RIGHT SETTINGS!!
 
 
