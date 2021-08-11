@@ -37,17 +37,18 @@ suppressMessages(suppressWarnings(require(ggplot2)))
 suppressMessages(suppressWarnings(require(ggtree)))
 suppressMessages(suppressWarnings(require(argparse)))
 suppressMessages(suppressWarnings(require(magrittr)))
+suppressMessages(suppressWarnings(require(readr)))
 
-# tree_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/lsd/B.1.timetree.nex"
-# metadata_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/alignments/B.1_metadata.tsv"
-# chains_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/validation/jan-dec_-005_max_sampling_-25_travel_-5_sim_context-sf_111_travel-wt/tmp/chains/B.1_m_3_p_1_s_F_chains.txt"
-# s <- F
+# tree_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/2021-08-10_for_manuscript_rep_1/tmp/lsd/B.1.1.70.timetree.nex"
+# metadata_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/2021-08-10_for_manuscript_rep_1/tmp/alignments/B.1.1.70_metadata.tsv"
+# chains_file <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/2021-08-10_for_manuscript_rep_1/tmp/chains/B.1.1.70_m_3_p_1_s_F_chains.txt"
 # outdir <- "~/Downloads"
+# prefix <- "test_"
 # verbose <- T
 # plot_tree <- T
+# focal_country <- "CHE"
 # write_scores <- F
-# prefix <- paste("test_s_", s, sep = "")
-# 
+
 parser <- argparse::ArgumentParser()
 parser$add_argument("--tree", type="character")
 parser$add_argument("--metadata", type="character")
@@ -78,7 +79,7 @@ system(command = paste("mkdir -p", outdir))
 # Load data
 tree <- treeio::read.beast(file = tree_file)
 tree_data <- tidytree::as_tibble(tree)
-metadata <- read.table(file = metadata_file, stringsAsFactors = F, sep = "\t", header = T)
+metadata <- readr::read_delim(file = metadata_file, delim = "\t", escape_backslash=TRUE, escape_double = FALSE, col_types = cols())
 chains <- read.delim(file = chains_file, stringsAsFactors = F)
 
 # Make sure all tips present in metadata
@@ -100,7 +101,7 @@ focal_node_set <- unlist(tree_data %>%
 print(paste(tree_file, "has", length(focal_node_set), "focal sequences"))
 
 # Initialize tree data with ancestral state information and cluster status
-tree_data$asr_loc <- tree_data$iso_country
+tree_data$asr_loc <- tree_data$country
 tree_data[tree_data$node %in% chains$ch_mrca, "asr_loc"] <- focal_country
 
 # Delete internal zero-length branches as they screw up parsimony ASR
@@ -285,7 +286,7 @@ get_asr_scores <- function(node, n_tips, loc_to_idx_mapping, verbose) {
 
 # Make treedata structure with locations, scores, and pointers to update during DP algorithm
 n_tips <- length(tree_ids)
-candidate_asr_locs <- c(unique(metadata$iso_country), "dummy_loc")  # include dummy location to keep track of the max. # changes required from any node
+candidate_asr_locs <- c(unique(metadata$country), "dummy_loc")  # include dummy location to keep track of the max. # changes required from any node
 loc_to_idx_mapping <- 1:length(candidate_asr_locs)
 names(loc_to_idx_mapping) <- candidate_asr_locs
 

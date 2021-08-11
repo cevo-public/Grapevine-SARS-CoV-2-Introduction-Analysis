@@ -21,6 +21,7 @@ suppressMessages(suppressWarnings(require(ggplot2)))
 suppressMessages(suppressWarnings(require(ggtree)))
 suppressMessages(suppressWarnings(require(dplyr)))
 suppressMessages(suppressWarnings(require(purrr)))
+suppressMessages(suppressWarnings(require(readr)))
 
 # tree <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_all/2021-07-08_nzl/tmp/lsd/A.2.timetree.nex"
 # metadata <- "~/Downloads/metadata_quote.tsv"
@@ -47,7 +48,7 @@ parser$add_argument("--dontplot", action = "store_true")
 args <- parser$parse_args()
 
 tree <- args$tree
-metadata <- args$metadata
+metadata_file <- args$metadata
 outdir <- args$outdir
 m <- args$maxtotalsubclades
 p <- args$maxconsecutivesubclades
@@ -63,7 +64,7 @@ source("analyze_tree/functions.R")
 
 # Load data
 tree <- read.beast(file = tree)
-metadata <- read.table(file = metadata, stringsAsFactors = F, sep = "\t", header = T)
+metadata <- readr::read_delim(file = metadata_file, delim = "\t", escape_backslash=TRUE, escape_double = FALSE, col_types = cols())
 tree_data <- as_tibble(tree)
 tree_data <- merge(
   x = tree_data, y = metadata %>% select(-c(date)),
