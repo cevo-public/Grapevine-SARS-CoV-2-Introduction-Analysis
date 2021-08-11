@@ -1,3 +1,5 @@
+require(readr)
+
 #' Get a color assignment for countries so that colors are standardized across
 #' plots. Assigns a color to all countries from database table gisaid_api_sequence.
 #' Inspired by stack overflow: https://stackoverflow.com/questions/15282580/how-to-generate-a-number-of-most-distinctive-colors-in-r
@@ -151,12 +153,62 @@ load_chain_asr_data <- function(
   for (i in 1:length(prefixes)) {
     prefix <- prefixes[i]
     chains_file <- paste(workdir, "tmp", chains_dirname, chains_files[i], sep = "/")
-    chains <- read.delim(file = chains_file, stringsAsFactors = F)
+    chains <- tryCatch(
+      {
+        readr::read_delim(file = chains_file, delim = "\t", escape_backslash=TRUE, escape_double = FALSE, col_types = cols(
+          size = col_double(),
+          foreign_tmrca = col_character(),
+          foreign_tmrca_CI = col_character(),
+          foreign_mrca = col_double(),
+          tmrca = col_character(),
+          tmrca_CI = col_character(),
+          mrca = col_double(),
+          tips = col_character(),
+          tip_nodes = col_character(),
+          n_foreign_subclades = col_double(),
+          n_basal_foreign_clades = col_double()
+        ))
+      },
+      error = function(cond) {
+        print(paste("Couln't load file:", chains_file))
+        stop(paste("Original error was:", cond))
+      }
+    )
     
     if (!chains_only) {
       asr_filename <- paste(prefix, l_suffix, "_tree_data_with_asr.txt", sep = "")
       asr_file <- paste(workdir, "tmp/asr", asr_filename, sep = "/")
-      asr <- read.table(file = asr_file, stringsAsFactors = F, sep = "\t", header = T, quote = "\"")
+      asr <- tryCatch(
+        {
+          readr::read_delim(file = asr_file, delim = "\t", escape_backslash=TRUE, escape_double = FALSE, col_types = cols(
+            node = col_double(),
+            label = col_character(),
+            parent = col_double(),
+            branch.length = col_double(),
+            CI_date = col_character(),
+            CI_height = col_character(),
+            date = col_date(format = ""),
+            gisaid_epi_isl = col_character(),
+            strain = col_character(),
+            region_original = col_character(),
+            country	= col_character(),
+            division = col_character(),
+            pangolin_lineage = col_character(),
+            originating_lab = col_character(),
+            submitting_lab = col_character(),
+            authors = col_character(),
+            tree_pangolin_lineage = col_character(),
+            travel_context = col_logical(),
+            similarity_context = col_logical(),
+            focal_sequence = col_logical(),
+            is_visited = col_logical(),
+            .default = col_double()))
+        },
+        error = function(cond) {
+          print(paste("Couln't load file:", asr_file))
+          stop(paste("Original error was:", cond))
+        }
+      )
       chains_with_asr <- merge(
         x = chains, y = asr %>% select(node, ends_with("_loc_weight")),
         all.x = T, by.x = "foreign_mrca", by.y = "node") %>%
