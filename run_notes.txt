@@ -50,40 +50,47 @@ WORKDIR_SUPP=${DATE}_for_supplement
 # Run main analysis
 cd $SCRATCH/grapevine
 module load eth_proxy
-bsub -N -n 8 -R "rusage[mem=4096]" -W 12:00 -o $WORKDIR/${WORKDIR}_%J.log -B "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR}:/app/workdir ${CONTAINER_NAME}.sif"
+# bsub -N -n 8 -R "rusage[mem=4096]" -W 12:00 -o $WORKDIR/${WORKDIR}_%J.log -B "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR}:/app/workdir ${CONTAINER_NAME}.sif"
+bsub -N -W 6:00 -o $WORKDIR/${WORKDIR}_%J.log "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR}:/app/workdir ${CONTAINER_NAME}.sif"
+rm $WORKDIR/tmp/chains/*.png
 
-# Define base workdir
-mkdir -p ${WORKDIR_SUPP}/input
-cp $WORKDIR/input/grapevine_config.yaml ${WORKDIR_SUPP}/input
-cp $WORKDIR/input/reference.fasta ${WORKDIR_SUPP}/input
-cp $WORKDIR/input/config.yml ${WORKDIR_SUPP}/input
+# # Define base workdir
+# mkdir -p ${WORKDIR_SUPP}/input
+# cp $WORKDIR/input/grapevine_config.yaml ${WORKDIR_SUPP}/input
+# cp $WORKDIR/input/reference.fasta ${WORKDIR_SUPP}/input
+# cp $WORKDIR/input/config.yml ${WORKDIR_SUPP}/input
 
-# Set up supplement workdirs
-for j in 1 2 3; do
-for i in 1 2 3; do
-WORKDIR_REP=${WORKDIR_SUPP}_sim_${j}_rep_${i}
-mkdir -p ${WORKDIR_REP}/input
-cp ${WORKDIR_SUPP}/input/grapevine_config.yaml ${WORKDIR_REP}/input
-sed -i "s/similarity_context_scale_factor:\ [0-9]/similarity_context_scale_factor:\ ${j}/g" ${WORKDIR_REP}/input/grapevine_config.yaml
-cp ${WORKDIR_SUPP}/input/reference.fasta ${WORKDIR_REP}/input
-cp ${WORKDIR_SUPP}/input/config.yml ${WORKDIR_REP}/input
-done
-done
-
-# Remove base workdir
-rm -r ${WORKDIR_SUPP}
+# # Set up supplement workdirs
+# for j in 1 2 3; do
+# for i in 1 2 3; do
+# WORKDIR_REP=${WORKDIR_SUPP}_sim_${j}_rep_${i}
+# mkdir -p ${WORKDIR_REP}/input
+# cp ${WORKDIR_SUPP}/input/grapevine_config.yaml ${WORKDIR_REP}/input
+# sed -i "s/similarity_context_scale_factor:\ [0-9]/similarity_context_scale_factor:\ ${j}/g" ${WORKDIR_REP}/input/grapevine_config.yaml
+# cp ${WORKDIR_SUPP}/input/reference.fasta ${WORKDIR_REP}/input
+# cp ${WORKDIR_SUPP}/input/config.yml ${WORKDIR_REP}/input
+# done
+# done
+#
+# # Remove base workdir
+# rm -r ${WORKDIR_SUPP}
 
 # Start an Euler run for each supplemental analysis
-for j in 1 2 3; do
+for j in 1 2; do
 for i in 1 2 3; do
 WORKDIR_REP=${WORKDIR_SUPP}_sim_${j}_rep_${i}
-if [ "$j" = "3" ]; then TIME="24:00"; else TIME="14:00"; fi
+if [ "$j" = "3" ]; then TIME="24:00"; else TIME="8:00"; fi
 bsub \
--N -B \
--n 8 \
--R "rusage[mem=4096]" \
+-N \
 -W $TIME \
 -o $WORKDIR_REP/${WORKDIR_REP}_%J.log \
 "singularity run --bind /cluster/scratch/nadeaus/grapevine/${WORKDIR_REP}:/app/workdir ${CONTAINER_NAME}.sif"
+done
+done
+
+for j in 1 2 3; do
+for i in 1 2 3; do
+WORKDIR_REP=${WORKDIR_SUPP}_sim_${j}_rep_${i}
+rm $WORKDIR_REP/tmp/chains/*.png
 done
 done

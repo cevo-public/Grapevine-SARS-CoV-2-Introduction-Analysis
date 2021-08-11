@@ -269,14 +269,14 @@ pivot_chains_to_samples <- function(
 
 #' Load metadata from each alignment, concatenate
 load_sample_metadata <- function(workdir, pattern = "*_metadata.tsv") {
+  suppressMessages(suppressWarnings(require(readr)))
   metadata_path <- paste(workdir, "tmp/alignments", sep = "/")
   metadata_files <- list.files(path = metadata_path, pattern = pattern, full.names = T)
   metadata <-
     metadata_files %>% 
-    purrr::map_df(~read.delim(
-      ., 
-      quote = "\"")) %>%
-      mutate(date = as.Date(date))
+    purrr::map_df(~read_delim(
+      .,
+      delim = "\t", escape_backslash=TRUE, escape_double = FALSE, col_types = cols()))
   print(paste("Loaded and concatenated", length(metadata_files), "metadata files."))
   
   # Remove duplicate entries for outgroup
