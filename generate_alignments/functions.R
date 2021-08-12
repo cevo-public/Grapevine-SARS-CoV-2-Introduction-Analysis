@@ -133,9 +133,10 @@ downsample_focal_sequences <- function (
     report_downsampling(sampling_data, outdir, max_sampling_frac, focal_country)
   }
   
-  # update master seq query to exclude non-sampled swiss strains
+  # update master seq query to exclude non-sampled focal strains
   qcd_gisaid_query <- qcd_gisaid_query %>%
-    filter(country != 'CHE' | strain %in% !! sampled_strains)
+    filter(country != !! focal_country | strain %in% !! sampled_strains)
+
   return(qcd_gisaid_query)
 }
 
