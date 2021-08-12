@@ -36,17 +36,17 @@ for p in ${requiredFiles[@]} ; do
     fi
 done
 
-# Ensure that no files will be overwritten
-#foldersThatShouldBeEmpty=(
-#    "${OUTPUT_DIR}"
-#    "${TMP_DIR}"
-#)
-#for p in ${foldersThatShouldBeEmpty[@]} ; do
-#    if [ -d $p ] && [ "$(ls -A ${p})" ] ; then
-#        echo "Directory already contains files: ${p}"
-#        exit 1
-#    fi
-#done
+ Ensure that no files will be overwritten
+foldersThatShouldBeEmpty=(
+    "${OUTPUT_DIR}"
+    "${TMP_DIR}"
+)
+for p in ${foldersThatShouldBeEmpty[@]} ; do
+    if [ -d $p ] && [ "$(ls -A ${p})" ] ; then
+        echo "Directory already contains files: ${p}"
+        exit 1
+    fi
+done
 
 # ------------------------------------------------------
 # Basic preparations
@@ -70,61 +70,61 @@ mkdir -p $TMP_CHAINS
 TMP_ASR=$TMP_DIR/asr
 mkdir -p $TMP_ASR
 
-## ------------------------------------------------------
-#echo "--- Generate one alignment per pangolin lineage ---"
-#
-#Rscript generate_alignments/generate_alignments.R \
-#    --config $CONFIG \
-#    --outdir $TMP_ALIGNMENTS \
-#    --pythonpath $PYTHON \
-#    --reference $REFERENCE
-#
-## ------------------------------------------------------
-#echo "--- Build ML trees using same default settings as Nextstrain augur ---"
-#
-#for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
-#    PREFIX="$(basename "${FASTA_FILE}" | sed 's/.fasta//g')"
-#    $IQTREE \
-#        -s $FASTA_FILE \
-#        -m HKY+F+G4 \
-#        -pre $TMP_IQTREE/$PREFIX \
-#        -ninit 10 \
-#        -n 4
-#done
-## ninit = number initial trees (1 parsimony, 1 BIONJ) which are then optimized with NNI moves
-## n = number of iterations until stop
-## me = log-likelihood epsilon
-#
-## ------------------------------------------------------
-#echo "--- Date rooted trees with LSD implemented in IQTREE: root defined by outgroup EPI_ISL_406798|2019-12-26 ---"
-#
-## Keep identical sequences for LSD because otherwise IQ-TREE throws them out and then complains it can't find all the outgroup seqs
-#for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
-#    DATADIR="$(dirname "${FASTA_FILE}")"
-#    PREFIX="$(basename "${FASTA_FILE}" | sed 's/.fasta//g')"
-#    TREEFILE=$TMP_IQTREE/${PREFIX}.treefile
-#    OUTGROUP="EPI_ISL_406798|2019-12-26"
-#    $IQTREE \
-#        -s $FASTA_FILE \
-#        -te $TREEFILE \
-#        -m HKY+F+G4 \
-#        -keep-ident \
-#        -o $OUTGROUP \
-#        -ntmax 4 \
-#        --date TAXNAME \
-#        --date-ci 100 \
-#        --date-outlier 3 \
-#        --clock-sd 0.4 \
-#        --date-options "-a b(2019.872,2019.98) -u 0 -t 0.0008" \
-#        -pre $TMP_LSD/$PREFIX
-#        # by default, -l is 0.5/seq_length and gives the threshold over which branches are forced to be greater than the minimum branch length
-#        # so by default, only branches longer than 0.5 substitutions must be greater than 0 length
-#done
-## date-ci = number of replicates to compute confidence interval
-## date-outlier = # z-score cutoff to exclude outlier nodes
-## clock-sd = std-dev for lognormal relaxed clock (for uncertainty estimation)
-## -a gives root date contstraints, -u gives minimum branch length, -t gives lower bound for mutation rate
-## -D specifies output date format should be year-month-day
+# ------------------------------------------------------
+echo "--- Generate one alignment per pangolin lineage ---"
+
+Rscript generate_alignments/generate_alignments.R \
+    --config $CONFIG \
+    --outdir $TMP_ALIGNMENTS \
+    --pythonpath $PYTHON \
+    --reference $REFERENCE
+
+# ------------------------------------------------------
+echo "--- Build ML trees using same default settings as Nextstrain augur ---"
+
+for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
+    PREFIX="$(basename "${FASTA_FILE}" | sed 's/.fasta//g')"
+    $IQTREE \
+        -s $FASTA_FILE \
+        -m HKY+F+G4 \
+        -pre $TMP_IQTREE/$PREFIX \
+        -ninit 10 \
+        -n 4
+done
+# ninit = number initial trees (1 parsimony, 1 BIONJ) which are then optimized with NNI moves
+# n = number of iterations until stop
+# me = log-likelihood epsilon
+
+# ------------------------------------------------------
+echo "--- Date rooted trees with LSD implemented in IQTREE: root defined by outgroup EPI_ISL_406798|2019-12-26 ---"
+
+# Keep identical sequences for LSD because otherwise IQ-TREE throws them out and then complains it can't find all the outgroup seqs
+for FASTA_FILE in $TMP_ALIGNMENTS/*.fasta; do
+    DATADIR="$(dirname "${FASTA_FILE}")"
+    PREFIX="$(basename "${FASTA_FILE}" | sed 's/.fasta//g')"
+    TREEFILE=$TMP_IQTREE/${PREFIX}.treefile
+    OUTGROUP="EPI_ISL_406798|2019-12-26"
+    $IQTREE \
+        -s $FASTA_FILE \
+        -te $TREEFILE \
+        -m HKY+F+G4 \
+        -keep-ident \
+        -o $OUTGROUP \
+        -ntmax 4 \
+        --date TAXNAME \
+        --date-ci 100 \
+        --date-outlier 3 \
+        --clock-sd 0.4 \
+        --date-options "-a b(2019.872,2019.98) -u 0 -t 0.0008" \
+        -pre $TMP_LSD/$PREFIX
+        # by default, -l is 0.5/seq_length and gives the threshold over which branches are forced to be greater than the minimum branch length
+        # so by default, only branches longer than 0.5 substitutions must be greater than 0 length
+done
+# date-ci = number of replicates to compute confidence interval
+# date-outlier = # z-score cutoff to exclude outlier nodes
+# clock-sd = std-dev for lognormal relaxed clock (for uncertainty estimation)
+# -a gives root date contstraints, -u gives minimum branch length, -t gives lower bound for mutation rate
+# -D specifies output date format should be year-month-day
 
 # ------------------------------------------------------
 echo "--- Pick focal transmission chains off the tree ---"
