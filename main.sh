@@ -36,7 +36,7 @@ for p in ${requiredFiles[@]} ; do
     fi
 done
 
- Ensure that no files will be overwritten
+# Ensure that no files will be overwritten
 foldersThatShouldBeEmpty=(
     "${OUTPUT_DIR}"
     "${TMP_DIR}"
