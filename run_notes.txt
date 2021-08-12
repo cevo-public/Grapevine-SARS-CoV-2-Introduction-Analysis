@@ -8,7 +8,6 @@ docker build -t grapevine .
 
 # To run a container locally:
 docker run --volume=/Users/nadeaus/Repos/grapevine/workdir:/app/workdir grapevine
-docker run --volume=/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_main:/app/workdir grapevine
 
 
 ###### BUILD CONTAINER & SETUP RUN ######
