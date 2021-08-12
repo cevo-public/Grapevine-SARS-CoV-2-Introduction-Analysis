@@ -8,7 +8,10 @@ suppressMessages(suppressWarnings(require(argparse)))
 
 # max_date <- "2020-12-31"
 # workdir <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_main"
+# max_sampling_frac <- 0.05
+# dates_to_highlight <- NULL
 # min_chain_size <- 1
+# focal_country <- "CHE"
 
 parser <- argparse::ArgumentParser()
 parser$add_argument("--maxdate", type="character")

@@ -94,3 +94,8 @@ main.sh
 - (04) are the results of rooting and least-squares dating based on (03) with the specified outgroup.
 - (05) are transmission chains picked from the tree under the assumptions specified in $PREFIX.
 - (06) is the tree data specified by $PREFIX with transmission chains defined as specified in PREFIX with ancestral states reconstructed at internal nodes according to parsimony scores.
+
+### Notes
+
+- If sampling by canton is enabled, but some case counts are only attributed at the country level, samples are taken at random from the pool of not-yet sampled sequences irregardless of canton.
+- The column "n_leftover_seqs" in the output {country}\_downsampling\_data.csv is only calculated for sampling at the country level, and for countries other than Switzerland where sampling by canton is not enabled, should equal the column "n_seqs_total". 
