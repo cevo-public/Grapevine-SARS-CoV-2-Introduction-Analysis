@@ -522,10 +522,8 @@ plot_chains <- function(
     scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
     axis_labs
 
-  pdf(NULL)
-  ggsave(transmission_chain_plot, 
-         file = paste(outdir, "transmission_chains.png", sep = "/"), 
-         height = plot_height_in)
+  png(paste(outdir, "transmission_chains.png", sep = "/"), height = plot_height_in, units = "in")
+  print(transmission_chain_plot)
   dev.off()
   
   # + geom_scatterpie(
@@ -1042,13 +1040,11 @@ plot_sampling_intensity <- function(
     freq_plot + shared_scale_fill + shared_theme,
     nrow = 2, common.legend = T, legend = "right")
 
-  pdf(NULL)
-  ggsave(
-    file = paste(outdir, "sampling_intensity.png", sep = "/"), 
-    plot = sampling_intensity_plot)
-  ggsave(
-    file = paste(outdir, "weekly_samples_vs_cases.png", sep = "/"),
-    plot = weekly_samples_vs_cases)
+  png(paste(outdir, "sampling_intensity.png", sep = "/"))
+  print(sampling_intensity_plot)
+  dev.off()
+  png(paste(outdir, "weekly_samples_vs_cases.png", sep = "/"))
+  print(weekly_samples_vs_cases)
   dev.off()
     
   return(plot_data)
@@ -1115,10 +1111,8 @@ plot_introductions_and_extinctions <- function(
     theme_bw() + 
     labs(x = element_blank(), y = "Weekly number of events")
 
-  pdf(NULL)
-  ggsave(
-    file = paste(outdir, "introductions_and_extinctions.png", sep = "/"), 
-    plot = introductions_and_extinctions_plot)
+  png(paste(outdir, "introductions_and_extinctions.png", sep = "/"))
+  print(introductions_and_extinctions_plot)
   dev.off()
   return(introductions_and_extinctions_plot)
 }
