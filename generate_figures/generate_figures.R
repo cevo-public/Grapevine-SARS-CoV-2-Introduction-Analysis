@@ -6,8 +6,8 @@ suppressMessages(suppressWarnings(require(ggplot2)))
 suppressMessages(suppressWarnings(require(ggtree)))
 suppressMessages(suppressWarnings(require(argparse)))
 
-# max_date <- "2020-12-31"
-# workdir <- "/Users/nadeaus/Repos/cov-swiss-phylogenetics/results_main"
+# max_date <- "2020-12-01"
+# workdir <- "/Users/nadeaus/Repos/grapevine/workdir"
 # max_sampling_frac <- 0.05
 # dates_to_highlight <- NULL
 # min_chain_size <- 1

@@ -417,15 +417,17 @@ plot_chains <- function(
   samples_info <- samples_info %>%
     left_join(y = chain_info) %>%  # attach chain_order_within_foreign_mrca info to samples
     mutate(date = as.Date(date))  # format date information for samples
-  
+
   chain_info <- chain_info %>%
     tidyr::separate(
       foreign_tmrca_CI, 
       into = c("foreign_tmrca_CI_min", "foreign_tmrca_CI_max"),
       sep = ", ") %>%
     mutate(
-      foreign_tmrca_CI_min = gsub(x = foreign_tmrca_CI_min, pattern = "c\\(", replacement = ""),
-      foreign_tmrca_CI_max = gsub(x = foreign_tmrca_CI_max, pattern = "\\)", replacement = ""),
+      foreign_tmrca_CI_min = gsub(x = foreign_tmrca_CI_min, pattern = "c\\(\"", replacement = ""),
+      foreign_tmrca_CI_min = gsub(x = foreign_tmrca_CI_min, pattern = "\"$", replacement = ""),
+      foreign_tmrca_CI_max = gsub(x = foreign_tmrca_CI_max, pattern = "\"\\)", replacement = ""),
+      foreign_tmrca_CI_max = gsub(x = foreign_tmrca_CI_max, pattern = "^\"", replacement = ""),
       foreign_tmrca_CI_min = as.Date(foreign_tmrca_CI_min),
       foreign_tmrca_CI_max = as.Date(foreign_tmrca_CI_max)) %>%
     tidyr::separate(
@@ -433,8 +435,10 @@ plot_chains <- function(
       into = c("tmrca_CI_min", "tmrca_CI_max"),
       sep = ", ") %>%
     mutate(
-      tmrca_CI_min = gsub(x = tmrca_CI_min, pattern = "c\\(", replacement = ""),
-      tmrca_CI_max = gsub(x = tmrca_CI_max, pattern = "\\)", replacement = ""),
+      tmrca_CI_min = gsub(x = tmrca_CI_min, pattern = "c\\(\"", replacement = ""),
+      tmrca_CI_min = gsub(x = tmrca_CI_min, pattern = "\"$", replacement = ""),
+      tmrca_CI_max = gsub(x = tmrca_CI_max, pattern = "\"\\)", replacement = ""),
+      tmrca_CI_max = gsub(x = tmrca_CI_max, pattern = "^\"", replacement = ""),
       tmrca_CI_min = as.Date(tmrca_CI_min),
       tmrca_CI_max = as.Date(tmrca_CI_max),
       first_sample_in_chain = as.Date(first_sample_in_chain),
@@ -522,7 +526,7 @@ plot_chains <- function(
     scale_x_date(date_breaks = "month", date_labels = "%b %y") + 
     axis_labs
 
-  png(paste(outdir, "transmission_chains.png", sep = "/"), height = plot_height_in, units = "in")
+  png(paste(outdir, "transmission_chains.png", sep = "/"))
   print(transmission_chain_plot)
   dev.off()
   
@@ -958,6 +962,7 @@ plot_sampling_intensity <- function(
   db_connection, workdir, outdir, max_date, max_sampling_frac, 
   dates_to_highlight = NULL, focal_country
 ) {
+  require(ggpubr)
   sample_metadata <- load_sample_metadata(workdir = workdir)
   samples_query <- dplyr::tbl(db_connection, "gisaid_api_sequence") %>%
     filter(gisaid_epi_isl %in% !! sample_metadata$gisaid_epi_isl)
@@ -976,18 +981,33 @@ plot_sampling_intensity <- function(
     x = plot_data$case_type, 
     levels = c("unseq_conf_cases", "seqs_other", "seqs_viollier"))
   
-  shared_theme <- theme_bw()
+  shared_theme <- tryCatch(
+  { theme_bw()
+  }, error = function(cond) {
+      print(paste("Error in shared_theme:", cond))
+      stop()
+  })
   
-  freq_plot <- ggplot(
+  freq_plot <- tryCatch(
+  { ggplot(
     data = plot_data, 
     aes(x = week, y = n_cases, fill = case_type)) + 
     geom_col(position = position_fill()) +
     labs(x = element_blank(), y = "Weekly percentage of cases")
-  abs_plot <- ggplot(
+  }, error = function(cond) {
+      print(paste("Error in ggplot freq_plot:", cond))
+      stop()
+  })
+  abs_plot <- tryCatch(
+  { ggplot(
     data = plot_data, 
     aes(x = week, y = n_cases, fill = case_type)) + 
     geom_col(position = position_stack()) +
     labs(x = element_blank(), y = "Weekly number of cases")
+  }, error = function(cond) {
+      print(paste("Error in ggplot abs_plot:", cond))
+      stop()
+  })
 
   add_vlines <- function(plot, dates_to_highlight) {
     if (is.null(dates_to_highlight)) {
@@ -1001,7 +1021,8 @@ plot_sampling_intensity <- function(
     }
   }
   
-  weekly_samples_vs_cases <- ggplot(
+  weekly_samples_vs_cases <- tryCatch(
+  { ggplot(
     data = weekly_case_and_seq_data, 
     aes(x = as.Date(week), y = n_seqs_total / n_conf_cases)) + 
     geom_col() + 
@@ -1024,29 +1045,47 @@ plot_sampling_intensity <- function(
     scale_color_manual(values = c("inside_color" = "white", "outside_color" = "black")) + 
     shared_theme + 
     theme(legend.position = "none", axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-  
-  weekly_samples_vs_cases <- weekly_samples_vs_cases %>% 
-    add_vlines(dates_to_highlight = dates_to_highlight)
+  }, error = function(cond) {
+      print(paste("Error in ggplot weekly_case_and_seq_data:", cond))
+      stop()
+  })
 
-  shared_scale_fill <- scale_fill_manual(
+  weekly_samples_vs_cases <- tryCatch(
+  { weekly_samples_vs_cases %>%
+    add_vlines(dates_to_highlight = dates_to_highlight)
+  }, error = function(cond) {
+      print(paste("Error in add_vlines:", cond))
+      stop()
+  })
+
+  shared_scale_fill <- tryCatch(
+  { scale_fill_manual(
       values = RColorBrewer::brewer.pal(n = 3, name = "Dark2"),
       labels = c("seqs_viollier" = "Sequenced, from Viollier", 
                  "seqs_other" = "Sequenced, from another lab",
                  "unseq_conf_cases" = "Unsequenced confirmed case"),
       name = element_blank())
-  
-  sampling_intensity_plot <- ggpubr::ggarrange(
-    abs_plot + shared_scale_fill + shared_theme,
-    freq_plot + shared_scale_fill + shared_theme,
-    nrow = 2, common.legend = T, legend = "right")
+  }, error = function(cond) {
+      print(paste("Error in scale_fill_manual:", cond))
+      stop()
+  })
 
-  png(paste(outdir, "sampling_intensity.png", sep = "/"))
-  print(sampling_intensity_plot)
+  tryCatch(
+  {
+  png(paste(outdir, "sampling_intensity_abs.png", sep = "/"))
+  print(abs_plot + shared_scale_fill + shared_theme)
+  dev.off()
+  png(paste(outdir, "sampling_intensity_freq.png", sep = "/"))
+  print(freq_plot + shared_scale_fill + shared_theme)
   dev.off()
   png(paste(outdir, "weekly_samples_vs_cases.png", sep = "/"))
   print(weekly_samples_vs_cases)
   dev.off()
-    
+  }, error = function(cond) {
+      print(paste("Error in png:", cond))
+      stop()
+  })
+
   return(plot_data)
 }
 
