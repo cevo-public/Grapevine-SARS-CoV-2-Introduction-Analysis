@@ -370,6 +370,10 @@ query_weekly_case_and_seq_data <- function(
       group_by(week, canton) %>%
       summarise(n_conf_cases = sum(positive_tests, na.rm = T), .groups = "drop")
   } else {
+    sequence_data_query <- sequence_data_query %>%
+      group_by(is_viollier, week) %>%
+      summarize(n_seqs = sum(n_seqs), .groups = "drop") %>%
+      mutate(canton = NA)
     case_data_query <- dplyr::tbl(db_connection, "ext_owid_global_cases") %>%
       filter(iso_country == focal_country) %>%
       mutate(week = as.Date(date_trunc('week', date))) %>%
@@ -392,11 +396,13 @@ query_weekly_case_and_seq_data <- function(
       values_fill = list(n_seqs = 0))
 
   # Lump sequences with division not mapping to a canton (e.g. 'Basle') into NA canton for that week
-  weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
-    select(-division) %>%
-    group_by(week, canton) %>%
-    summarise_all(sum)
-  
+  if (focal_country == "CHE") {
+    weekly_case_and_seq_data <- weekly_case_and_seq_data %>%
+      select(-division) %>%
+      group_by(week, canton) %>%
+      summarise_all(sum)
+  }
+
   return(weekly_case_and_seq_data)
 }
 
