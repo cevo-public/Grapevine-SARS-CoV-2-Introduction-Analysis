@@ -187,7 +187,7 @@ load_chain_asr_data <- function(
             branch.length = col_double(),
             CI_date = col_character(),
             CI_height = col_character(),
-            date = col_date(format = ""),
+            date = col_character(),
             gisaid_epi_isl = col_character(),
             strain = col_character(),
             region_original = col_character(),
