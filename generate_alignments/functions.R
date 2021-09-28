@@ -641,7 +641,8 @@ get_similarity_strains <- function(
       priorities_script = priorities_script,
       python_path = python_path, 
       reference = reference, 
-      verbose = verbose)
+      verbose = verbose,
+      config_filepath = "workdir/input/config.yml")
     
     n_similarity_seqs <- ceiling(length(focal_strains) * similarity_context_scale_factor)
     similarity_strains_i <- priorities %>%
