@@ -1,6 +1,8 @@
 # Grapevine: SARS-CoV-2 Sequence Analysis Pipeline
 
-This pipeline performs a phylogenetic analysis that sub-samples and quality filters available GISAID data, classifies data into introductions/transmission chains, generates figures and introduction-annotated alignments, and (Swiss data only, not extensively used/supported) estimates ancestral locations.
+This pipeline performs a phylogenetic analysis that sub-samples and quality filters available SARS-CoV-2 whole-genome sequences from GISAID, classifies data into introductions/transmission chains, generates figures and introduction-annotated alignments, and (Swiss data only, not very robust) estimates ancestral locations.
+
+The code relies on our cEvo-internal database "Vineyard", which contains GISAID sequences and other public data like global case counts. It is also designed to be run using Singularity containers in the ETH "Euler" high-performance computing environment.
 
 ## Usage
 
