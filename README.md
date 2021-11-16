@@ -23,7 +23,7 @@ workdir
 
 ### Required Programs
 
-The pipeline is run in a docker (or singularity) container so all required programs (R, python3, IQ-TREE) are installed. However, access to the sars_cov_2 database (sars_cov_2@***REMOVED***) is required.
+The pipeline is run in a docker (or singularity) container so all required programs (R, python3, IQ-TREE) are installed. However, access to the sars_cov_2 database "Vineyard" is required.
 
 A list of R packages used are listed in `install-packages.R`.
 A list of python packages used are listed in `database/python/requirements.txt`.
